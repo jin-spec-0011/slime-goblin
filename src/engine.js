@@ -225,7 +225,10 @@ function makeGoblin(s, type) {
   };
 }
 
-const occupied = (s, idx) => s.goblins.some(g => !g.dead && g.idx === idx);
+// 지표면(걷는 고블린)과 구덩이(빠진 고블린)를 따로 점유한다.
+// 구덩이는 칸마다 1마리만 빠지고, 뒤따르는 고블린은 그 위를 지나 다음 칸으로 진행한다.
+const surfaceOcc = (s, idx) => s.goblins.some(g => !g.dead && !g.pit && g.idx === idx);
+const pitOcc = (s, idx, self = null) => s.goblins.some(g => !g.dead && g.pit && g.idx === idx && g !== self);
 
 function startRound(s) {
   s.phase = 'run'; s.spawnList = buildSpawn(s.round);
@@ -300,10 +303,10 @@ function moveGoblin(s, g) {
   while (steps-- > 0) {
     const ni = g.idx + 1;
     if (ni >= PATH.length) { leak(s, g); return; }
-    if (occupied(s, ni)) break;
+    if (surfaceOcc(s, ni)) break;
     g.idx = ni;
     const [x, y] = PATH[ni];
-    if (trapAt(s, x, y)) {
+    if (trapAt(s, x, y) && !pitOcc(s, ni, g)) {
       if (g.evade > 0) { g.evade--; continue; }
       g.pit = true; s.fx.push({ k: 'fall', idx: ni }); break;
     }
@@ -389,9 +392,10 @@ export function step(s) {
   }
   computeCounts(s);
   // 스폰
-  if (s.spawnList.length && !occupied(s, 0)) {
-    const g = makeGoblin(s, s.spawnList.shift()); s.goblins.push(g);
-    if (trapAt(s, PATH[0][0], PATH[0][1])) g.pit = true;
+  if (s.spawnList.length && !surfaceOcc(s, 0)) {
+    const g = makeGoblin(s, s.spawnList.shift());
+    if (trapAt(s, PATH[0][0], PATH[0][1]) && !pitOcc(s, 0)) g.pit = true;
+    s.goblins.push(g);
   }
   // 지속 피해
   for (const g of s.goblins) {

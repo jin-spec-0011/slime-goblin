@@ -1,8 +1,8 @@
 // 앱 셸 캐시. 파일 변경 시 VERSION을 올리면 구버전 캐시가 삭제된다.
-const VERSION = 'esd-v0.3.0';
+const VERSION = 'esd-v0.3.1';
 const ASSETS = [
   './', './index.html', './manifest.json',
-  './src/style.css', './src/main.js', './src/engine.js', './src/data.js',
+  './src/style.css', './src/main.js', './src/engine.js', './src/data.js', './src/sprites.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
 ];
 self.addEventListener('install', e => {

@@ -1,5 +1,6 @@
 // UI · 렌더링 · 입력 (Canvas 2D)
 import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS } from './data.js';
+import { slimeSprite, goblinSprite, drawSprite } from './sprites.js';
 import {
   createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
   getCell, columnSlimes, megaAt, slimeCount, PATH, lvMult,
@@ -40,7 +41,7 @@ function resize() {
   const over = document.documentElement.scrollHeight - window.innerHeight;
   if (over > 0) {
     const h0 = pathCv.clientHeight + pitCv.clientHeight;
-    const f = Math.max(320, h0 - over) / h0;
+    const f = Math.max(Math.min(h0, 520), h0 - over) / h0; // 도트가 뭉개지지 않도록 최소 높이 보장
     fitCanvas(pathCv, PATH_ASPECT * f); fitCanvas(pitCv, PIT_ASPECT * f);
   }
 }
@@ -53,16 +54,15 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
+// 도트 슬라임: 셀 크기에 맞는 최대 정수배로 그림
 function drawBlob(ctx, cx, cy, r, sl) {
-  const grad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
-  grad.addColorStop(0, sl.color); grad.addColorStop(1, sl.color2 || sl.color);
-  ctx.fillStyle = grad; ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(cx - r, cy + r * 0.55);
-  ctx.bezierCurveTo(cx - r, cy - r * 0.9, cx + r, cy - r * 0.9, cx + r, cy + r * 0.55);
-  ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  ctx.beginPath(); ctx.ellipse(cx - r * 0.4, cy - r * 0.2, r * 0.18, r * 0.1, -0.5, 0, Math.PI * 2); ctx.fill();
+  return drawSprite(ctx, slimeSprite(sl.color, sl.color2), cx, cy + r * 0.75, r * 2.3, r * 1.9);
+}
+
+function pixelText(ctx, text, x, y, size, fill, align = 'center') {
+  ctx.font = `bold ${size}px "Courier New", monospace`; ctx.textAlign = align;
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(16,21,31,.85)'; ctx.lineJoin = 'round';
+  ctx.strokeText(text, x, y); ctx.fillStyle = fill; ctx.fillText(text, x, y);
 }
 
 function hpBar(ctx, x, y, w, ratio, col) {
@@ -85,10 +85,10 @@ function drawPath() {
       pctx.fillStyle = col[k].color;
       pctx.beginPath(); pctx.arc(x * cw + 9 + k * 9, y * ch + ch - 9, 3.5, 0, Math.PI * 2); pctx.fill();
     }
-    pctx.fillStyle = 'rgba(255,255,255,.35)'; pctx.font = '10px sans-serif'; pctx.textAlign = 'right';
-    pctx.fillText(`${x + 1},${y + 1}`, x * cw + cw - 5, y * ch + 13);
-    if (i === 0) { pctx.fillStyle = '#9fe08a'; pctx.textAlign = 'left'; pctx.fillText('입구', x * cw + 5, y * ch + 13); }
-    if (i === PATH.length - 1) { pctx.fillStyle = '#ff8a8a'; pctx.textAlign = 'left'; pctx.fillText('거점', x * cw + 5, y * ch + 13); }
+    pctx.fillStyle = 'rgba(255,255,255,.3)'; pctx.font = '9px sans-serif'; pctx.textAlign = 'right';
+    pctx.fillText(`${x + 1},${y + 1}`, x * cw + cw - 5, y * ch + ch - 5);
+    if (i === 0) { pctx.fillStyle = '#9fe08a'; pctx.textAlign = 'right'; pctx.fillText('입구', x * cw + cw - 5, y * ch + 12); }
+    if (i === PATH.length - 1) { pctx.fillStyle = '#ff8a8a'; pctx.textAlign = 'right'; pctx.fillText('거점', x * cw + cw - 5, y * ch + 12); }
   });
   // ㄹ자 경로선
   pctx.strokeStyle = 'rgba(255,211,77,.35)'; pctx.lineWidth = 3; pctx.setLineDash([5, 5]);
@@ -100,19 +100,35 @@ function drawPath() {
     pctx.strokeStyle = '#ffd34d'; pctx.lineWidth = 2; pctx.setLineDash([6, 4]);
     pctx.strokeRect(m.zx * cw + 1, m.zy * ch + 1, cw * 3 - 2, ch * 3 - 2); pctx.setLineDash([]);
   }
-  // 고블린
-  for (const gb of g.goblins) {
-    const [x, y] = PATH[gb.idx];
-    const cx = x * cw + cw / 2, cy = y * ch + ch / 2 - 2, r = Math.min(cw, ch) * 0.3;
-    pctx.fillStyle = gb.color; pctx.beginPath(); pctx.arc(cx, cy, r, 0, Math.PI * 2); pctx.fill();
-    pctx.lineWidth = gb.pit ? 3 : 1.5; pctx.strokeStyle = gb.pit ? '#ff4040' : '#1b2130'; pctx.stroke();
-    pctx.fillStyle = '#10151f'; pctx.font = `bold ${Math.round(r)}px sans-serif`; pctx.textAlign = 'center'; pctx.textBaseline = 'middle';
-    pctx.fillText(gb.ch, cx, cy + 1); pctx.textBaseline = 'alphabetic';
-    hpBar(pctx, cx - r, cy + r + 3, r * 2, gb.hp / gb.maxhp, '#ff5a5a');
-    let k = 0;
-    for (const [n, e] of Object.entries(gb.st)) if (e.t > 0) {
-      pctx.fillStyle = STATUS[n].color; pctx.beginPath(); pctx.arc(cx + r + 3, cy - r + k * 7, 3, 0, Math.PI * 2); pctx.fill(); k++;
-    }
+  // 고블린 (도트). 같은 칸에 구덩이 고블린과 지나가는 고블린이 겹치면 좌/우로 나눠 그림
+  const byIdx = new Map();
+  for (const gb of g.goblins) { if (!byIdx.has(gb.idx)) byIdx.set(gb.idx, []); byIdx.get(gb.idx).push(gb); }
+  for (const [idx, list] of byIdx) {
+    const [x, y] = PATH[idx];
+    list.forEach((gb, i) => {
+      const off = list.length > 1 ? (gb.pit ? -0.2 : 0.2) * cw + (i > 1 ? 4 : 0) : 0;
+      const cx = x * cw + cw / 2 + off, size = Math.min(cw * (list.length > 1 ? 0.55 : 0.7), ch * 0.78);
+      const bottom = y * ch + ch - 8;
+      const spr = goblinSprite(gb.color); let rc;
+      if (gb.pit) {
+        // 구덩이: 어두운 구멍 + 하반신이 가려진 고블린
+        pctx.fillStyle = '#120d0a';
+        pctx.beginPath(); pctx.ellipse(cx, bottom - size * 0.28, size * 0.48, size * 0.16, 0, 0, Math.PI * 2); pctx.fill();
+        pctx.save(); pctx.beginPath(); pctx.rect(cx - size, bottom - size * 1.4, size * 2, size * 1.12); pctx.clip();
+        rc = drawSprite(pctx, spr, cx, bottom + size * 0.1, size, size);
+        pctx.restore();
+        pctx.strokeStyle = '#ff4040'; pctx.lineWidth = 2;
+        pctx.beginPath(); pctx.ellipse(cx, bottom - size * 0.28, size * 0.48, size * 0.16, 0, 0, Math.PI * 2); pctx.stroke();
+      } else {
+        rc = drawSprite(pctx, spr, cx, bottom - 2, size, size);
+      }
+      pixelText(pctx, gb.ch, cx, Math.max(y * ch + 10, rc.y - 1), 10, '#ffffff');
+      hpBar(pctx, cx - size * 0.45, bottom + 1, size * 0.9, gb.hp / gb.maxhp, '#ff5a5a');
+      let k = 0;
+      for (const [n, e] of Object.entries(gb.st)) if (e.t > 0) {
+        pctx.fillStyle = STATUS[n].color; pctx.fillRect(Math.round(cx + size * 0.38), Math.round(y * ch + 6 + k * 6), 5, 5); k++;
+      }
+    });
   }
   drawFloats(pctx, cw, ch);
 }
@@ -125,7 +141,7 @@ function drawFloats(ctx, cw, ch) {
     const [x, y] = PATH[Math.min(f.idx, PATH.length - 1)];
     const a = (now - f.t0) / 900;
     ctx.globalAlpha = 1 - a;
-    ctx.fillStyle = f.col; ctx.fillText(f.text, x * cw + cw / 2 + f.dx, y * ch + ch / 2 - 14 - a * 16);
+    ctx.fillStyle = f.col; ctx.fillText(f.text, x * cw + cw / 2 + f.dx, y * ch + ch * 0.55 - a * 16);
   }
   ctx.globalAlpha = 1;
 }
@@ -146,10 +162,8 @@ function drawPit() {
     if (isSel || inCombo) { kctx.strokeStyle = inCombo ? '#6be08a' : '#ffd34d'; kctx.lineWidth = 3; roundRect(kctx, X + 3, Y + 3, cw - 6, ch - 6, 6); kctx.stroke(); }
     if (!sl) continue;
     const r = Math.min(cw, ch) * 0.34;
-    drawBlob(kctx, X + cw / 2, Y + ch / 2 + 4, r, sl);
-    kctx.fillStyle = '#10151f'; kctx.textAlign = 'center';
-    kctx.font = `bold ${Math.round(r * (sl.label.length > 3 ? 0.5 : 0.75))}px sans-serif`;
-    kctx.fillText(sl.label, X + cw / 2, Y + ch / 2 + 9);
+    const rc = drawBlob(kctx, X + cw / 2, Y + ch / 2 + 4, r, sl);
+    pixelText(kctx, sl.label, X + cw / 2, rc.y + rc.h * 0.72, Math.round(r * (sl.label.length > 3 ? 0.5 : 0.7)), '#ffffff');
     kctx.font = 'bold 11px sans-serif'; kctx.textAlign = 'left';
     kctx.fillStyle = sl.lv >= 5 ? '#ffb347' : sl.kind === 'compound' ? '#ffd34d' : sl.kind === 'mixture' ? '#c9b6ff' : '#e6ecf7';
     kctx.fillText(`Lv${sl.lv}${sl.kind === 'compound' ? '★' : sl.kind === 'mixture' ? '◇' : ''}`, X + 6, Y + 15);
@@ -159,6 +173,9 @@ function drawPit() {
   for (const m of g.megas) {
     kctx.strokeStyle = '#ffd34d'; kctx.lineWidth = 2; kctx.setLineDash([6, 4]);
     kctx.strokeRect(m.zx * cw + 1, m.zy * ch + 1, cw * 3 - 2, ch * 3 - 2); kctx.setLineDash([]);
+    kctx.globalAlpha = z === 0 ? 0.55 : 0.25;
+    drawSprite(kctx, slimeSprite(m.color), (m.zx + 1.5) * cw, (m.zy + 3) * ch - 6, cw * 2.8, ch * 2.6);
+    kctx.globalAlpha = 1;
     if (z === 0) {
       kctx.fillStyle = 'rgba(255,211,77,.9)'; kctx.font = 'bold 12px sans-serif'; kctx.textAlign = 'center';
       kctx.fillText(`${m.name} ${Math.max(0, Math.round(m.hp))}/${m.maxhp}`, (m.zx + 1.5) * cw, m.zy * ch + 14);

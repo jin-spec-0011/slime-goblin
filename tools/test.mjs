@@ -37,6 +37,14 @@ for (let i = 0; i < 4; i++) step(s);
 const g = s.goblins.find(v => v.idx === 3);
 t('슬라임 칸에서 구덩이 빠짐', g && g.pit);
 t('일반 고블린은 슬라임 공격 안 함', fe.hp === hp0);
+// 1칸씩 빠지기: 1번 칸 구덩이에 1마리가 빠져 있으면 뒤 고블린은 지나쳐 진행
+s = createGame(7); s.queue = [];
+put(s, 'Fe', PATH[0][0], PATH[0][1], 0); getCell(s, PATH[0][0], PATH[0][1], 0).lv = 5;
+s.prepLeft = 1; step(s); step(s); step(s); step(s);
+const inPit = s.goblins.filter(v => v.pit && v.idx === 0).length;
+const passed = s.goblins.filter(v => !v.pit && v.idx > 0).length;
+t('구덩이에는 1마리만', inPit === 1);
+t('뒤 고블린은 다음 칸으로 진행', passed >= 1);
 // 빈 맵 → 전원 통과 → 거점 피해
 s = createGame(5); s.queue = []; s.prepLeft = 1;
 let n = 0; while (s.phase !== 'prep' || n < 2) { step(s); n++; if (n > 200) break; s.queue = []; }

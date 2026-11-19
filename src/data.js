@@ -13,7 +13,7 @@ export const CFG = {
   START_SLIMES: 6,
   ROUND_BONUS_SLIMES: 3,
   CATALYST_START: 2,
-  HP_GROWTH: 1.37,              // 라운드별 고블린 HP 성장
+  HP_GROWTH: 1.4,              // 라운드별 고블린 HP 성장
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
