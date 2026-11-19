@@ -147,3 +147,48 @@ export function drawSprite(ctx, spr, cx, bottom, maxW, maxH) {
   ctx.drawImage(spr, x, y, w, h);
   return { x, y, w, h };
 }
+
+// ---------- 참고 이미지에서 잘라낸 스프라이트 (assets/*.png) ----------
+// 로드 전이거나 실패하면 위의 도트 격자 스프라이트로 대체한다.
+const IMG = {};
+export const ASSET_NAMES = [
+  'goblin', 'goblin_frozen', 'slime_mega', 'slime_mix', 'slime_H2O', 'slime_NH3',
+  'slime_O', 'slime_H', 'slime_C', 'slime_N', 'slime_He', 'slime_Fe', 'slime_Na', 'slime_Cl', 'slime_S', 'slime_U',
+];
+export function loadAssets(base = 'assets/') {
+  return Promise.all(ASSET_NAMES.map(n => new Promise(res => {
+    const im = new Image();
+    im.onload = () => { IMG[n] = im; res(true); };
+    im.onerror = () => { console.warn('스프라이트 로드 실패', n); res(false); };
+    im.src = `${base}${n}.png`;
+  })));
+}
+
+function fit(ctx, img, cx, bottom, maxW, maxH) {
+  const k = Math.min(maxW / img.width, maxH / img.height);
+  const w = img.width * k, h = img.height * k, x = Math.round(cx - w / 2), y = Math.round(bottom - h);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, x, y, w, h);
+  return { x, y, w, h };
+}
+
+// 반환: { rect, label } — label이 있으면 호출측이 이름표를 덧그린다(이미지에 글자가 없는 경우)
+export function drawSlimeArt(ctx, sl, cx, bottom, maxW, maxH) {
+  let img = null, label = null;
+  if (sl.kind === 'mega') { img = IMG.slime_mega; label = sl.label; }
+  else if (sl.kind === 'element') img = IMG['slime_' + sl.key];
+  else if (sl.kind === 'mixture') { img = IMG.slime_mix; label = sl.label; }
+  else if (IMG['slime_' + sl.key]) img = IMG['slime_' + sl.key];
+  else { img = IMG['slime_' + sl.els[0]]; label = sl.label; }
+  if (!img) {
+    const rect = drawSprite(ctx, slimeSprite(sl.color, sl.color2), cx, bottom, maxW, maxH * 0.85);
+    return { rect, label: sl.label };
+  }
+  return { rect: fit(ctx, img, cx, bottom, maxW, maxH), label };
+}
+
+export function drawGoblinArt(ctx, type, frozen, cx, bottom, size) {
+  const img = frozen ? IMG.goblin_frozen : IMG.goblin;
+  if (!img) return drawSprite(ctx, goblinSprite(type, frozen), cx, bottom, size, size);
+  return fit(ctx, img, cx, bottom, size, size);
+}

@@ -1,6 +1,6 @@
 // UI · 렌더링 · 입력 (Canvas 2D)
 import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS } from './data.js';
-import { slimeSprite, goblinSprite, drawSprite } from './sprites.js';
+import { drawSlimeArt, drawGoblinArt, loadAssets } from './sprites.js';
 import {
   createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
   getCell, columnSlimes, megaAt, slimeCount, PATH, lvMult,
@@ -55,10 +55,6 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 // 도트 슬라임: 셀 크기에 맞는 최대 정수배로 그림
-function drawBlob(ctx, cx, cy, r, sl) {
-  return drawSprite(ctx, slimeSprite(sl.color, sl.color2), cx, cy + r * 0.75, r * 2.3, r * 1.9);
-}
-
 function pixelText(ctx, text, x, y, size, fill, align = 'center') {
   ctx.font = `bold ${size}px "Courier New", monospace`; ctx.textAlign = align;
   ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(16,21,31,.85)'; ctx.lineJoin = 'round';
@@ -109,23 +105,25 @@ function drawPath() {
       const off = list.length > 1 ? (gb.pit ? -0.2 : 0.2) * cw + (i > 1 ? 4 : 0) : 0;
       const cx = x * cw + cw / 2 + off, size = Math.min(cw * (list.length > 1 ? 0.55 : 0.85), ch * 0.95) * (gb.type === 'giant' ? 1.25 : 1);
       const bottom = y * ch + ch - 6;
-      const spr = goblinSprite(gb.type, !!(gb.st.freeze && gb.st.freeze.t > 0)); let rc;
+      const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0); let rc;
       if (gb.pit) {
-        // 구덩이: 어두운 구멍 + 하반신이 가려진 고블린
+        // 구덩이: 어두운 구멍 + 허리 아래가 잠긴 고블린
+        const holeY = bottom - size * 0.28;
         pctx.fillStyle = '#120d0a';
-        pctx.beginPath(); pctx.ellipse(cx, bottom - size * 0.28, size * 0.48, size * 0.16, 0, 0, Math.PI * 2); pctx.fill();
-        // 구멍 선(holeY) 아래는 가려서 허리천·다리만 잠긴 것처럼 보이게 함
-        const holeY = bottom - size * 0.28, sprH = goblinSprite(gb.type).height;
-        const k = Math.min(size / 20, size / sprH);
+        pctx.beginPath(); pctx.ellipse(cx, holeY, size * 0.48, size * 0.16, 0, 0, Math.PI * 2); pctx.fill();
         pctx.save(); pctx.beginPath(); pctx.rect(cx - size, holeY - size * 2, size * 2, size * 2); pctx.clip();
-        rc = drawSprite(pctx, spr, cx, holeY + sprH * k * 0.3, size, size);
+        rc = drawGoblinArt(pctx, gb.type, frozen, cx, holeY + size * 0.35, size);
         pctx.restore();
         pctx.strokeStyle = '#ff4040'; pctx.lineWidth = 2;
-        pctx.beginPath(); pctx.ellipse(cx, bottom - size * 0.28, size * 0.48, size * 0.16, 0, 0, Math.PI * 2); pctx.stroke();
+        pctx.beginPath(); pctx.ellipse(cx, holeY, size * 0.48, size * 0.16, 0, 0, Math.PI * 2); pctx.stroke();
       } else {
-        rc = drawSprite(pctx, spr, cx, bottom - 2, size, size);
+        rc = drawGoblinArt(pctx, gb.type, frozen, cx, bottom - 2, size);
       }
-      pixelText(pctx, gb.ch, cx, Math.max(y * ch + 10, rc.y - 1), 10, '#ffffff');
+      // 종류 배지 (종류색 원 + 한 글자)
+      const bx = Math.round(rc.x + 6), by = Math.round(Math.max(y * ch + 8, rc.y + 4));
+      pctx.fillStyle = gb.color; pctx.strokeStyle = '#10151f'; pctx.lineWidth = 1.5;
+      pctx.beginPath(); pctx.arc(bx, by, 7, 0, Math.PI * 2); pctx.fill(); pctx.stroke();
+      pixelText(pctx, gb.ch, bx, by + 4, 10, '#ffffff');
       hpBar(pctx, cx - size * 0.45, bottom + 1, size * 0.9, gb.hp / gb.maxhp, '#ff5a5a');
       let k = 0;
       for (const [n, e] of Object.entries(gb.st)) if (e.t > 0) {
@@ -165,10 +163,11 @@ function drawPit() {
     if (isSel || inCombo) { kctx.strokeStyle = inCombo ? '#6be08a' : '#ffd34d'; kctx.lineWidth = 3; roundRect(kctx, X + 3, Y + 3, cw - 6, ch - 6, 6); kctx.stroke(); }
     if (!sl) continue;
     const r = Math.min(cw, ch) * 0.34;
-    const rc = drawBlob(kctx, X + cw / 2, Y + ch / 2 + 4, r, sl);
-    pixelText(kctx, sl.label, X + cw / 2, rc.y + rc.h * 0.72, Math.round(r * (sl.label.length > 3 ? 0.5 : 0.7)), '#ffffff');
+    const art = drawSlimeArt(kctx, sl, X + cw / 2, Y + ch - 12, cw * 0.92, ch - 20);
+    if (art.label) pixelText(kctx, art.label, X + cw / 2, art.rect.y + art.rect.h * 0.75, Math.round(r * (art.label.length > 3 ? 0.42 : 0.6)), '#ffffff');
     kctx.font = 'bold 11px sans-serif'; kctx.textAlign = 'left';
     kctx.fillStyle = sl.lv >= 5 ? '#ffb347' : sl.kind === 'compound' ? '#ffd34d' : sl.kind === 'mixture' ? '#c9b6ff' : '#e6ecf7';
+    kctx.lineWidth = 3; kctx.strokeStyle = 'rgba(16,21,31,.85)'; kctx.strokeText(`Lv${sl.lv}${sl.kind === 'compound' ? '★' : sl.kind === 'mixture' ? '◇' : ''}`, X + 6, Y + 15);
     kctx.fillText(`Lv${sl.lv}${sl.kind === 'compound' ? '★' : sl.kind === 'mixture' ? '◇' : ''}`, X + 6, Y + 15);
     if (sl.sealed > 0) { kctx.fillStyle = '#c27bff'; kctx.textAlign = 'right'; kctx.fillText('봉인', X + cw - 6, Y + 15); }
     hpBar(kctx, X + 8, Y + ch - 10, cw - 16, sl.hp / sl.maxhp, '#6be08a');
@@ -177,7 +176,7 @@ function drawPit() {
     kctx.strokeStyle = '#ffd34d'; kctx.lineWidth = 2; kctx.setLineDash([6, 4]);
     kctx.strokeRect(m.zx * cw + 1, m.zy * ch + 1, cw * 3 - 2, ch * 3 - 2); kctx.setLineDash([]);
     kctx.globalAlpha = z === 0 ? 0.55 : 0.25;
-    drawSprite(kctx, slimeSprite(m.color), (m.zx + 1.5) * cw, (m.zy + 3) * ch - 6, cw * 2.8, ch * 2.6);
+    drawSlimeArt(kctx, m, (m.zx + 1.5) * cw, (m.zy + 3) * ch - 6, cw * 2.8, ch * 2.6);
     kctx.globalAlpha = 1;
     if (z === 0) {
       kctx.fillStyle = 'rgba(255,211,77,.9)'; kctx.font = 'bold 12px sans-serif'; kctx.textAlign = 'center';
@@ -416,6 +415,7 @@ function newGame() {
 window.__esd = { ui, lvMult };
 
 newGame(); resize();
+loadAssets().then(() => render());
 if (!lsGet('esd.seenHelp')) { lsSet('esd.seenHelp', '1'); showHelp(); }
 requestAnimationFrame(frame);
 
