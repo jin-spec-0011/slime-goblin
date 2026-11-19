@@ -1,6 +1,6 @@
 // UI · 렌더링 · 입력 (Canvas 2D)
 import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS, ATTRS, FUSIONS } from './data.js';
-import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames, walkFrameMs, ASSET_NAMES } from './sprites.js';
+import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames, walkFrameMs } from './sprites.js';
 import {
   createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
   getCell, slimeCount, PATH, lvMult,
@@ -9,6 +9,7 @@ import {
 const $ = id => document.getElementById(id);
 const EL = Object.fromEntries(ELEMENTS.map(e => [e.sym, e]));
 const LS_BEST = 'esd.bestRound';
+export const APP_VERSION = 'v0.9.1'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -295,6 +296,14 @@ function drawFloats(ctx, cw, ch) {
 }
 
 // ---------- HUD / 큐 ----------
+function paintCardArt(cv, sym) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3), w = 46, h = 36;
+  cv.width = w * dpr; cv.height = h * dpr; cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+  const e = EL[sym];
+  drawSlimeArt(c, { kind: 'element', key: sym, els: [sym], color: e.color, color2: null, label: e.label || sym }, w / 2, h, w, h);
+}
+
 function renderQueue() {
   const box = $('queue'); const g = ui.g;
   $('qCount').textContent = `${g.queue.length}/${CFG.QUEUE_MAX}`;
@@ -305,9 +314,9 @@ function renderQueue() {
       const c = document.createElement('div');
       c.className = 'card'; c.dataset.id = q.id; c.style.borderColor = EL[q.sym].color;
       c.setAttribute('role', 'button'); c.setAttribute('aria-label', `${EL[q.sym].name} 슬라임 카드`);
-      let art;
-      if (ASSET_NAMES.includes(`slime_${q.sym}`)) { art = document.createElement('img'); art.src = `assets/slime_${q.sym}.png`; art.alt = ''; }
-      else { art = document.createElement('i'); art.className = 'blob'; art.style.background = EL[q.sym].color; art.textContent = ATTRS[EL[q.sym].attr].icon; }
+      // 덱 카드도 필드와 같은 그리기 함수(drawSlimeArt)로 그려 두 그림이 항상 같게 한다
+      const art = document.createElement('canvas'); art.className = 'cardart';
+      paintCardArt(art, q.sym);
       const sp = document.createElement('span'); sp.textContent = EL[q.sym].name;
       const ic = document.createElement('b'); ic.className = 'attr'; ic.textContent = ATTRS[EL[q.sym].attr].icon;
       c.append(art, sp, ic);
@@ -473,7 +482,7 @@ function showHelp() {
   const fus = FUSIONS.map(f => `<tr><td>${ATTRS[f.pair[0]].icon}${ATTRS[f.pair[0]].label} + ${ATTRS[f.pair[1]].icon}${ATTRS[f.pair[1]].label}</td><td><b>${f.label}</b></td><td>${f.st.map(s => STATUS[s.name].label).join('·')}${f.pierce ? '·관통' : ''}</td></tr>`).join('');
   const atl = arr => arr.map(a => ATTRS[a].icon + ATTRS[a].label).join(' ') || '-';
   const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}<br><small>${d.desc || ''}</small></td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
-  showModal('게임 방법', `
+  showModal(`게임 방법 · ${APP_VERSION}`, `
     <p>고블린은 전장을 <b>ㄹ자 경로</b>로 이동합니다. 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
     <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임 카드는 <b>3초마다 1장</b> 덱에 들어옵니다(최대 ${CFG.QUEUE_MAX}장). 같은 슬라임을 겹치면 Lv+1(최대 5).</p>
     <p><b>속성</b>: 모든 슬라임은 8속성 중 하나입니다(🔥불 💧물 ⚡전기 ❄얼음 🌪바람 ⛰대지 ☠독 ☢방사). 고블린마다 <b>약점 속성(피해 ×${CFG.WEAK_MUL}, 주황 숫자)</b>과 <b>내성 속성(×${CFG.RESIST_MUL}, 회색 숫자)</b>이 있습니다.</p>
@@ -540,7 +549,7 @@ function newGame() {
 window.__esd = { ui, lvMult };
 
 newGame(); resize();
-loadAssets().then(() => render());
+loadAssets().then(() => { $('queue').dataset.ids = ''; render(); });
 if (!lsGet('esd.seenHelp')) { lsSet('esd.seenHelp', '1'); showHelp(); }
 requestAnimationFrame(frame);
 

@@ -1,5 +1,5 @@
 // 앱 셸 캐시. 파일 변경 시 VERSION을 올리면 구버전 캐시가 삭제된다.
-const VERSION = 'esd-v0.9.0';
+const VERSION = 'esd-v0.9.1';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './src/style.css', './src/main.js', './src/engine.js', './src/data.js', './src/sprites.js',
@@ -60,7 +60,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then(res => {
+    // cache: 'no-cache' -> 브라우저 HTTP 캐시를 쓰지 않고 서버에 최신 여부를 확인 (배포 직후 구버전 파일 혼재 방지)
+    fetch(e.request, { cache: 'no-cache' }).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); }
       return res;
     }).catch(() => caches.match(e.request).then(r => r || caches.match('./index.html')))
