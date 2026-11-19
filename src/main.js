@@ -9,7 +9,7 @@ import {
 const $ = id => document.getElementById(id);
 const EL = Object.fromEntries(ELEMENTS.map(e => [e.sym, e]));
 const LS_BEST = 'esd.bestRound';
-export const APP_VERSION = 'v0.9.1'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v0.9.2'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
