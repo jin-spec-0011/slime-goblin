@@ -30,6 +30,7 @@ const bctx = boardCv.getContext('2d');
 // 판 위 여백: 2칸 크기 오우거가 맨 윗줄에 있어도 머리가 잘리지 않도록 (칸 높이 기준 배수)
 const BOARD_PAD = 0.85;
 const BOARD_ASPECT = (CFG.H + BOARD_PAD) / CFG.W;
+const MEGA_ALPHA = 0.25; // 메가 슬라임 겹침 표시 불투명도 (이전 0.6)
 
 function fitCanvas(cv, aspect) {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -156,7 +157,9 @@ function drawBoard() {
   ctx.stroke(); ctx.setLineDash([]);
   // 메가 슬라임 (3x3 구역)
   for (const m of g.megas) {
-    ctx.globalAlpha = 0.6;
+    // 구역 안 슬라임이 잘 보이도록 메가 그림은 연하게(MEGA_ALPHA), 구역은 노란 테두리로 표시
+    ctx.fillStyle = 'rgba(255,211,77,0.07)'; ctx.fillRect(m.zx * cw, m.zy * ch, cw * 3, ch * 3);
+    ctx.globalAlpha = MEGA_ALPHA;
     drawSlimeArt(ctx, m, (m.zx + 1.5) * cw, (m.zy + 3) * ch - 8, cw * 2.9, ch * 2.8);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
