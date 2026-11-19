@@ -148,6 +148,8 @@ def remove_bg(im, tol):
 
 VIDEO_MODE = len(sys.argv) > 3 and sys.argv[3] == 'video'
 for name, (f, x0, y0, x1, y1, disp, tol) in ({} if VIDEO_MODE else BOXES).items():
+    if name.startswith('slime_'):
+        continue  # 슬라임은 tools/gen_slimes.py로 생성 (화풍 통일). 참고 이미지 추출은 고블린·아이템만
     im = Image.open(f'{SRC}/{f}').convert('RGB')
     k = S if disp else 1
     crop = im.crop((round(x0 * k), round(y0 * k), round(x1 * k), round(y1 * k)))

@@ -151,10 +151,14 @@ export function drawSprite(ctx, spr, cx, bottom, maxW, maxH) {
 // ---------- 참고 이미지에서 잘라낸 스프라이트 (assets/*.png) ----------
 // 로드 전이거나 실패하면 위의 도트 격자 스프라이트로 대체한다.
 const IMG = {};
+// 슬라임은 tools/gen_slimes.py가 생성(글자 없음, 원소 기호는 게임이 덧그림)
+const SLIME_KEYS = ['FIRE', 'WATER', 'ELEC', 'O', 'H', 'C', 'N', 'Fe', 'He', 'Na', 'Cl', 'S', 'U',
+  'STEAM', 'PLASMA', 'SHOCK', 'FROST', 'STORM', 'MUD', 'MIASMA', 'FUSION',
+  'H2O', 'CO2', 'NaCl', 'NH3', 'Fe2O3', 'H2SO4', 'mix', 'mega'];
 export const ASSET_NAMES = [
   'goblin', 'goblin_frozen', 'goblin_normal', 'goblin_fighter', 'goblin_mage', 'goblin_rider',
-  'goblin_archer', 'goblin_captain', 'goblin_giant', 'goblin_smart', 'goblin_giant_walk', 'slime_mega', 'slime_mix', 'slime_H2O', 'slime_NH3', 'slime_NaCl',
-  'slime_O', 'slime_H', 'slime_C', 'slime_N', 'slime_He', 'slime_Fe', 'slime_Na', 'slime_Cl', 'slime_S', 'slime_U',
+  'goblin_archer', 'goblin_captain', 'goblin_giant', 'goblin_smart', 'goblin_giant_walk',
+  ...SLIME_KEYS.map(k => 'slime_' + k),
 ];
 export function loadAssets(base = 'assets/') {
   return Promise.all(ASSET_NAMES.map(n => new Promise(res => {
@@ -175,17 +179,15 @@ function fit(ctx, img, cx, bottom, maxW, maxH) {
 
 // 반환: { rect, label } — label이 있으면 호출측이 이름표를 덧그린다(이미지에 글자가 없는 경우)
 export function drawSlimeArt(ctx, sl, cx, bottom, maxW, maxH) {
-  let img = null, label = null;
-  if (sl.kind === 'mega') { img = IMG.slime_mega; label = sl.label; }
-  else if (sl.kind === 'element') img = IMG['slime_' + sl.key];
-  else if (sl.kind === 'mixture') { img = IMG.slime_mix; label = sl.label; }
-  else if (IMG['slime_' + sl.key]) img = IMG['slime_' + sl.key];
-  else { img = IMG['slime_' + sl.els[0]]; label = sl.label; }
+  const img = sl.kind === 'mega' ? IMG.slime_mega
+    : sl.kind === 'mixture' ? IMG.slime_mix
+    : IMG['slime_' + sl.key] || IMG['slime_' + sl.els[0]] || null;
   if (!img) {
     const rect = drawSprite(ctx, slimeSprite(sl.color, sl.color2), cx, bottom, maxW, maxH * 0.85);
     return { rect, label: sl.label };
   }
-  return { rect: fit(ctx, img, cx, bottom, maxW, maxH), label };
+  // 생성 이미지에는 글자가 없으므로 항상 이름표(원소 기호/합성명)를 덧그린다
+  return { rect: fit(ctx, img, cx, bottom, maxW, maxH), label: sl.label };
 }
 
 // 빙결: 종류별 이미지에 얼음색을 덧입힌 사본을 캐시

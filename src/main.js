@@ -196,7 +196,7 @@ function drawBoard() {
         goblinStatus(ctx, gb, X + cw - 10, Y + 24);
         ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
       }
-      if (art.label) pixelText(ctx, art.label, X + cw / 2, art.rect.y + art.rect.h * 0.75, Math.round(Math.min(cw, ch) * (art.label.length > 3 ? 0.15 : 0.2)), '#ffffff');
+      if (art.label) pixelText(ctx, art.label, X + cw / 2, art.rect.y + art.rect.h * 0.86, Math.round(Math.min(cw, ch) * (art.label.length > 3 ? 0.15 : art.label.length > 2 ? 0.17 : 0.21)), '#ffffff');
       if (trapped.some(gb => !isBig(gb))) badges.push([sl, X, Y]);
       lvTag(ctx, sl, X, Y);
       if (!trapped.length) attrIcons(ctx, sl, X, Y, cw);
