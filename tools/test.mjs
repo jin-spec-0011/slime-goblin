@@ -26,8 +26,9 @@ t('촉매 없으면 거부', !combine(s, [{ x: 0, y: 1, z: 0 }, { x: 1, y: 1, z:
 s = createGame(3);
 for (const x of [0, 1, 2]) for (let i = 0; i < 5; i++) put(s, 'Fe', x, 2, 0);
 const M = [{ x: 1, y: 2, z: 0 }, { x: 0, y: 2, z: 0 }, { x: 2, y: 2, z: 0 }];
-t('메가 R10 외 거부', !makeMega(s, M).ok);
-s.round = 10;
+s.round = CFG.MEGA_ROUND - 1;
+t(`메가 ${CFG.MEGA_ROUND}라운드 전 거부`, !makeMega(s, M).ok);
+s.round = CFG.MEGA_ROUND;
 t('메가 생성', makeMega(s, M).ok && s.megas.length === 1 && !getCell(s, 1, 2, 0));
 // 함정 규칙: 슬라임 없는 칸 통과, 있는 칸에서 빠짐, 일반 고블린 무공격
 s = createGame(4); s.queue = [];

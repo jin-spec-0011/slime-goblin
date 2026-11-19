@@ -282,7 +282,7 @@ function renderHud() {
   $('bCombo').classList.toggle('on', ui.combo);
   $('bCombo').textContent = ui.megaMode ? '취소' : ui.combo ? '조합 실행' : '조합';
   $('bMega').classList.toggle('on', !!ui.megaMode);
-  $('bMega').disabled = g.round !== CFG.ROUNDS;
+  $('bMega').disabled = g.round < CFG.MEGA_ROUND;
   $('bSpeed').textContent = `×${ui.speed}`;
   $('bPause').textContent = ui.paused ? '재개' : '정지';
   $('bPause').classList.toggle('on', ui.paused);
@@ -424,7 +424,7 @@ function showHelp() {
   showModal('게임 방법', `
     <p>고블린은 전장을 <b>ㄹ자 경로</b>로 이동합니다. 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
     <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임 카드는 <b>3초마다 1장</b> 덱에 들어옵니다(최대 ${CFG.QUEUE_MAX}장). 같은 원소를 겹치면 Lv+1(최대 5). <b>조합</b>(촉매 1개 소모): 족보 일치 시 화합물 150%, 불일치 시 혼합물 70%.</p>
-    <p><b>메가</b>: 보스 라운드(10) 전용. Lv5 같은 원소 3개 → 3×3 구역, 최대 5마리 동시 공격.</p>
+    <p><b>메가</b>: ${CFG.MEGA_ROUND}라운드부터 사용 가능. Lv5 같은 원소 3개 → 3×3 구역, 최대 5마리 동시 공격.</p>
     <p>보너스: 같은 원소 2개↑ 받는 피해 -10%, 3개↑ 공격 +20%, 같은 가로줄에 같은 원소 3개 공격 +20%.</p>
     <table><tr><th>원소</th><th>효과</th><th>해금</th></tr>${els}</table>
     <table><tr><th>화합물</th><th>족보</th><th>효과</th></tr>${rec}</table>

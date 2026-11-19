@@ -19,7 +19,7 @@ function ai(s) {
     }
     if (!done) { s.queue.shift(); }
   }
-  if (s.round === CFG.ROUNDS) {
+  if (s.round >= CFG.MEGA_ROUND) {
     const by = {};
     for (let z = 0; z < CFG.D; z++) for (const [x, y] of PATH) { const c = getCell(s, x, y, z); if (c && c.kind === 'element' && c.lv === 5) (by[c.key] ||= []).push({ x, y, z }); }
     for (const k in by) if (by[k].length >= 3) makeMega(s, by[k].slice(0, 3));

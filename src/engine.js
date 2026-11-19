@@ -182,7 +182,7 @@ export function combine(s, list) {
 }
 
 export function makeMega(s, list) {
-  if (s.round !== CFG.ROUNDS) return err('메가 슬라임은 보스 라운드(10)에서만 사용 가능합니다.');
+  if (s.round < CFG.MEGA_ROUND) return err(`메가 슬라임은 ${CFG.MEGA_ROUND}라운드부터 사용 가능합니다.`);
   if (list.length !== 3) return err('Lv5 동일 원소 슬라임 3개를 선택하세요.');
   const sl = list.map(p => getCell(s, p.x, p.y, p.z));
   if (sl.some(c => !c || c.kind !== 'element' || c.lv < CFG.MAX_LV)) return err('Lv5 원소 슬라임만 가능합니다.');

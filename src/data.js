@@ -18,6 +18,7 @@ export const CFG = {
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
+  MEGA_ROUND: 5,                // 메가 슬라임 조합 가능 라운드 (이 라운드부터)
   MEGA_MUL: 1.2,
   MEGA_ATK: 2.4,
   MEGA_MAX_TARGETS: 5,
