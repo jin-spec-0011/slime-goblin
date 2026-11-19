@@ -1,6 +1,6 @@
 // UI · 렌더링 · 입력 (Canvas 2D)
 import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS } from './data.js';
-import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames } from './sprites.js';
+import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames, walkFrameMs } from './sprites.js';
 import {
   createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
   getCell, slimeCount, PATH, lvMult,
@@ -27,7 +27,9 @@ function lsSet(k, v) { try { localStorage.setItem(k, v); } catch { /* 저장 불
 // ---------- 캔버스 (통합 전장 1장) ----------
 const boardCv = $('boardCv');
 const bctx = boardCv.getContext('2d');
-const BOARD_ASPECT = 1.0;
+// 판 위 여백: 2칸 크기 오우거가 맨 윗줄에 있어도 머리가 잘리지 않도록 (칸 높이 기준 배수)
+const BOARD_PAD = 0.85;
+const BOARD_ASPECT = (CFG.H + BOARD_PAD) / CFG.W;
 
 function fitCanvas(cv, aspect) {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -48,7 +50,10 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 
-const dims = cv => ({ w: cv.clientWidth, h: cv.clientHeight, cw: cv.clientWidth / CFG.W, ch: cv.clientHeight / CFG.H });
+const dims = cv => {
+  const w = cv.clientWidth, h = cv.clientHeight, ch = h / (CFG.H + BOARD_PAD);
+  return { w, h, cw: w / CFG.W, ch, pad: ch * BOARD_PAD };
+};
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
@@ -86,11 +91,18 @@ function goblinStatus(ctx, gb, x, y) {
 }
 
 function drawBoard() {
-  const g = ui.g, ctx = bctx, { w, h, cw, ch } = dims(boardCv);
+  const g = ui.g, ctx = bctx, { w, h, cw, ch, pad } = dims(boardCv);
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = '#2f3a50'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#28324a'; ctx.fillRect(0, 0, w, pad);
+  pixelText(ctx, '▼ 고블린 진입', cw / 2, pad - 6, 10, '#9fe08a');
+  ctx.save(); ctx.translate(0, pad); // 이하 좌표는 판(5x5) 기준
   // 칸 이동 보간: 틱마다 바뀐 경로 위치(idx)를 짧은 시간 동안 부드럽게 이동
-  const now = performance.now(), moveMs = Math.min(900, (CFG.TICK_MS / ui.speed) * 0.6);
+  // 일반: 틱의 60% 동안 이동. 느린 고블린(spd<1, 초대형): 다음 이동까지 쉬지 않고 천천히 걷도록 1/spd 틱에 걸쳐 이동
+  const now = performance.now(), tickMs = CFG.TICK_MS / ui.speed;
+  const moveMsOf = gb => (gb.spd < 1 ? (tickMs / gb.spd) * 0.95 : Math.min(900, tickMs * 0.6));
+  const isBig = gb => (GOBLINS[gb.type].size || 1) > 1;
+  const bigs = []; // 2칸 크기 고블린은 다른 칸에 가려지지 않도록 마지막에 그림
   const live = new Set();
   const inside = new Map(), walking = [];
   for (const gb of g.goblins) {
@@ -98,7 +110,7 @@ function drawBoard() {
     let a = ui.anim.get(gb.id);
     if (!a) { a = { from: gb.idx, to: gb.idx, t0: 0, flip: false }; ui.anim.set(gb.id, a); }
     if (a.to !== gb.idx) { a.from = a.to; a.to = gb.idx; a.t0 = now; }
-    const p = a.t0 ? Math.min(1, (now - a.t0) / moveMs) : 1;
+    const p = a.t0 ? Math.min(1, (now - a.t0) / moveMsOf(gb)) : 1;
     const pos = a.from + (a.to - a.from) * p;
     const i0 = Math.floor(pos), i1 = Math.min(PATH.length - 1, Math.ceil(pos)), f = pos - i0;
     const [x0, y0] = PATH[i0], [x1, y1] = PATH[i1];
@@ -112,7 +124,8 @@ function drawBoard() {
     }
   }
   for (const id of ui.anim.keys()) if (!live.has(id)) ui.anim.delete(id);
-  const frameOf = (gb, moving) => (moving && walkFrames(gb.type) ? Math.floor(now / 95) % walkFrames(gb.type) : 0);
+  // 걷기 프레임: 배속에 맞춰 재생 속도도 빨라짐. 느린 고블린은 이동 시간이 길어 자연스럽게 천천히 걷는다
+  const frameOf = (gb, moving) => (moving && walkFrames(gb.type) ? Math.floor((now * ui.speed * Math.min(1, gb.spd * 1.6)) / walkFrameMs(gb.type)) % walkFrames(gb.type) : 0);
 
   // 칸 바닥
   for (let y = 0; y < CFG.H; y++) for (let x = 0; x < CFG.W; x++) {
@@ -147,6 +160,7 @@ function drawBoard() {
     if (sl) {
       const art = drawSlimeArt(ctx, sl, X + cw / 2, Y + ch - 10, cw * 0.94, ch - 18);
       for (const gb of trapped) {
+        if (isBig(gb)) { bigs.push({ gb, trappedIn: sl, x, y, moving: false, flip: ui.anim.get(gb.id)?.flip }); continue; }
         // 고블린을 슬라임 몸 안에 작게 그리고, 그 위에 슬라임을 반투명으로 덮어 "갇힌" 느낌
         const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
         const size = Math.min(art.rect.w, art.rect.h) * (gb.type === 'giant' ? 0.95 : 0.78);
@@ -163,6 +177,7 @@ function drawBoard() {
     } else if (trapped.length) {
       // 메가 구역 안에 갇힌 고블린
       for (const gb of trapped) {
+        if (isBig(gb)) { bigs.push({ gb, trappedIn: null, x, y, moving: false, flip: ui.anim.get(gb.id)?.flip }); continue; }
         drawGoblinArt(ctx, gb.type, false, X + cw / 2, Y + ch - 8, Math.min(cw, ch) * 0.7);
         hpBar(ctx, X + 8, Y + 18, cw - 16, gb.hp / gb.maxhp, '#ff5a5a');
         ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
@@ -173,17 +188,37 @@ function drawBoard() {
   // 걷는 고블린 (도착한 칸에 슬라임이 있으면 칸 오른쪽 위로 비켜서 지나감)
   for (const wk of walking) {
     const { gb } = wk;
+    if (isBig(gb)) { bigs.push({ gb, trappedIn: null, x: wk.fx, y: wk.fy, moving: wk.moving, flip: wk.flip }); continue; }
     const cx0 = Math.round(wk.fx), cy0 = Math.round(wk.fy);
     const idxHere = PATH_IDX.get(`${cx0},${cy0}`);
     const occupied = !wk.moving && (!!getCell(g, cx0, cy0, 0) || inside.has(idxHere));
     const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
-    const size = Math.min(cw, ch) * (occupied ? 0.55 : 0.82) * (gb.type === 'giant' ? 1.25 : 1);
+    const size = Math.min(cw, ch) * (occupied ? 0.55 : 0.82);
     const cx = wk.fx * cw + (occupied ? cw * 0.72 : cw / 2), bottom = wk.fy * ch + (occupied ? ch * 0.62 : ch - 8);
     const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, wk.moving), flip: wk.flip });
     hpBar(ctx, cx - size * 0.4, Math.max(wk.fy * ch + 3, rc.y - 6), size * 0.8, gb.hp / gb.maxhp, '#ff5a5a');
     goblinStatus(ctx, gb, cx + size * 0.42, rc.y);
   }
+  // 2칸 크기 고블린 (초대형 오우거): 발은 현재 칸 바닥, 몸은 위 칸까지. 맨 윗줄에서는 판 밖으로 잘리지 않게 아래로 보정
+  for (const bg of bigs) {
+    const { gb } = bg, cells = GOBLINS[gb.type].size || 2;
+    const size = Math.min(cw, ch) * cells;
+    const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
+    const cx = bg.x * cw + cw / 2, bottom = bg.y * ch + ch - 4;
+    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, bg.moving), flip: !!bg.flip });
+    if (bg.trappedIn) {
+      // 다리가 슬라임에 잠긴 모습: 해당 칸의 슬라임을 반투명으로 덧그림
+      // 슬라임은 항상 오우거 발밑에 (맨 윗줄 보정으로 몸이 내려가도 다리가 잠기게)
+      const footY = rc.y + rc.h, X = cx - cw / 2, Y = footY - ch + 4;
+      ctx.globalAlpha = 0.6; drawSlimeArt(ctx, bg.trappedIn, cx, footY + 6, cw * 0.94, ch - 18); ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
+      hpBar(ctx, X + 8, Math.min(footY + 2, ch * CFG.H - 6), cw - 16, bg.trappedIn.hp / bg.trappedIn.maxhp, '#6be08a');
+    }
+    hpBar(ctx, cx - size * 0.3, Math.max(2 - pad, rc.y - 6), size * 0.6, gb.hp / gb.maxhp, '#ff5a5a');
+    goblinStatus(ctx, gb, cx + size * 0.32, Math.max(2 - pad, rc.y));
+  }
   drawFloats(ctx, cw, ch);
+  ctx.restore();
 }
 
 function drawFloats(ctx, cw, ch) {
@@ -261,8 +296,8 @@ function refreshInfo() {
 
 // ---------- 입력 ----------
 function cellAt(cv, clientX, clientY) {
-  const r = cv.getBoundingClientRect();
-  const x = Math.floor((clientX - r.left) / (r.width / CFG.W)), y = Math.floor((clientY - r.top) / (r.height / CFG.H));
+  const r = cv.getBoundingClientRect(), { cw, ch, pad } = dims(cv);
+  const x = Math.floor((clientX - r.left) / cw), y = Math.floor((clientY - r.top - pad) / ch);
   if (x < 0 || y < 0 || x >= CFG.W || y >= CFG.H) return null;
   return { x, y, z: 0 };
 }

@@ -299,7 +299,10 @@ function leak(s, g) {
 
 function moveGoblin(s, g) {
   if (locked(s, g)) return;
-  let steps = g.spd;
+  // 소수 속도 지원: 누적치가 1 이상일 때만 칸 이동 (초대형 0.5 = 2틱에 1칸)
+  g.mv = (g.mv || 0) + g.spd;
+  let steps = Math.floor(g.mv);
+  g.mv -= steps;
   while (steps-- > 0) {
     const ni = g.idx + 1;
     if (ni >= PATH.length) { leak(s, g); return; }

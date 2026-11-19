@@ -202,11 +202,12 @@ function frozenOf(img, key) {
 }
 
 // 걷기 모션 시트: 가로로 이어 붙인 프레임 (종류 -> 프레임 수)
-const WALK = { giant: 8 };
+// n: 프레임 수, ms: 프레임당 시간 (영상 원본 24fps, 31프레임 주기를 16장으로 샘플링 -> 약 83ms)
+const WALK = { giant: { n: 16, ms: 83 } };
 const frameCache = new Map();
 function walkFrame(type, i) {
   const sheet = IMG[`goblin_${type}_walk`]; if (!sheet) return null;
-  const n = WALK[type], key = `${type}|${i % n}`;
+  const n = WALK[type].n, key = `${type}|${i % n}`;
   if (!frameCache.has(key)) {
     const fw = sheet.width / n, cv = document.createElement('canvas');
     cv.width = Math.round(fw); cv.height = sheet.height;
@@ -215,7 +216,8 @@ function walkFrame(type, i) {
   }
   return frameCache.get(key);
 }
-export const walkFrames = type => WALK[type] || 0;
+export const walkFrames = type => (WALK[type] ? WALK[type].n : 0);
+export const walkFrameMs = type => (WALK[type] ? WALK[type].ms : 100);
 
 // opts: { frame: 걷기 프레임 번호(null이면 정지), flip: 좌우 반전 }
 export function drawGoblinArt(ctx, type, frozen, cx, bottom, size, opts = {}) {

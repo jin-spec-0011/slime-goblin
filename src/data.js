@@ -79,7 +79,7 @@ export const GOBLINS = {
   rider:   { name: '기마',   ch: '기', hp: 22,  atk: 4,  def: 1, spd: 2, leak: 2,  color: '#d6b13c' },
   archer:  { name: '궁수',   ch: '궁', hp: 18,  atk: 4,  def: 0, spd: 1, leak: 2,  range: 2, color: '#4fb39a' },
   captain: { name: '대장',   ch: '대', hp: 40,  atk: 5,  def: 2, spd: 1, leak: 3,  aura: true, color: '#d64a4a' },
-  giant:   { name: '초대형', ch: '초', hp: 200, atk: 10, def: 4, spd: 1, leak: 10, multi: 2, color: '#7a5a3a' },
+  giant:   { name: '초대형', ch: '초', hp: 200, atk: 10, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, color: '#7a5a3a' }, // 2틱에 1칸, 2칸 크기
   smart:   { name: '지능형', ch: '지', hp: 30,  atk: 4,  def: 1, spd: 1, leak: 3,  evade: 1, cleanse: true, color: '#3ab0d6' },
 };
 

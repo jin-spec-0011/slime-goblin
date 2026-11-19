@@ -146,7 +146,8 @@ def remove_bg(im, tol):
                 q.append((nx, ny))
     return im
 
-for name, (f, x0, y0, x1, y1, disp, tol) in BOXES.items():
+VIDEO_MODE = len(sys.argv) > 3 and sys.argv[3] == 'video'
+for name, (f, x0, y0, x1, y1, disp, tol) in ({} if VIDEO_MODE else BOXES).items():
     im = Image.open(f'{SRC}/{f}').convert('RGB')
     k = S if disp else 1
     crop = im.crop((round(x0 * k), round(y0 * k), round(x1 * k), round(y1 * k)))
@@ -191,7 +192,7 @@ def keep_largest(im):
                 px[x, y] = (0, 0, 0, 0)
     return im
 
-for name, (f, y0, y1, spans, mode, out_h) in WALKS.items():
+for name, (f, y0, y1, spans, mode, out_h) in ({} if VIDEO_MODE else WALKS).items():
     im = Image.open(f'{SRC}/{f}').convert('RGB')
     frames = []
     for x0, x1 in spans:
@@ -206,3 +207,46 @@ for name, (f, y0, y1, spans, mode, out_h) in WALKS.items():
     sheet = sheet.resize((round(sheet.width * k), out_h), Image.LANCZOS)
     sheet.save(f'{OUT}/{name}.png')
     print(name, 'frames', len(frames), 'frame', round(fw * k), 'x', out_h)
+
+# ---------- 영상(걷기 루프) -> 스프라이트 시트 ----------
+# 사용: python3 tools/extract_sprites.py <프레임폴더> <출력폴더> video <시작> <끝> <간격> <이름>
+#  (프레임 폴더는 ffmpeg -i in.mp4 -vf crop=600:700:330:10 f_%03d.png 로 미리 추출)
+def remove_video_bg(im):
+    """영상의 체크무늬(따뜻한 회색, 압축 노이즈 포함) 배경을 테두리부터 지운다."""
+    im = im.convert('RGBA'); w, h = im.size; px = im.load(); seen = bytearray(w * h)
+    def is_bg(c):
+        r, g, b = c[:3]
+        return r >= g - 4 and g >= b - 4 and r - b <= 36 and (r + g + b) / 3 >= 160
+    q = deque((x, y) for x in range(w) for y in (0, h - 1))
+    q.extend((x, y) for y in range(h) for x in (0, w - 1))
+    while q:
+        x, y = q.popleft(); i = y * w + x
+        if seen[i]:
+            continue
+        seen[i] = 1
+        if not is_bg(px[x, y]):
+            continue
+        px[x, y] = (0, 0, 0, 0)
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h and not seen[ny * w + nx]:
+                q.append((nx, ny))
+    return im
+
+if len(sys.argv) > 3 and sys.argv[3] == 'video':
+    start, end, stepn, name = int(sys.argv[4]), int(sys.argv[5]), int(sys.argv[6]), sys.argv[7]
+    frames = [keep_largest(remove_video_bg(Image.open(f'{SRC}/f_{i:03d}.png'))) for i in range(start, end + 1, stepn)]
+    # 제자리 걷기 영상이므로 프레임별 위치를 유지한 채 전체 합집합 영역으로 자른다 (흔들림 방지)
+    boxes = [f.getbbox() for f in frames]
+    ub = (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
+    frames = [f.crop(ub) for f in frames]
+    fw, fh = frames[0].size
+    sheet = Image.new('RGBA', (fw * len(frames), fh), (0, 0, 0, 0))
+    for i, f in enumerate(frames):
+        sheet.paste(f, (i * fw, 0), f)
+    k = 220 / fh
+    sheet = sheet.resize((round(fw * k) * len(frames), 220), Image.LANCZOS)
+    sheet.save(f'{OUT}/{name}.png')
+    # 정지 이미지(도움말·대기 상태)도 같은 캐릭터로 맞춤: 첫 프레임
+    still = sheet.crop((0, 0, round(fw * k), 220)); still.crop(still.getbbox()).save(f'{OUT}/' + name.replace('_walk', '') + '.png')
+    print(name, 'frames', len(frames), 'frame', round(fw * k), 'x 220')
