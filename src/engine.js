@@ -391,7 +391,7 @@ function actMega(s, m) {
 export function step(s) {
   if (s.phase === 'over' || s.phase === 'won') return;
   s.fx = []; s.tick++;
-  if (!addQueue(s)) say(s, '덱이 가득 차 카드 1장이 버려졌습니다.');
+  if (s.tick % CFG.DROP_EVERY === 0 && !addQueue(s)) say(s, '덱이 가득 차 카드 1장이 버려졌습니다.');
   if (s.phase === 'prep') {
     s.prepLeft--; if (s.prepLeft <= 0) startRound(s);
     return;

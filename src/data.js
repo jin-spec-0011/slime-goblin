@@ -2,18 +2,19 @@
 export const CFG = {
   W: 5, H: 5, D: 1,            // 판 가로·세로, 층 수(판 통합으로 1층)
   CAP: 25,                      // 배치 상한 (판 칸 수)
-  TICK_MS: 3000,                // 1틱 = 3초 (슬라임 1개 지급)
+  TICK_MS: 1000,                // 1틱 = 1초: 고블린 1칸 이동 / 1마리 출발
+  DROP_EVERY: 3,                // 슬라임 카드 지급 주기(틱) = 3초
   QUEUE_MAX: 10,                // 덱(손패) 최대 장수
   BASE_HP: 20,
   MAX_LV: 5,
   LV_STEP: 0.6,                 // 능력치 = 기본 x (1 + 0.6 x (Lv-1))
   ROUNDS: 10,
-  FIRST_PREP: 8,                // 게임 시작 준비 틱
-  PREP_TICKS: 4,                // 라운드 사이 준비 틱
+  FIRST_PREP: 24,               // 게임 시작 준비 틱(초)
+  PREP_TICKS: 12,               // 라운드 사이 준비 틱(초)
   START_SLIMES: 6,
   ROUND_BONUS_SLIMES: 3,
   CATALYST_START: 2,
-  HP_GROWTH: 1.5,              // 라운드별 고블린 HP 성장
+  HP_GROWTH: 1.4,              // 라운드별 고블린 HP 성장
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
