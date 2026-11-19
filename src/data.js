@@ -14,7 +14,7 @@ export const CFG = {
   START_SLIMES: 6,
   ROUND_BONUS_SLIMES: 3,
   CATALYST_START: 2,
-  HP_GROWTH: 1.4,              // 라운드별 고블린 HP 성장
+  HP_GROWTH: 1.25,              // 라운드별 고블린 HP 성장
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
@@ -84,16 +84,18 @@ export const GOBLINS = {
   smart:   { name: '지능형', ch: '지', hp: 30,  atk: 4,  def: 1, spd: 1, leak: 3,  evade: 1, cleanse: true, color: '#3ab0d6' },
 };
 
-// 라운드별 편성 [종류, 마릿수]. 목록을 번갈아 섞어 스폰한다.
+// 라운드별 편성 [종류, 마릿수]. 목록을 번갈아 섞어 1초에 1마리씩 출발한다.
+// 1~4라운드: 경로 한 바퀴(25칸 = 25초) 안에 전원 출발 (최대 25마리)
+// 5~10라운드: 두 바퀴(50초) 동안 계속 출발 (26~50마리)
 export const ROUND_TABLE = [
-  [['normal', 6]],
-  [['normal', 10]],
-  [['normal', 8], ['fighter', 3]],
-  [['normal', 8], ['fighter', 6]],
-  [['normal', 8], ['fighter', 4], ['rider', 4]],
-  [['normal', 6], ['fighter', 5], ['archer', 4]],
-  [['fighter', 6], ['mage', 4], ['archer', 4], ['rider', 4]],
-  [['fighter', 8], ['archer', 4], ['mage', 3], ['captain', 2]],
-  [['fighter', 8], ['rider', 5], ['mage', 3], ['captain', 3], ['smart', 4]],
-  [['normal', 10], ['fighter', 10], ['captain', 2], ['smart', 4], ['giant', 2]],
+  [['normal', 10]],                                                                      // 10
+  [['normal', 14]],                                                                      // 14
+  [['normal', 12], ['fighter', 6]],                                                      // 18
+  [['normal', 12], ['fighter', 10]],                                                     // 22
+  [['normal', 14], ['fighter', 8], ['rider', 8]],                                        // 30 (두 바퀴 시작)
+  [['normal', 12], ['fighter', 10], ['archer', 8], ['rider', 6]],                        // 36
+  [['normal', 4], ['fighter', 12], ['mage', 8], ['archer', 8], ['rider', 8]],            // 40
+  [['normal', 10], ['fighter', 14], ['archer', 8], ['mage', 8], ['captain', 4]],         // 44
+  [['fighter', 14], ['rider', 10], ['mage', 8], ['captain', 6], ['smart', 10]],          // 48
+  [['normal', 16], ['fighter', 16], ['captain', 4], ['smart', 10], ['giant', 4]],        // 50
 ];
