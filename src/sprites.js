@@ -153,7 +153,7 @@ export function drawSprite(ctx, spr, cx, bottom, maxW, maxH) {
 const IMG = {};
 export const ASSET_NAMES = [
   'goblin', 'goblin_frozen', 'goblin_normal', 'goblin_fighter', 'goblin_mage', 'goblin_rider',
-  'goblin_archer', 'goblin_captain', 'goblin_giant', 'goblin_smart', 'slime_mega', 'slime_mix', 'slime_H2O', 'slime_NH3', 'slime_NaCl',
+  'goblin_archer', 'goblin_captain', 'goblin_giant', 'goblin_smart', 'goblin_giant_walk', 'slime_mega', 'slime_mix', 'slime_H2O', 'slime_NH3', 'slime_NaCl',
   'slime_O', 'slime_H', 'slime_C', 'slime_N', 'slime_He', 'slime_Fe', 'slime_Na', 'slime_Cl', 'slime_S', 'slime_U',
 ];
 export function loadAssets(base = 'assets/') {
@@ -201,9 +201,32 @@ function frozenOf(img, key) {
   return frozenCache.get(key);
 }
 
-export function drawGoblinArt(ctx, type, frozen, cx, bottom, size) {
-  const base = IMG['goblin_' + type] || IMG.goblin;
+// 걷기 모션 시트: 가로로 이어 붙인 프레임 (종류 -> 프레임 수)
+const WALK = { giant: 8 };
+const frameCache = new Map();
+function walkFrame(type, i) {
+  const sheet = IMG[`goblin_${type}_walk`]; if (!sheet) return null;
+  const n = WALK[type], key = `${type}|${i % n}`;
+  if (!frameCache.has(key)) {
+    const fw = sheet.width / n, cv = document.createElement('canvas');
+    cv.width = Math.round(fw); cv.height = sheet.height;
+    cv.getContext('2d').drawImage(sheet, -Math.round((i % n) * fw), 0);
+    frameCache.set(key, cv);
+  }
+  return frameCache.get(key);
+}
+export const walkFrames = type => WALK[type] || 0;
+
+// opts: { frame: 걷기 프레임 번호(null이면 정지), flip: 좌우 반전 }
+export function drawGoblinArt(ctx, type, frozen, cx, bottom, size, opts = {}) {
+  let base = walkFrames(type) ? walkFrame(type, opts.frame ?? 0) : null;
+  const key = base ? `${type}|f${(opts.frame ?? 0) % walkFrames(type)}` : type;
+  if (!base) base = IMG['goblin_' + type] || IMG.goblin;
   if (!base) return drawSprite(ctx, goblinSprite(type, frozen), cx, bottom, size, size);
-  const img = frozen ? frozenOf(base, type) : base;
-  return fit(ctx, img, cx, bottom, size, size);
+  const img = frozen ? frozenOf(base, key) : base;
+  if (!opts.flip) return fit(ctx, img, cx, bottom, size, size);
+  ctx.save(); ctx.translate(cx, 0); ctx.scale(-1, 1);
+  const r = fit(ctx, img, 0, bottom, size, size);
+  ctx.restore();
+  return { x: cx - (r.x + r.w), y: r.y, w: r.w, h: r.h };
 }

@@ -1,6 +1,6 @@
 // UI · 렌더링 · 입력 (Canvas 2D)
 import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS } from './data.js';
-import { drawSlimeArt, drawGoblinArt, loadAssets } from './sprites.js';
+import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames } from './sprites.js';
 import {
   createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
   getCell, slimeCount, PATH, lvMult,
@@ -15,6 +15,7 @@ const ui = {
   sel: null,            // {t:'q', id} | {t:'c', x,y,z}
   combo: false, comboList: [],
   floats: [],           // 데미지 숫자 표시
+  anim: new Map(),      // 고블린 id -> {from, to, t0, flip} 칸 이동 보간
   drag: null,           // 드래그 상태
   msg: '',
 };
@@ -88,12 +89,31 @@ function drawBoard() {
   const g = ui.g, ctx = bctx, { w, h, cw, ch } = dims(boardCv);
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = '#2f3a50'; ctx.fillRect(0, 0, w, h);
-  const inside = new Map(), walking = new Map();
+  // 칸 이동 보간: 틱마다 바뀐 경로 위치(idx)를 짧은 시간 동안 부드럽게 이동
+  const now = performance.now(), moveMs = Math.min(900, (CFG.TICK_MS / ui.speed) * 0.6);
+  const live = new Set();
+  const inside = new Map(), walking = [];
   for (const gb of g.goblins) {
-    const m = gb.pit ? inside : walking;
-    if (!m.has(gb.idx)) m.set(gb.idx, []);
-    m.get(gb.idx).push(gb);
+    live.add(gb.id);
+    let a = ui.anim.get(gb.id);
+    if (!a) { a = { from: gb.idx, to: gb.idx, t0: 0, flip: false }; ui.anim.set(gb.id, a); }
+    if (a.to !== gb.idx) { a.from = a.to; a.to = gb.idx; a.t0 = now; }
+    const p = a.t0 ? Math.min(1, (now - a.t0) / moveMs) : 1;
+    const pos = a.from + (a.to - a.from) * p;
+    const i0 = Math.floor(pos), i1 = Math.min(PATH.length - 1, Math.ceil(pos)), f = pos - i0;
+    const [x0, y0] = PATH[i0], [x1, y1] = PATH[i1];
+    if (x1 !== x0) a.flip = x1 < x0;
+    const moving = p < 1;
+    if (gb.pit && !moving) {
+      if (!inside.has(gb.idx)) inside.set(gb.idx, []);
+      inside.get(gb.idx).push(gb);
+    } else {
+      walking.push({ gb, fx: x0 + (x1 - x0) * f, fy: y0 + (y1 - y0) * f, moving, flip: a.flip });
+    }
   }
+  for (const id of ui.anim.keys()) if (!live.has(id)) ui.anim.delete(id);
+  const frameOf = (gb, moving) => (moving && walkFrames(gb.type) ? Math.floor(now / 95) % walkFrames(gb.type) : 0);
+
   // 칸 바닥
   for (let y = 0; y < CFG.H; y++) for (let x = 0; x < CFG.W; x++) {
     const X = x * cw, Y = y * ch, i = PATH_IDX.get(`${x},${y}`);
@@ -150,18 +170,18 @@ function drawBoard() {
     }
     if (isSel || inCombo) { ctx.strokeStyle = inCombo ? '#6be08a' : '#ffd34d'; ctx.lineWidth = 3; roundRect(ctx, X + 3, Y + 3, cw - 6, ch - 6, 7); ctx.stroke(); }
   }
-  // 걷는 고블린 (슬라임이 있는 칸이면 칸 오른쪽 위로 비켜서 지나감)
-  for (const [idx, list] of walking) {
-    const [x, y] = PATH[idx];
-    const occupied = !!getCell(g, x, y, 0) || inside.has(idx);
-    list.forEach(gb => {
-      const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
-      const size = Math.min(cw, ch) * (occupied ? 0.55 : 0.82) * (gb.type === 'giant' ? 1.2 : 1);
-      const cx = x * cw + (occupied ? cw * 0.72 : cw / 2), bottom = y * ch + (occupied ? ch * 0.62 : ch - 8);
-      const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size);
-      hpBar(ctx, cx - size * 0.4, Math.max(y * ch + 3, rc.y - 6), size * 0.8, gb.hp / gb.maxhp, '#ff5a5a');
-      goblinStatus(ctx, gb, cx + size * 0.42, rc.y);
-    });
+  // 걷는 고블린 (도착한 칸에 슬라임이 있으면 칸 오른쪽 위로 비켜서 지나감)
+  for (const wk of walking) {
+    const { gb } = wk;
+    const cx0 = Math.round(wk.fx), cy0 = Math.round(wk.fy);
+    const idxHere = PATH_IDX.get(`${cx0},${cy0}`);
+    const occupied = !wk.moving && (!!getCell(g, cx0, cy0, 0) || inside.has(idxHere));
+    const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
+    const size = Math.min(cw, ch) * (occupied ? 0.55 : 0.82) * (gb.type === 'giant' ? 1.25 : 1);
+    const cx = wk.fx * cw + (occupied ? cw * 0.72 : cw / 2), bottom = wk.fy * ch + (occupied ? ch * 0.62 : ch - 8);
+    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, wk.moving), flip: wk.flip });
+    hpBar(ctx, cx - size * 0.4, Math.max(wk.fy * ch + 3, rc.y - 6), size * 0.8, gb.hp / gb.maxhp, '#ff5a5a');
+    goblinStatus(ctx, gb, cx + size * 0.42, rc.y);
   }
   drawFloats(ctx, cw, ch);
 }

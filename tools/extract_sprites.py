@@ -160,3 +160,49 @@ for name, (f, x0, y0, x1, y1, disp, tol) in BOXES.items():
         out.thumbnail((280, 280), Image.LANCZOS)
     out.save(f'{OUT}/{name}.png')
     print(name, out.size)
+
+# ---------- 걷기 모션 시트 ----------
+# 이름: (파일, y0, y1, [(x0, x1) 프레임별 열 구간], 배경모드, 출력 프레임 높이)
+WALKS = {
+    'goblin_giant_walk': ('9.webp', 80, 420,
+                          [(41, 269), (274, 504), (513, 741), (747, 979), (1001, 1234), (1239, 1464), (1472, 1702), (1710, 1943)],
+                          'checker_beige', 200),
+}
+
+def keep_largest(im):
+    """옆 프레임에서 넘어온 조각을 버리고 가장 큰 연결 덩어리만 남긴다."""
+    w, h = im.size; px = im.load(); seen = bytearray(w * h); comps = []
+    for sy in range(h):
+        for sx in range(w):
+            if seen[sy * w + sx] or px[sx, sy][3] == 0:
+                continue
+            comp, q = [], deque([(sx, sy)]); seen[sy * w + sx] = 1
+            while q:
+                x, y = q.popleft(); comp.append((x, y))
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)):
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < w and 0 <= ny < h and not seen[ny * w + nx] and px[nx, ny][3] > 0:
+                        seen[ny * w + nx] = 1; q.append((nx, ny))
+            comps.append(comp)
+    comps.sort(key=len, reverse=True)
+    for comp in comps[1:]:
+        if len(comp) < len(comps[0]) * 0.05:
+            for x, y in comp:
+                px[x, y] = (0, 0, 0, 0)
+    return im
+
+for name, (f, y0, y1, spans, mode, out_h) in WALKS.items():
+    im = Image.open(f'{SRC}/{f}').convert('RGB')
+    frames = []
+    for x0, x1 in spans:
+        fr = keep_largest(remove_checker(im.crop((x0 - 4, y0, x1 + 4, y1)), mode))
+        frames.append(fr.crop(fr.getbbox()))
+    # 발 기준(아래 정렬) + 가로 중심 정렬로 같은 크기 칸에 배치 -> 프레임 흔들림 최소화
+    fw = max(f.width for f in frames); fh = max(f.height for f in frames)
+    sheet = Image.new('RGBA', (fw * len(frames), fh), (0, 0, 0, 0))
+    for i, fr in enumerate(frames):
+        sheet.paste(fr, (i * fw + (fw - fr.width) // 2, fh - fr.height), fr)
+    k = out_h / fh
+    sheet = sheet.resize((round(sheet.width * k), out_h), Image.LANCZOS)
+    sheet.save(f'{OUT}/{name}.png')
+    print(name, 'frames', len(frames), 'frame', round(fw * k), 'x', out_h)
