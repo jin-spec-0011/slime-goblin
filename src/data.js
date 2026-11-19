@@ -14,10 +14,13 @@ export const CFG = {
   START_SLIMES: 6,
   ROUND_BONUS_SLIMES: 3,
   CATALYST_START: 2,
-  HP_GROWTH: 1.25,              // 라운드별 고블린 HP 성장
+  HP_GROWTH: 1.17,              // 라운드별 고블린 HP 성장
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
+  FUSION_MUL: 1.3,              // 속성 합성 슬라임 능력치 배율
+  WEAK_MUL: 1.5,                // 고블린 약점 속성 피해 배율
+  RESIST_MUL: 0.5,              // 고블린 내성 속성 피해 배율
   MEGA_ROUND: 5,                // 메가 슬라임 조합 가능 라운드 (이 라운드부터)
   MEGA_MUL: 1.2,
   MEGA_ATK: 2.4,
@@ -49,19 +52,36 @@ export const STATUS = {
   defdown:  { label: '방깎', kind: 'defdown', color: '#d98a4a' },
   float:    { label: '부양', kind: 'float', color: '#ffe9a8' },
   explode:  { label: '폭발', kind: 'explode', color: '#ff9d2e' },
+  chain:    { label: '연쇄', kind: 'explode', color: '#ffe14d' }, // 전기: 옆 칸 고블린에게도 피해
 };
 
+// 속성 8종 (초기 컨셉: 원소를 모티브로 한 속성 슬라임)
+export const ATTRS = {
+  fire:   { label: '불',   icon: '🔥', color: '#ff6a3d' },
+  water:  { label: '물',   icon: '💧', color: '#3aa0ff' },
+  elec:   { label: '전기', icon: '⚡', color: '#ffd84d' },
+  ice:    { label: '얼음', icon: '❄', color: '#7fe3ff' },
+  wind:   { label: '바람', icon: '🌪', color: '#bfe6d0' },
+  earth:  { label: '대지', icon: '⛰', color: '#b5893d' },
+  poison: { label: '독',   icon: '☠', color: '#8fd14f' },
+  rad:    { label: '방사', icon: '☢', color: '#c27bff' },
+};
+
+// 원소·속성 슬라임. attr = 소속 속성. FIRE/WATER/ELEC는 원소가 아닌 순수 속성 슬라임
 export const ELEMENTS = [
-  { sym: 'O',  name: '산소',   color: '#4fa3ff', hp: 30, atk: 4, def: 1, unlock: 1, st: { name: 'suffocate', every: 1, dur: 2 } },
-  { sym: 'H',  name: '수소',   color: '#bfe6ff', hp: 25, atk: 6, def: 0, unlock: 1, st: { name: 'burn', every: 1, dur: 3, mul: 0.6 } },
-  { sym: 'C',  name: '탄소',   color: '#5b6070', hp: 40, atk: 5, def: 2, unlock: 1, st: { name: 'stun', every: 3, dur: 1 } },
-  { sym: 'N',  name: '질소',   color: '#5fd4ff', hp: 28, atk: 3, def: 1, unlock: 1, st: { name: 'freeze', every: 2, dur: 1 } },
-  { sym: 'Fe', name: '철',     color: '#b5651d', hp: 60, atk: 3, def: 4, unlock: 1, st: { name: 'defdown', every: 1, dur: 3, val: 1.5, cap: 8 } },
-  { sym: 'He', name: '헬륨',   color: '#ffe9a8', hp: 20, atk: 4, def: 0, unlock: 3, st: { name: 'float', every: 2, dur: 2 } },
-  { sym: 'Na', name: '나트륨', color: '#ff9d2e', hp: 22, atk: 5, def: 1, unlock: 3, st: { name: 'explode', every: 3, mul: 1.2 } },
-  { sym: 'Cl', name: '염소',   color: '#8fd14f', hp: 30, atk: 4, def: 1, unlock: 5, st: { name: 'poison', every: 1, dur: 4, mul: 0.5 } },
-  { sym: 'S',  name: '황',     color: '#f2d21b', hp: 35, atk: 4, def: 2, unlock: 5, st: { name: 'corrode', every: 1, dur: 3, mul: 0.5 } },
-  { sym: 'U',  name: '우라늄', color: '#a64dff', hp: 40, atk: 8, def: 2, unlock: 7, st: { name: 'radiate', every: 1, dur: 3, mul: 0.5, aoe: 0.3 } },
+  { sym: 'FIRE',  label: '불',   name: '불',   attr: 'fire',  color: '#ff6a3d', hp: 26, atk: 6, def: 0, unlock: 1, st: { name: 'burn', every: 1, dur: 3, mul: 0.7 } },
+  { sym: 'WATER', label: '물',   name: '물',   attr: 'water', color: '#3aa0ff', hp: 34, atk: 4, def: 1, unlock: 1, st: { name: 'slow', every: 1, dur: 2 } },
+  { sym: 'ELEC',  label: '전기', name: '전기', attr: 'elec',  color: '#ffd84d', hp: 24, atk: 5, def: 0, unlock: 1, st: { name: 'chain', every: 1, mul: 0.5 } },
+  { sym: 'O',  attr: 'wind', name: '산소',   color: '#4fa3ff', hp: 30, atk: 4, def: 1, unlock: 1, st: { name: 'suffocate', every: 1, dur: 2 } },
+  { sym: 'H',  attr: 'fire', name: '수소',   color: '#bfe6ff', hp: 25, atk: 6, def: 0, unlock: 1, st: { name: 'burn', every: 1, dur: 3, mul: 0.6 } },
+  { sym: 'C',  attr: 'earth', name: '탄소',   color: '#5b6070', hp: 40, atk: 5, def: 2, unlock: 1, st: { name: 'stun', every: 3, dur: 1 } },
+  { sym: 'N',  attr: 'ice', name: '질소',   color: '#5fd4ff', hp: 28, atk: 3, def: 1, unlock: 1, st: { name: 'freeze', every: 2, dur: 1 } },
+  { sym: 'Fe', attr: 'earth', name: '철',     color: '#b5651d', hp: 60, atk: 3, def: 4, unlock: 1, st: { name: 'defdown', every: 1, dur: 3, val: 1.5, cap: 8 } },
+  { sym: 'He', attr: 'wind', name: '헬륨',   color: '#ffe9a8', hp: 20, atk: 4, def: 0, unlock: 3, st: { name: 'float', every: 2, dur: 2 } },
+  { sym: 'Na', attr: 'elec', name: '나트륨', color: '#ff9d2e', hp: 22, atk: 5, def: 1, unlock: 3, st: { name: 'explode', every: 3, mul: 1.2 } },
+  { sym: 'Cl', attr: 'poison', name: '염소',   color: '#8fd14f', hp: 30, atk: 4, def: 1, unlock: 5, st: { name: 'poison', every: 1, dur: 4, mul: 0.5 } },
+  { sym: 'S',  attr: 'fire', name: '황',     color: '#f2d21b', hp: 35, atk: 4, def: 2, unlock: 5, st: { name: 'corrode', every: 1, dur: 3, mul: 0.5 } },
+  { sym: 'U',  attr: 'rad', name: '우라늄', color: '#a64dff', hp: 40, atk: 8, def: 2, unlock: 7, st: { name: 'radiate', every: 1, dur: 3, mul: 0.5, aoe: 0.3 } },
 ];
 
 // 화합물 족보 (재료는 원소 슬라임 개수 기준)
@@ -74,15 +94,27 @@ export const RECIPES = [
   { key: 'H2SO4', label: 'H₂SO₄', name: '황산',   need: { H: 2, S: 1, O: 4 },  hp: 55, atk: 10, def: 3, color: '#e6c800', st: { name: 'corrode', every: 1, dur: 4, mul: 0.8 } },
 ];
 
+// 속성 합성 (촉매 1개 + 서로 다른 속성 슬라임 2마리). pair 순서 무관
+export const FUSIONS = [
+  { key: 'STEAM',  label: '수증기',   pair: ['water', 'fire'],   color: '#d8e4ee', hp: 40, atk: 6,  def: 1, st: [{ name: 'slow', every: 1, dur: 2 }, { name: 'suffocate', every: 1, dur: 2 }] },
+  { key: 'PLASMA', label: '플라즈마', pair: ['elec', 'fire'],    color: '#ff5fd2', hp: 34, atk: 11, def: 0, pierce: true, st: [{ name: 'burn', every: 1, dur: 2, mul: 0.5 }] },
+  { key: 'SHOCK',  label: '감전수',   pair: ['water', 'elec'],   color: '#5fd4ff', hp: 38, atk: 7,  def: 1, st: [{ name: 'chain', every: 1, mul: 0.6 }, { name: 'slow', every: 2, dur: 1 }] },
+  { key: 'FROST',  label: '서리',     pair: ['ice', 'water'],    color: '#c9f3ff', hp: 40, atk: 5,  def: 2, st: [{ name: 'freeze', every: 1, dur: 2 }] },
+  { key: 'STORM',  label: '화염폭풍', pair: ['wind', 'fire'],    color: '#ff9d2e', hp: 34, atk: 8,  def: 0, st: [{ name: 'burn', every: 1, dur: 3, mul: 0.6, aoe: 0.4 }] },
+  { key: 'MUD',    label: '진흙',     pair: ['earth', 'water'],  color: '#8a6a3a', hp: 60, atk: 5,  def: 4, st: [{ name: 'slow', every: 1, dur: 3 }, { name: 'defdown', every: 1, dur: 3, val: 1.5, cap: 8 }] },
+  { key: 'MIASMA', label: '독안개',   pair: ['poison', 'wind'],  color: '#9fd14f', hp: 34, atk: 6,  def: 1, st: [{ name: 'poison', every: 1, dur: 4, mul: 0.6, aoe: 0.4 }] },
+  { key: 'FUSION', label: '핵융합',   pair: ['rad', 'fire'],     color: '#e05cff', hp: 45, atk: 14, def: 2, pierce: true, decay: true, st: [{ name: 'radiate', every: 1, dur: 3, mul: 0.7, aoe: 0.5 }] },
+];
+
 export const GOBLINS = {
-  normal:  { name: '일반',   ch: '일', hp: 20,  atk: 0,  def: 0, spd: 1, leak: 1,  color: '#6cbf4b' },
-  fighter: { name: '전투',   ch: '전', hp: 45,  atk: 5,  def: 2, spd: 1, leak: 2,  color: '#c96a3a' },
-  mage:    { name: '마법',   ch: '마', hp: 25,  atk: 3,  def: 0, spd: 1, leak: 2,  color: '#8f6bd6' },
-  rider:   { name: '기마',   ch: '기', hp: 22,  atk: 4,  def: 1, spd: 2, leak: 2,  color: '#d6b13c' },
-  archer:  { name: '궁수',   ch: '궁', hp: 18,  atk: 4,  def: 0, spd: 1, leak: 2,  range: 2, color: '#4fb39a' },
-  captain: { name: '대장',   ch: '대', hp: 40,  atk: 5,  def: 2, spd: 1, leak: 3,  aura: true, color: '#d64a4a' },
-  giant:   { name: '초대형', ch: '초', hp: 200, atk: 10, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, color: '#7a5a3a' }, // 2틱에 1칸, 2칸 크기
-  smart:   { name: '지능형', ch: '지', hp: 30,  atk: 4,  def: 1, spd: 1, leak: 3,  evade: 1, cleanse: true, color: '#3ab0d6' },
+  normal:  { name: '일반',   ch: '일', hp: 20,  atk: 0,  def: 0, spd: 1, leak: 1,  color: '#6cbf4b', weak: [], resist: [] },
+  fighter: { name: '전투',   ch: '전', hp: 45,  atk: 5,  def: 2, spd: 1, leak: 2,  color: '#c96a3a', weak: ['elec'], resist: ['earth'] },
+  mage:    { name: '마법',   ch: '마', hp: 25,  atk: 3,  def: 0, spd: 1, leak: 2,  color: '#8f6bd6', weak: ['earth'], resist: ['fire'] },
+  rider:   { name: '기마',   ch: '기', hp: 22,  atk: 4,  def: 1, spd: 2, leak: 2,  color: '#d6b13c', weak: ['water', 'ice'], resist: ['wind'] },
+  archer:  { name: '궁수',   ch: '궁', hp: 18,  atk: 4,  def: 0, spd: 1, leak: 2,  range: 2, color: '#4fb39a', weak: ['wind'], resist: ['water'] },
+  captain: { name: '대장',   ch: '대', hp: 40,  atk: 5,  def: 2, spd: 1, leak: 3,  aura: true, color: '#d64a4a', weak: ['poison'], resist: ['elec'] },
+  giant:   { name: '초대형', ch: '초', hp: 200, atk: 10, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, color: '#7a5a3a', weak: ['rad', 'elec'], resist: ['ice'] }, // 2틱에 1칸, 2칸 크기
+  smart:   { name: '지능형', ch: '지', hp: 30,  atk: 4,  def: 1, spd: 1, leak: 3,  evade: 1, cleanse: true, color: '#3ab0d6', weak: ['water'], resist: ['poison'] },
 };
 
 // 라운드별 편성 [종류, 마릿수]. 목록을 번갈아 섞어 1초에 1마리씩 출발한다.

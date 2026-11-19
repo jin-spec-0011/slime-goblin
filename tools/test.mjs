@@ -1,6 +1,6 @@
 // 핵심 규칙 단위 테스트: node tools/test.mjs
 import { CFG, ROUND_TABLE, GOBLINS } from '../src/data.js';
-import { createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
+import { createGame, step, affinity, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
 const t = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL', name)); };
 const put = (s, sym, x, y, z) => { s.queue.unshift({ id: 9e6 + Math.random(), sym }); return placeFromQueue(s, 0, x, y, z); };
@@ -22,6 +22,21 @@ const L2 = [{ x: 3, y: 0, z: 0 }, { x: 4, y: 0, z: 0 }];
 t('혼합물', combine(s, L2).ok && getCell(s, 3, 0, 0).kind === 'mixture');
 s.catalysts = 0; put(s, 'C', 0, 1, 0); put(s, 'O', 1, 1, 0);
 t('촉매 없으면 거부', !combine(s, [{ x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 }]).ok);
+// 속성 합성: 물 + 불 = 수증기, H(불 속성) + 물 = 수증기, 전기 + 불 = 플라즈마
+s = createGame(8); s.catalysts = 5;
+put(s, 'WATER', 0, 0, 0); put(s, 'FIRE', 1, 0, 0);
+t('물+불 = 수증기', combine(s, [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }]).ok && getCell(s, 0, 0, 0).key === 'STEAM' && getCell(s, 0, 0, 0).kind === 'fusion');
+put(s, 'H', 2, 0, 0); put(s, 'WATER', 3, 0, 0);
+t('H(불 속성)+물 = 수증기', combine(s, [{ x: 2, y: 0, z: 0 }, { x: 3, y: 0, z: 0 }]).ok && getCell(s, 2, 0, 0).key === 'STEAM');
+put(s, 'ELEC', 0, 1, 0); put(s, 'FIRE', 1, 1, 0);
+t('전기+불 = 플라즈마(관통)', combine(s, [{ x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 }]).ok && getCell(s, 0, 1, 0).pierce === true);
+t('화학 족보가 속성 합성보다 우선(H2O)', (() => { put(s, 'H', 2, 1, 0); put(s, 'H', 3, 1, 0); put(s, 'O', 4, 1, 0); combine(s, [{ x: 2, y: 1, z: 0 }, { x: 3, y: 1, z: 0 }, { x: 4, y: 1, z: 0 }]); return getCell(s, 2, 1, 0).key === 'H2O'; })());
+// 상성: 기마는 물 약점(x1.5), 바람 내성(x0.5)
+const rider = { weak: GOBLINS.rider.weak, resist: GOBLINS.rider.resist };
+put(s, 'WATER', 0, 2, 0); put(s, 'O', 1, 2, 0); put(s, 'C', 2, 2, 0);
+t('기마 vs 물 = 약점 1.5', affinity(getCell(s, 0, 2, 0), rider) === 1.5);
+t('기마 vs 산소(바람) = 내성 0.5', affinity(getCell(s, 1, 2, 0), rider) === 0.5);
+t('기마 vs 탄소(대지) = 보통 1', affinity(getCell(s, 2, 2, 0), rider) === 1);
 // 메가
 s = createGame(3);
 for (const x of [0, 1, 2]) for (let i = 0; i < 5; i++) put(s, 'Fe', x, 2, 0);

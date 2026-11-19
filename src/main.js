@@ -1,6 +1,6 @@
 // UI · 렌더링 · 입력 (Canvas 2D)
-import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS } from './data.js';
-import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames, walkFrameMs } from './sprites.js';
+import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS, ATTRS, FUSIONS } from './data.js';
+import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames, walkFrameMs, ASSET_NAMES } from './sprites.js';
 import {
   createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
   getCell, slimeCount, PATH, lvMult,
@@ -87,11 +87,22 @@ function elemBadge(ctx, sl, X, Y, cw) {
   pixelText(ctx, txt, bx + bw / 2, by + bh - 5, fs, '#ffffff');
 }
 
+// 속성 아이콘: 칸 오른쪽 위 (합성 슬라임은 2개). 고블린이 갇히면 원소 배지가 이 자리를 덮는다
+function attrIcons(ctx, sl, X, Y, cw) {
+  ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+  const n = Math.min(2, sl.attrs.length);
+  sl.attrs.slice(0, 2).forEach((a, i) => {
+    const cx = X + cw - 12 - (n - 1 - i) * 17;
+    ctx.fillStyle = 'rgba(16,21,31,.75)'; ctx.beginPath(); ctx.arc(cx, Y + 12, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(ATTRS[a].icon, cx, Y + 16);
+  });
+}
+
 function lvTag(ctx, sl, X, Y) {
-  const txt = `Lv${sl.lv}${sl.kind === 'compound' ? '★' : sl.kind === 'mixture' ? '◇' : ''}`;
+  const txt = `Lv${sl.lv}${sl.kind === 'compound' ? '★' : sl.kind === 'fusion' ? '✦' : sl.kind === 'mixture' ? '◇' : ''}`;
   ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
   ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(16,21,31,.85)'; ctx.strokeText(txt, X + 5, Y + 14);
-  ctx.fillStyle = sl.lv >= 5 ? '#ffb347' : sl.kind === 'compound' ? '#ffd34d' : sl.kind === 'mixture' ? '#c9b6ff' : '#e6ecf7';
+  ctx.fillStyle = sl.lv >= 5 ? '#ffb347' : sl.kind === 'compound' ? '#ffd34d' : sl.kind === 'fusion' ? '#ff9de2' : sl.kind === 'mixture' ? '#c9b6ff' : '#e6ecf7';
   ctx.fillText(txt, X + 5, Y + 14);
 }
 
@@ -188,6 +199,7 @@ function drawBoard() {
       if (art.label) pixelText(ctx, art.label, X + cw / 2, art.rect.y + art.rect.h * 0.75, Math.round(Math.min(cw, ch) * (art.label.length > 3 ? 0.15 : 0.2)), '#ffffff');
       if (trapped.some(gb => !isBig(gb))) badges.push([sl, X, Y]);
       lvTag(ctx, sl, X, Y);
+      if (!trapped.length) attrIcons(ctx, sl, X, Y, cw);
       if (sl.sealed > 0) pixelText(ctx, '봉인', X + cw - 6, Y + 14, 10, '#c27bff', 'right');
       hpBar(ctx, X + 8, Y + ch - 8, cw - 16, sl.hp / sl.maxhp, '#6be08a');
     } else if (trapped.length) {
@@ -262,9 +274,12 @@ function renderQueue() {
       const c = document.createElement('div');
       c.className = 'card'; c.dataset.id = q.id; c.style.borderColor = EL[q.sym].color;
       c.setAttribute('role', 'button'); c.setAttribute('aria-label', `${EL[q.sym].name} 슬라임 카드`);
-      const im = document.createElement('img'); im.src = `assets/slime_${q.sym}.png`; im.alt = '';
+      let art;
+      if (ASSET_NAMES.includes(`slime_${q.sym}`)) { art = document.createElement('img'); art.src = `assets/slime_${q.sym}.png`; art.alt = ''; }
+      else { art = document.createElement('i'); art.className = 'blob'; art.style.background = EL[q.sym].color; art.textContent = ATTRS[EL[q.sym].attr].icon; }
       const sp = document.createElement('span'); sp.textContent = EL[q.sym].name;
-      c.append(im, sp);
+      const ic = document.createElement('b'); ic.className = 'attr'; ic.textContent = ATTRS[EL[q.sym].attr].icon;
+      c.append(art, sp, ic);
       c.addEventListener('pointerdown', e => beginDrag(e, { t: 'q', id: q.id }));
       box.appendChild(c);
     }
@@ -295,8 +310,9 @@ function setInfo(html) { $('info').innerHTML = html; }
 
 function slimeInfo(sl) {
   const sts = sl.status.map(s => STATUS[s.name].label).join(', ');
-  const kind = { element: '원소', compound: '화합물 150%', mixture: '혼합물 70%' }[sl.kind];
-  return `<b>${sl.name} ${sl.label} Lv${sl.lv}</b> · ${kind} · HP ${Math.ceil(sl.hp)}/${sl.maxhp} · 공격 ${sl.atk.toFixed(1)} · 방어 ${sl.def.toFixed(1)} · 효과: ${sts}`;
+  const kind = { element: '원소', compound: '화학 족보 150%', fusion: `속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%`, mixture: '혼합물 70%' }[sl.kind];
+  const at = sl.attrs.map(a => ATTRS[a].icon + ATTRS[a].label).join('+');
+  return `<b>${sl.name} ${sl.label} Lv${sl.lv}</b> · ${at} · ${kind}${sl.pierce ? ' · 방어 관통' : ''} · HP ${Math.ceil(sl.hp)}/${sl.maxhp} · 공격 ${sl.atk.toFixed(1)} · 방어 ${sl.def.toFixed(1)} · 효과: ${sts}`;
 }
 
 function refreshInfo() {
@@ -422,23 +438,32 @@ function showModal(title, html, alt = false) {
 
 function showHelp() {
   const rec = RECIPES.map(r => `<tr><td>${r.label} ${r.name}</td><td>${Object.entries(r.need).map(([k, v]) => v > 1 ? `${k}×${v}` : k).join(' + ')}</td><td>${STATUS[r.st.name].label}</td></tr>`).join('');
-  const els = ELEMENTS.map(e => `<tr><td>${e.sym} ${e.name}</td><td>${STATUS[e.st.name].label}</td><td>R${e.unlock}</td></tr>`).join('');
-  const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}</td><td>${d.atk ? '공격' : '공격 안 함'}</td><td>-${d.leak}</td></tr>`).join('');
+  const els = ELEMENTS.map(e => `<tr><td>${e.label || e.sym} ${e.label ? '' : e.name}</td><td>${ATTRS[e.attr].icon} ${ATTRS[e.attr].label}</td><td>${STATUS[e.st.name].label}</td><td>R${e.unlock}</td></tr>`).join('');
+  const fus = FUSIONS.map(f => `<tr><td>${ATTRS[f.pair[0]].icon}${ATTRS[f.pair[0]].label} + ${ATTRS[f.pair[1]].icon}${ATTRS[f.pair[1]].label}</td><td><b>${f.label}</b></td><td>${f.st.map(s => STATUS[s.name].label).join('·')}${f.pierce ? '·관통' : ''}</td></tr>`).join('');
+  const atl = arr => arr.map(a => ATTRS[a].icon + ATTRS[a].label).join(' ') || '-';
+  const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}</td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
   showModal('게임 방법', `
     <p>고블린은 전장을 <b>ㄹ자 경로</b>로 이동합니다. 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
-    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임 카드는 <b>3초마다 1장</b> 덱에 들어옵니다(최대 ${CFG.QUEUE_MAX}장). 같은 원소를 겹치면 Lv+1(최대 5). <b>조합</b>(촉매 1개 소모): 족보 일치 시 화합물 150%, 불일치 시 혼합물 70%.</p>
+    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임 카드는 <b>3초마다 1장</b> 덱에 들어옵니다(최대 ${CFG.QUEUE_MAX}장). 같은 슬라임을 겹치면 Lv+1(최대 5).</p>
+    <p><b>속성</b>: 모든 슬라임은 8속성 중 하나입니다(🔥불 💧물 ⚡전기 ❄얼음 🌪바람 ⛰대지 ☠독 ☢방사). 고블린마다 <b>약점 속성(피해 ×${CFG.WEAK_MUL}, 주황 숫자)</b>과 <b>내성 속성(×${CFG.RESIST_MUL}, 회색 숫자)</b>이 있습니다.</p>
+    <p><b>조합</b>(촉매 1개): ① 화학 족보 정확히 일치 → 화합물 150% ② <b>서로 다른 속성 2마리 → 속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%</b> ③ 그 외 → 혼합물 70%.</p>
     <p><b>메가</b>: ${CFG.MEGA_ROUND}라운드부터 사용 가능. Lv5 같은 원소 3개 → 3×3 구역, 최대 5마리 동시 공격.</p>
-    <p>보너스: 같은 원소 2개↑ 받는 피해 -10%, 3개↑ 공격 +20%, 같은 가로줄에 같은 원소 3개 공격 +20%.</p>
-    <table><tr><th>원소</th><th>효과</th><th>해금</th></tr>${els}</table>
+    <p>보너스: 같은 <b>속성</b> 2개↑ 받는 피해 -10%, 3개↑ 공격 +20%, 같은 가로줄에 같은 속성 3개 공격 +20%.</p>
+    <table><tr><th>속성 합성</th><th>결과</th><th>효과</th></tr>${fus}</table>
+    <table><tr><th>슬라임</th><th>속성</th><th>효과</th><th>해금</th></tr>${els}</table>
     <table><tr><th>화합물</th><th>족보</th><th>효과</th></tr>${rec}</table>
-    <table><tr><th>고블린</th><th>슬라임</th><th>거점</th></tr>${gbs}</table>`);
+    <table><tr><th>고블린</th><th>약점</th><th>내성</th><th>거점</th></tr>${gbs}</table>`);
 }
 
 // ---------- 루프 ----------
 function collectFx() {
   const now = performance.now();
   for (const f of ui.g.fx) {
-    if (f.k === 'dmg') ui.floats.push({ idx: f.idx, text: (f.who === 'g' ? '-' : '▼') + f.v, col: f.who === 'g' ? '#ffd34d' : '#ff7b7b', t0: now, dx: (Math.random() - 0.5) * 18 });
+    if (f.k === 'dmg') {
+      const weak = f.who === 'g' && f.aff > 1, resist = f.who === 'g' && f.aff < 1;
+      ui.floats.push({ idx: f.idx, text: (f.who === 'g' ? '-' : '▼') + f.v + (weak ? '!' : ''), t0: now, dx: (Math.random() - 0.5) * 18,
+        col: f.who !== 'g' ? '#ff7b7b' : weak ? '#ff8a1e' : resist ? '#9aa4b8' : '#ffd34d' });
+    }
     if (f.k === 'leak') ui.floats.push({ idx: f.idx, text: `거점 -${f.v}`, col: '#ff4040', t0: now, dx: 0 });
   }
 }

@@ -1,5 +1,5 @@
 // 헤드리스 게임 엔진 (DOM 의존 없음, Node에서 시뮬레이션 가능)
-import { CFG, STATUS, ELEMENTS, RECIPES, GOBLINS, ROUND_TABLE, buildPath } from './data.js';
+import { CFG, STATUS, ELEMENTS, RECIPES, FUSIONS, ATTRS, GOBLINS, ROUND_TABLE, buildPath } from './data.js';
 
 export const PATH = buildPath();
 const EL = Object.fromEntries(ELEMENTS.map(e => [e.sym, e]));
@@ -44,7 +44,7 @@ function recalc(s) {
 function makeElement(s, sym, lv = 1) {
   const e = EL[sym];
   const sl = {
-    id: s.nextId++, kind: 'element', key: sym, label: sym, name: e.name, els: [sym], lv,
+    id: s.nextId++, kind: 'element', key: sym, label: e.label || sym, name: e.name, els: [sym], attrs: [e.attr], lv,
     base: { hp: e.hp, atk: e.atk, def: e.def }, status: [e.st], kindMul: 1,
     color: e.color, color2: null, cd: 0, sealed: 0,
   };
@@ -53,7 +53,8 @@ function makeElement(s, sym, lv = 1) {
 
 function makeCompound(s, rec, lv) {
   const sl = {
-    id: s.nextId++, kind: 'compound', key: rec.key, label: rec.label, name: rec.name, els: Object.keys(rec.need), lv,
+    id: s.nextId++, kind: 'compound', key: rec.key, label: rec.label, name: rec.name, els: Object.keys(rec.need),
+    attrs: [...new Set(Object.keys(rec.need).map(k => EL[k].attr))], lv,
     base: { hp: rec.hp, atk: rec.atk, def: rec.def }, status: [rec.st], kindMul: CFG.COMPOUND_MUL,
     color: rec.color, color2: null, cd: 0, sealed: 0,
   };
@@ -70,12 +71,23 @@ function makeMixture(s, counts, lv) {
   base.hp /= n; base.atk /= n; base.def /= n;
   const top = [...syms].sort((a, b) => counts[b] - counts[a] || a.localeCompare(b)).slice(0, 2);
   const sl = {
-    id: s.nextId++, kind: 'mixture', key: 'MIX:' + syms.join(','), label: syms.join('+'), name: '혼합물', els: syms, lv,
+    id: s.nextId++, kind: 'mixture', key: 'MIX:' + syms.join(','), label: syms.map(k => EL[k].label || k).join('+'), name: '혼합물', els: syms,
+    attrs: [...new Set(syms.map(k => EL[k].attr))], lv,
     base, status: top.map(t => EL[t].st), kindMul: CFG.MIXTURE_MUL,
     color: EL[top[0]].color, color2: EL[top[top.length - 1]].color, cd: 0, sealed: 0,
   };
   recalc(sl); return sl;
 }
+
+function makeFusion(s, fu, lv) {
+  const sl = {
+    id: s.nextId++, kind: 'fusion', key: fu.key, label: fu.label, name: fu.label, els: [], attrs: [...fu.pair], lv,
+    base: { hp: fu.hp, atk: fu.atk, def: fu.def }, status: fu.st, kindMul: CFG.FUSION_MUL,
+    pierce: !!fu.pierce, decay: !!fu.decay, color: fu.color, color2: ATTRS[fu.pair[1]].color, cd: 0, sealed: 0,
+  };
+  recalc(sl); return sl;
+}
+const fusionOf = (a, b) => FUSIONS.find(f => (f.pair[0] === a && f.pair[1] === b) || (f.pair[0] === b && f.pair[1] === a)) || null;
 
 // ---------- 지급 큐 ----------
 function addQueue(s) {
@@ -103,19 +115,28 @@ function removeSlime(s, sl) {
     if (s.cells[z][y][x] === sl) s.cells[z][y][x] = null;
 }
 
+// 속성별 배치 수 (슬라임 하나가 여러 속성이면 각각 1씩)
 function computeCounts(s) {
   const c = {};
-  for (const sl of s.cells.flat(2)) if (sl) c[sl.key] = (c[sl.key] || 0) + 1;
+  for (const sl of s.cells.flat(2)) if (sl) for (const a of sl.attrs) c[a] = (c[a] || 0) + 1;
   s.counts = c; return c;
 }
+const sameAttr = (a, b) => a.attrs.some(x => b.attrs.includes(x));
 
 function bonus(s, sl, col) {
   let atk = 1, take = 1;
-  const cnt = s.counts[sl.key] || 0;
+  const cnt = Math.max(0, ...sl.attrs.map(a => s.counts[a] || 0));
   if (cnt >= 3) atk *= CFG.GROUP3_ATK;
   if (cnt >= 2) take *= CFG.GROUP2_TAKEN;
-  if (col.filter(c => c.key === sl.key).length >= 3) atk *= CFG.COLUMN_ATK; // col = 같은 가로줄 슬라임
+  if (col.filter(c => sameAttr(c, sl)).length >= 3) atk *= CFG.COLUMN_ATK; // col = 같은 가로줄 슬라임
   return { atk, take };
+}
+
+// 속성 상성: 고블린 약점 속성이면 x1.5, 내성 속성이면 x0.5 (약점 우선)
+export function affinity(sl, g) {
+  if (sl.attrs.some(a => g.weak.includes(a))) return CFG.WEAK_MUL;
+  if (sl.attrs.some(a => g.resist.includes(a))) return CFG.RESIST_MUL;
+  return 1;
 }
 
 // ---------- 플레이어 행동 ----------
@@ -124,7 +145,7 @@ export function placeFromQueue(s, qi, x, y, z) {
   if (!q) return err('대기 슬라임이 없습니다.');
   const cur = getCell(s, x, y, z);
   if (cur) {
-    if (cur.kind !== 'element' || cur.key !== q.sym) return err('같은 원소에만 겹칠 수 있습니다.');
+    if (cur.kind !== 'element' || cur.key !== q.sym) return err('같은 슬라임에만 겹칠 수 있습니다.');
     if (cur.lv >= CFG.MAX_LV) return err('이미 최대 레벨입니다.');
     cur.lv += 1; recalc(cur); s.queue.splice(qi, 1);
     return ok(`${cur.label} Lv${cur.lv}`);
@@ -132,7 +153,7 @@ export function placeFromQueue(s, qi, x, y, z) {
   if (slimeCount(s) >= CFG.CAP) return err(`배치 상한(${CFG.CAP})입니다.`);
   s.cells[z][y][x] = makeElement(s, q.sym); s.queue.splice(qi, 1);
   computeCounts(s);
-  return ok(`${q.sym} 배치`);
+  return ok(`${EL[q.sym].label || q.sym} 배치`);
 }
 
 export function moveSlime(s, a, b) {
@@ -140,7 +161,7 @@ export function moveSlime(s, a, b) {
   const A = getCell(s, a.x, a.y, a.z); if (!A) return err('이동할 슬라임이 없습니다.');
   const B = getCell(s, b.x, b.y, b.z);
   if (!B) { s.cells[b.z][b.y][b.x] = A; s.cells[a.z][a.y][a.x] = null; return ok('이동'); }
-  const stackable = A.key === B.key && (A.kind === 'element' || A.kind === 'compound');
+  const stackable = A.key === B.key && (A.kind === 'element' || A.kind === 'compound' || A.kind === 'fusion');
   if (stackable) {
     if (A.lv + B.lv > CFG.MAX_LV) return err('합치면 Lv5를 초과합니다.');
     B.lv += A.lv; recalc(B); s.cells[a.z][a.y][a.x] = null; computeCounts(s);
@@ -152,19 +173,26 @@ export function moveSlime(s, a, b) {
 export function recipeHint(s, list) {
   const sl = list.map(p => getCell(s, p.x, p.y, p.z)).filter(Boolean);
   if (sl.length < 2) return { state: 'none', text: '슬라임 2개 이상을 선택하세요.' };
-  if (sl.some(c => c.kind !== 'element')) return { state: 'bad', text: '원소 슬라임만 조합할 수 있습니다.' };
+  if (sl.some(c => c.kind !== 'element')) return { state: 'bad', text: '원소·속성 슬라임만 조합할 수 있습니다.' };
   const cnt = {}; sl.forEach(c => { cnt[c.key] = (cnt[c.key] || 0) + 1; });
-  if (Object.keys(cnt).length < 2) return { state: 'bad', text: '같은 원소는 겹치기로 성장합니다.' };
+  if (Object.keys(cnt).length < 2) return { state: 'bad', text: '같은 슬라임은 겹치기로 성장합니다.' };
+  // 1) 화학 족보 정확히 일치 -> 화합물 150%
   let best = null;
   for (const r of RECIPES) {
     const keys = new Set([...Object.keys(cnt), ...Object.keys(r.need)]);
     let diff = 0; for (const k of keys) diff += Math.abs((cnt[k] || 0) - (r.need[k] || 0));
     if (!best || diff < best.diff) best = { r, diff };
   }
+  if (best.diff === 0) return { state: 'match', recipe: best.r, text: `${best.r.label} ${best.r.name} (화학 족보 150%)` };
+  // 2) 서로 다른 속성 슬라임 2마리 -> 속성 합성
+  if (sl.length === 2 && sl[0].attrs[0] !== sl[1].attrs[0]) {
+    const fu = fusionOf(sl[0].attrs[0], sl[1].attrs[0]);
+    if (fu) return { state: 'fusion', fusion: fu, text: `${ATTRS[fu.pair[0]].label} + ${ATTRS[fu.pair[1]].label} = ${fu.label} (속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%)` };
+  }
+  // 3) 그 외 -> 혼합물 70%
   const fmt = r => Object.entries(r.need).map(([k, v]) => v > 1 ? `${k}×${v}` : k).join(' + ');
-  if (best.diff === 0) return { state: 'match', recipe: best.r, text: `${best.r.label} ${best.r.name} (150%) 족보 일치` };
   if (best.diff <= 2) return { state: 'near', text: `혼합물(70%) · ${best.r.label} 거의 맞음: ${fmt(best.r)}` };
-  return { state: 'mix', text: '혼합물(70%) 생성' };
+  return { state: 'mix', text: '혼합물(70%) 생성 · 속성 합성은 서로 다른 속성 2마리' };
 }
 
 export function combine(s, list) {
@@ -174,11 +202,12 @@ export function combine(s, list) {
   const sl = list.map(p => getCell(s, p.x, p.y, p.z));
   const cnt = {}; sl.forEach(c => { cnt[c.key] = (cnt[c.key] || 0) + 1; });
   const lv = Math.min(CFG.MAX_LV, Math.ceil(sl.reduce((a, c) => a + c.lv, 0) / sl.length));
-  const res = h.state === 'match' ? makeCompound(s, h.recipe, lv) : makeMixture(s, cnt, lv);
+  const res = h.state === 'match' ? makeCompound(s, h.recipe, lv)
+    : h.state === 'fusion' ? makeFusion(s, h.fusion, lv) : makeMixture(s, cnt, lv);
   list.forEach(p => { s.cells[p.z][p.y][p.x] = null; });
   const p0 = list[0]; s.cells[p0.z][p0.y][p0.x] = res;
   s.catalysts--; computeCounts(s);
-  return ok(h.state === 'match' ? `${res.label} 합성 성공!` : `혼합물 ${res.label} 생성`);
+  return ok(h.state === 'match' ? `${res.label} 합성 성공!` : h.state === 'fusion' ? `속성 합성: ${res.label}!` : `혼합물 ${res.label} 생성`);
 }
 
 export function makeMega(s, list) {
@@ -190,7 +219,7 @@ export function makeMega(s, list) {
   const e = EL[sl[0].key], m = lvMult(CFG.MAX_LV);
   const zx = Math.min(Math.max(list[0].x - 1, 0), CFG.W - 3), zy = Math.min(Math.max(list[0].y - 1, 0), CFG.H - 3);
   const mega = {
-    id: s.nextId++, kind: 'mega', key: sl[0].key + 'M', label: sl[0].key, name: `메가 ${e.name}`, els: [sl[0].key], lv: 6,
+    id: s.nextId++, kind: 'mega', key: sl[0].key + 'M', label: e.label || sl[0].key, name: `메가 ${e.name}`, els: [sl[0].key], attrs: [e.attr], lv: 6,
     maxhp: Math.round(3 * e.hp * m * CFG.MEGA_MUL * 2), atk: e.atk * m * CFG.MEGA_ATK,
     def: e.def * (1 + 0.25 * (CFG.MAX_LV - 1)) * 1.5, status: [e.st], color: e.color, zx, zy, cd: 0, sealed: 0,
   };
@@ -221,6 +250,7 @@ function makeGoblin(s, type) {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
     atk: d.atk * (1 + CFG.ATK_GROWTH * r), def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
     multi: d.multi || 1, range: d.range || 0, aura: !!d.aura, evade: d.evade || 0, cleanse: !!d.cleanse,
+    weak: d.weak || [], resist: d.resist || [],
     idx: 0, pit: false, st: {}, fights: 0, dead: false,
   };
 }
@@ -258,13 +288,13 @@ function effDef(s, g) {
   return Math.max(0, g.def + a.def - (hasSt(g, 'defdown') ? g.st.defdown.v : 0));
 }
 
-function hurt(s, g, dmg, ref) {
+function hurt(s, g, dmg, aff = 1) {
   if (g.dead) return;
-  g.hp -= dmg; s.fx.push({ k: 'dmg', idx: g.idx, v: Math.round(dmg), who: 'g' });
+  g.hp -= dmg; s.fx.push({ k: 'dmg', idx: g.idx, v: Math.round(dmg), who: 'g', aff });
   if (g.hp <= 0) { g.dead = true; s.kills++; s.fx.push({ k: 'kill', idx: g.idx }); }
 }
 
-function slimeStatus(s, sl, g, x, y) {
+function slimeStatus(s, sl, g, x, y, aff = 1) {
   sl.cd = (sl.cd || 0) + 1;
   const m = lvMult(Math.min(sl.lv, CFG.MAX_LV));
   for (const st of sl.status) {
@@ -276,9 +306,9 @@ function slimeStatus(s, sl, g, x, y) {
         if (ni < 0) continue;
         s.goblins.filter(o => !o.dead && o.idx === ni).forEach(o => hurt(s, o, sl.atk * (st.mul || 1)));
       }
-      hurt(s, g, sl.atk * (st.mul || 1));
+      hurt(s, g, sl.atk * (st.mul || 1) * aff, aff);
     } else {
-      applyStatus(g, st, sl);
+      applyStatus(g, st, aff === 1 ? sl : { lv: sl.lv, atk: sl.atk * aff });
       if (st.aoe) {
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const ni = PATH.findIndex(p => p[0] === x + dx && p[1] === y + dy);
@@ -326,11 +356,11 @@ function fight(s, g, x, y) {
   const top = col[0] || null;
   // 슬라임(함정)이 먼저 공격
   if (top && !(top.sealed > 0)) {
-    const b = bonus(s, top, row);
-    const dmg = Math.max(1, Math.round(top.atk * b.atk - effDef(s, g)));
-    hurt(s, g, dmg);
-    if (!g.dead) slimeStatus(s, top, g, x, y);
-    if (top.key === 'U') top.hp -= Math.ceil(top.maxhp * 0.05);
+    const b = bonus(s, top, row), aff = affinity(top, g);
+    const dmg = Math.max(1, Math.round(top.atk * b.atk * aff - (top.pierce ? 0 : effDef(s, g))));
+    hurt(s, g, dmg, aff);
+    if (!g.dead) slimeStatus(s, top, g, x, y, aff);
+    if (top.key === 'U' || top.decay) top.hp -= Math.ceil(top.maxhp * 0.05);
   }
   // 고블린 반격 (일반 고블린은 공격 불가)
   if (!g.dead && g.atk > 0 && !locked(s, g)) {
@@ -382,7 +412,8 @@ function actMega(s, m) {
   if (!targets.length || m.sealed > 0) return;
   m.cd++;
   for (const g of targets) {
-    hurt(s, g, Math.max(1, Math.round(m.atk - effDef(s, g))));
+    const aff = affinity(m, g);
+    hurt(s, g, Math.max(1, Math.round(m.atk * aff - effDef(s, g))), aff);
     if (!g.dead) for (const st of m.status) if (m.cd % (st.every || 1) === 0 && STATUS[st.name].kind !== 'explode') applyStatus(g, st, { lv: CFG.MAX_LV, atk: m.atk });
   }
 }
