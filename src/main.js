@@ -75,6 +75,17 @@ function hpBar(ctx, x, y, w, ratio, col) {
 // ---------- 전장 ----------
 const PATH_IDX = new Map(PATH.map(([x, y], i) => [`${x},${y}`, i]));
 
+// 원소 배지: 고블린이 갇혀 슬라임 그림의 원소 글자가 가려질 때 칸 오른쪽 위에 표시
+function elemBadge(ctx, sl, X, Y, cw) {
+  const txt = sl.label, fs = txt.length > 3 ? 10 : 12;
+  ctx.font = `bold ${fs}px sans-serif`;
+  const bw = Math.max(22, ctx.measureText(txt).width + 10), bh = fs + 8;
+  const bx = X + cw - bw - 4, by = Y + 4;
+  ctx.fillStyle = sl.color; ctx.strokeStyle = '#10151f'; ctx.lineWidth = 2;
+  roundRect(ctx, bx, by, bw, bh, 6); ctx.fill(); ctx.stroke();
+  pixelText(ctx, txt, bx + bw / 2, by + bh - 5, fs, '#ffffff');
+}
+
 function lvTag(ctx, sl, X, Y) {
   const txt = `Lv${sl.lv}${sl.kind === 'compound' ? '★' : sl.kind === 'mixture' ? '◇' : ''}`;
   ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
@@ -103,6 +114,7 @@ function drawBoard() {
   const moveMsOf = gb => (gb.spd < 1 ? (tickMs / gb.spd) * 0.95 : Math.min(900, tickMs * 0.6));
   const isBig = gb => (GOBLINS[gb.type].size || 1) > 1;
   const bigs = []; // 2칸 크기 고블린은 다른 칸에 가려지지 않도록 마지막에 그림
+  const badges = []; // 원소 배지는 모든 고블린 위에 그림
   const live = new Set();
   const inside = new Map(), walking = [];
   for (const gb of g.goblins) {
@@ -171,6 +183,7 @@ function drawBoard() {
         ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
       }
       if (art.label) pixelText(ctx, art.label, X + cw / 2, art.rect.y + art.rect.h * 0.75, Math.round(Math.min(cw, ch) * (art.label.length > 3 ? 0.15 : 0.2)), '#ffffff');
+      if (trapped.some(gb => !isBig(gb))) badges.push([sl, X, Y]);
       lvTag(ctx, sl, X, Y);
       if (sl.sealed > 0) pixelText(ctx, '봉인', X + cw - 6, Y + 14, 10, '#c27bff', 'right');
       hpBar(ctx, X + 8, Y + ch - 8, cw - 16, sl.hp / sl.maxhp, '#6be08a');
@@ -213,10 +226,12 @@ function drawBoard() {
       ctx.globalAlpha = 0.6; drawSlimeArt(ctx, bg.trappedIn, cx, footY + 6, cw * 0.94, ch - 18); ctx.globalAlpha = 1;
       ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
       hpBar(ctx, X + 8, Math.min(footY + 2, ch * CFG.H - 6), cw - 16, bg.trappedIn.hp / bg.trappedIn.maxhp, '#6be08a');
+      badges.push([bg.trappedIn, X, Math.max(Y, footY - ch * 0.55)]);
     }
     hpBar(ctx, cx - size * 0.3, Math.max(2 - pad, rc.y - 6), size * 0.6, gb.hp / gb.maxhp, '#ff5a5a');
     goblinStatus(ctx, gb, cx + size * 0.32, Math.max(2 - pad, rc.y));
   }
+  for (const [sl, X, Y] of badges) elemBadge(ctx, sl, X, Y, cw);
   drawFloats(ctx, cw, ch);
   ctx.restore();
 }
