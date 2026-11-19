@@ -12,20 +12,22 @@ S = 2000 / 1932
 BOXES = {
     # 원소 슬라임 (이미지 2 상단 로스터)
     'slime_O':  ('2.webp', 312, 122, 443, 238, True, 38),
-    'slime_H':  ('2.webp', 487, 122, 610, 238, True, 38),
     'slime_C':  ('2.webp', 650, 122, 795, 238, True, 38),
     'slime_He': ('2.webp', 822, 122, 945, 238, True, 38),
-    'slime_Fe': ('2.webp', 985, 122, 1115, 238, True, 38),
     'slime_Na': ('2.webp', 1145, 122, 1295, 238, True, 38),
-    'slime_Cl': ('2.webp', 1372, 122, 1495, 238, True, 38),
-    'slime_S':  ('2.webp', 1565, 122, 1690, 238, True, 38),
     'slime_U':  ('2.webp', 1740, 122, 1865, 238, True, 38),
-    'slime_N':  ('1.webp', 55, 838, 175, 912, True, 38),
     # 화합물/혼합물/메가
     'slime_H2O':  ('2.webp', 1090, 895, 1265, 1035, True, 38),
     'slime_NH3':  ('2.webp', 1660, 875, 1855, 1045, True, 38),
     'slime_mix':  ('1.webp', 1615, 440, 1715, 510, True, 38),
     'slime_mega': ('4.webp', 1645, 565, 1835, 720, True, 30),
+    # 슬라임 시트(7.webp, 어두운 체크 배경, 표시좌표) - 레벨 글자가 몸통 밖에 있는 것만 사용
+    'slime_H':    ('7.webp', 425, 1350, 615, 1485, True, 'checker_dark'),
+    'slime_Cl':   ('7.webp', 645, 1350, 830, 1485, True, 'checker_dark'),
+    'slime_S':    ('7.webp', 1295, 1280, 1505, 1485, True, 'checker_dark'),
+    'slime_Fe':   ('7.webp', 195, 1320, 395, 1495, True, 'checker_dark_strict'),
+    'slime_N':    ('7.webp', 425, 1650, 615, 1835, True, 'checker_dark'),
+    'slime_NaCl': ('7.webp', 1525, 1330, 1765, 1535, True, 'checker_dark'),
     # 고블린 로스터(6.webp, 체크무늬 배경, 원본 좌표) -> 게임 8종
     'goblin_normal':  ('6.webp', 105, 90, 325, 300, False, 'checker'),   # Goblin Roster (Draft)
     'goblin_fighter': ('6.webp', 425, 90, 635, 350, False, 'checker'),   # Shield Goblin
@@ -44,12 +46,22 @@ BOXES = {
 def similar(a, b, tol):
     return abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2]) <= tol * 3
 
-def remove_checker(im):
-    """가짜 투명 체크무늬(회색 162/205) 배경 제거: 테두리에 연결된 무채색 밝은 픽셀만 지운다."""
+CHECKER = {
+    'checker': (16, [(135, 235)]),            # 밝은 체크(회색 162/205) - 고블린 로스터
+    'checker_dark': (12, [(0, 120)]),
+    'checker_dark_strict': (5, [(0, 16), (98, 112)]),  # 회색 몸통(Fe) 보존용          # 어두운 체크(검정/회색 105 + 경계 중간톤) - 슬라임 시트
+}
+
+def remove_checker(im, mode='checker'):
+    """가짜 투명 체크무늬 배경 제거: 테두리에 연결된 무채색 체크 픽셀만 지운다."""
     im = im.convert('RGBA'); w, h = im.size; px = im.load()
+    sat_max, ranges = CHECKER[mode]
     def is_bg(c):
-        r, g, b = c[:3]
-        return max(r, g, b) - min(r, g, b) <= 16 and 135 <= (r + g + b) / 3 <= 235
+        r, g, b = c[:3]; a = (r + g + b) / 3
+        if max(r, g, b) - min(r, g, b) <= sat_max and any(lo <= a <= hi for lo, hi in ranges):
+            return True
+        # 슬라임 시트의 청회색 구분 띠
+        return mode.startswith('checker_dark') and max(r, g, b) - min(r, g, b) <= 26 and 18 <= a <= 78 and b >= r
     seen = bytearray(w * h)
     q = deque((x, y) for x in range(w) for y in (0, h - 1))
     q.extend((x, y) for y in range(h) for x in (0, w - 1))
@@ -72,6 +84,35 @@ def remove_checker(im):
             if c[3] and is_bg(c) and sum(1 for dx, dy in ((1,0),(-1,0),(0,1),(0,-1))
                                      if 0 <= x+dx < w and 0 <= y+dy < h and px[x+dx, y+dy][3] == 0) >= 2:
                 px[x, y] = (0, 0, 0, 0)
+    return im
+
+def drop_specks(im, min_px=60):
+    """배경 제거 후 남은 작은 고립 조각(체크 경계 잔티)을 지운다."""
+    w, h = im.size; px = im.load(); seen = bytearray(w * h)
+    for sy in range(h):
+        for sx in range(w):
+            if seen[sy * w + sx] or px[sx, sy][3] == 0:
+                continue
+            comp, q = [], deque([(sx, sy)]); seen[sy * w + sx] = 1
+            while q:
+                x, y = q.popleft(); comp.append((x, y))
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < w and 0 <= ny < h and not seen[ny * w + nx] and px[nx, ny][3] > 0:
+                        seen[ny * w + nx] = 1; q.append((nx, ny))
+            if len(comp) < min_px:
+                for x, y in comp:
+                    px[x, y] = (0, 0, 0, 0)
+    return im
+
+def add_outline(im, color=(16, 20, 30, 255)):
+    """어두운 체크와 함께 지워진 외곽선을 1px로 복원한다 (불투명 픽셀에 닿은 투명 픽셀을 칠함)."""
+    w, h = im.size; px = im.load()
+    edge = [(x, y) for y in range(h) for x in range(w) if px[x, y][3] == 0 and any(
+        0 <= x + dx < w and 0 <= y + dy < h and px[x + dx, y + dy][3] > 0
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))]
+    for x, y in edge:
+        px[x, y] = color
     return im
 
 def remove_bg(im, tol):
@@ -105,7 +146,9 @@ for name, (f, x0, y0, x1, y1, disp, tol) in BOXES.items():
     im = Image.open(f'{SRC}/{f}').convert('RGB')
     k = S if disp else 1
     crop = im.crop((round(x0 * k), round(y0 * k), round(x1 * k), round(y1 * k)))
-    out = remove_checker(crop) if tol == 'checker' else remove_bg(crop, tol)
+    out = remove_checker(crop, tol) if isinstance(tol, str) else remove_bg(crop, tol)
+    if isinstance(tol, str) and tol.startswith('checker_dark'):
+        out = add_outline(add_outline(drop_specks(out)))  # 원본 도트 외곽선 두께(약 2px) 복원
     bbox = out.getbbox()
     if bbox:
         out = out.crop(bbox)

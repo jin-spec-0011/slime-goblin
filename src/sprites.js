@@ -153,7 +153,7 @@ export function drawSprite(ctx, spr, cx, bottom, maxW, maxH) {
 const IMG = {};
 export const ASSET_NAMES = [
   'goblin', 'goblin_frozen', 'goblin_normal', 'goblin_fighter', 'goblin_mage', 'goblin_rider',
-  'goblin_archer', 'goblin_captain', 'goblin_giant', 'goblin_smart', 'slime_mega', 'slime_mix', 'slime_H2O', 'slime_NH3',
+  'goblin_archer', 'goblin_captain', 'goblin_giant', 'goblin_smart', 'slime_mega', 'slime_mix', 'slime_H2O', 'slime_NH3', 'slime_NaCl',
   'slime_O', 'slime_H', 'slime_C', 'slime_N', 'slime_He', 'slime_Fe', 'slime_Na', 'slime_Cl', 'slime_S', 'slime_U',
 ];
 export function loadAssets(base = 'assets/') {
