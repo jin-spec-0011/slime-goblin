@@ -32,8 +32,10 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .btn.on { background: var(--accent); color: #222; border-color: #b8942a; }
 .btn:disabled { opacity: .4; }
 .ghost { position: fixed; pointer-events: none; z-index: 50; transform: translate(-50%, -60%); opacity: .85; }
-.modal { position: fixed; inset: 0; background: rgba(10,14,24,.7); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
-.modal .card { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 16px; max-width: 460px; width: 100%; max-height: 85vh; overflow: auto; }
+.modal { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(10,14,24,.7); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+/* 팝업 상자: 덱 카드(.card)와 클래스 분리 */
+.modal .mcard { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 16px;
+  width: calc(100vw - 32px); max-width: 460px; max-height: 85vh; overflow: auto; -webkit-overflow-scrolling: touch; }
 .modal h2 { margin: 0 0 10px; font-size: 18px; }
 .modal table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
 .modal td, .modal th { border: 1px solid var(--line); padding: 3px 5px; text-align: left; }

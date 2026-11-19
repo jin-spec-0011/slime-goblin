@@ -456,7 +456,8 @@ function render() { renderHud(); renderQueue(); drawBoard(); refreshInfo(); }
 function frame(t) {
   const dt = Math.min(250, t - (ui.last || t)); ui.last = t;
   const g = ui.g;
-  if (!ui.paused && g.phase !== 'over' && g.phase !== 'won' && !document.hidden) {
+  const modalOpen = !$('modal').classList.contains('hidden'); // 팝업이 열려 있으면 시간 정지
+  if (!ui.paused && !modalOpen && g.phase !== 'over' && g.phase !== 'won' && !document.hidden) {
     ui.acc += dt * ui.speed;
     while (ui.acc >= CFG.TICK_MS) {
       ui.acc -= CFG.TICK_MS; step(g); collectFx(); ui.msg = '';
