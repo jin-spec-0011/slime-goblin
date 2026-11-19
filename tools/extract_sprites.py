@@ -35,7 +35,7 @@ BOXES = {
     'goblin_rider':   ('6.webp', 95, 460, 370, 670, False, 'checker'),   # Spear Goblin
     'goblin_archer':  ('6.webp', 440, 460, 665, 670, False, 'checker'),  # Archer Goblin
     'goblin_captain': ('6.webp', 1665, 50, 1920, 325, False, 'checker'), # Goblin King
-    'goblin_giant':   ('6.webp', 1065, 90, 1270, 300, False, 'checker'), # Stone-skin Goblin
+    'goblin_giant':   ('8.webp', 590, 50, 1310, 815, False, 'checker_beige'), # Ogre Chieftain
     'goblin_smart':   ('6.webp', 1390, 440, 1550, 670, False, 'checker'),# Rogue Goblin
     'item_catalyst':  ('6.webp', 835, 790, 920, 920, False, 'checker'),  # Catalyst
     # 고블린 (구버전 단일 이미지, 로스터 로드 실패 시 대체)
@@ -49,6 +49,7 @@ def similar(a, b, tol):
 CHECKER = {
     'checker': (16, [(135, 235)]),            # 밝은 체크(회색 162/205) - 고블린 로스터
     'checker_dark': (12, [(0, 120)]),
+    'checker_beige': (0, []),
     'checker_dark_strict': (5, [(0, 16), (98, 112)]),  # 회색 몸통(Fe) 보존용          # 어두운 체크(검정/회색 105 + 경계 중간톤) - 슬라임 시트
 }
 
@@ -60,6 +61,9 @@ def remove_checker(im, mode='checker'):
         r, g, b = c[:3]; a = (r + g + b) / 3
         if max(r, g, b) - min(r, g, b) <= sat_max and any(lo <= a <= hi for lo, hi in ranges):
             return True
+        # 베이지 체크(오우거 시트): 따뜻한 밝은 톤
+        if mode == 'checker_beige':
+            return r >= g >= b - 2 and r - b <= 40 and a >= 200
         # 슬라임 시트의 청회색 구분 띠
         return mode.startswith('checker_dark') and max(r, g, b) - min(r, g, b) <= 26 and 18 <= a <= 78 and b >= r
     seen = bytearray(w * h)
@@ -152,5 +156,7 @@ for name, (f, x0, y0, x1, y1, disp, tol) in BOXES.items():
     bbox = out.getbbox()
     if bbox:
         out = out.crop(bbox)
+    if max(out.size) > 280:  # 게임 표시 크기 대비 과대 원본은 축소 (용량 절감)
+        out.thumbnail((280, 280), Image.LANCZOS)
     out.save(f'{OUT}/{name}.png')
     print(name, out.size)

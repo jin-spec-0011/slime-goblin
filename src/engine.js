@@ -114,7 +114,7 @@ function bonus(s, sl, col) {
   const cnt = s.counts[sl.key] || 0;
   if (cnt >= 3) atk *= CFG.GROUP3_ATK;
   if (cnt >= 2) take *= CFG.GROUP2_TAKEN;
-  if (col.filter(c => c.key === sl.key).length >= 3) atk *= CFG.COLUMN_ATK;
+  if (col.filter(c => c.key === sl.key).length >= 3) atk *= CFG.COLUMN_ATK; // col = 같은 가로줄 슬라임
   return { atk, take };
 }
 
@@ -313,14 +313,17 @@ function moveGoblin(s, g) {
   }
 }
 
+const rowSlimes = (s, y) => { const out = []; for (let z = 0; z < CFG.D; z++) for (let x = 0; x < CFG.W; x++) if (s.cells[z][y][x]) out.push(s.cells[z][y][x]); return out; };
+
 function fight(s, g, x, y) {
   const col = columnSlimes(s, x, y);
+  const row = rowSlimes(s, y);
   const mega = megaAt(s, x, y);
   g.fights++;
   const top = col[0] || null;
   // 슬라임(함정)이 먼저 공격
   if (top && !(top.sealed > 0)) {
-    const b = bonus(s, top, col);
+    const b = bonus(s, top, row);
     const dmg = Math.max(1, Math.round(top.atk * b.atk - effDef(s, g)));
     hurt(s, g, dmg);
     if (!g.dead) slimeStatus(s, top, g, x, y);
@@ -331,7 +334,7 @@ function fight(s, g, x, y) {
     const aura = auraOf(s, g).atk;
     const gatk = g.atk * aura * (hasSt(g, 'suffocate') ? 0.5 : 1);
     if (col.length) {
-      const b = bonus(s, col[0], col);
+      const b = bonus(s, col[0], row);
       for (const t of col.slice(0, g.multi)) {
         const d = Math.max(1, Math.round(gatk * b.take - t.def));
         t.hp -= d; s.fx.push({ k: 'dmg', idx: g.idx, v: d, who: 's' });
@@ -385,7 +388,7 @@ function actMega(s, m) {
 export function step(s) {
   if (s.phase === 'over' || s.phase === 'won') return;
   s.fx = []; s.tick++;
-  if (!addQueue(s)) say(s, '대기열이 가득 차 슬라임이 사라졌습니다.');
+  if (!addQueue(s)) say(s, '덱이 가득 차 카드 1장이 버려졌습니다.');
   if (s.phase === 'prep') {
     s.prepLeft--; if (s.prepLeft <= 0) startRound(s);
     return;

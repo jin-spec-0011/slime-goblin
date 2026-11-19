@@ -1,9 +1,9 @@
 // 모든 밸런스 수치는 이 파일에서만 조정한다.
 export const CFG = {
-  W: 5, H: 5, D: 3,            // 경로/기둥 가로·세로, 구덩이 깊이(층)
-  CAP: 50,                      // 배치 상한
+  W: 5, H: 5, D: 1,            // 판 가로·세로, 층 수(판 통합으로 1층)
+  CAP: 25,                      // 배치 상한 (판 칸 수)
   TICK_MS: 3000,                // 1틱 = 3초 (슬라임 1개 지급)
-  QUEUE_MAX: 20,
+  QUEUE_MAX: 10,                // 덱(손패) 최대 장수
   BASE_HP: 20,
   MAX_LV: 5,
   LV_STEP: 0.6,                 // 능력치 = 기본 x (1 + 0.6 x (Lv-1))
@@ -13,7 +13,7 @@ export const CFG = {
   START_SLIMES: 6,
   ROUND_BONUS_SLIMES: 3,
   CATALYST_START: 2,
-  HP_GROWTH: 1.4,              // 라운드별 고블린 HP 성장
+  HP_GROWTH: 1.5,              // 라운드별 고블린 HP 성장
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
@@ -22,7 +22,7 @@ export const CFG = {
   MEGA_MAX_TARGETS: 5,
   GROUP2_TAKEN: 0.9,            // 동일 원소 2개 이상: 받는 피해 -10%
   GROUP3_ATK: 1.2,              // 동일 원소 3개 이상: 공격 +20%
-  COLUMN_ATK: 1.2,              // 같은 기둥 동일 원소 3개: 공격 +20%
+  COLUMN_ATK: 1.2,              // 같은 가로줄 동일 원소 3개: 공격 +20%
 };
 
 // ㄹ자 경로 (최상단 5x5): (0,0)->(4,0) ↓ (4,1)->(0,1) ↓ ...

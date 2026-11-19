@@ -42,3 +42,11 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .hidden { display: none !important; }
 .ico { height: 18px; width: auto; vertical-align: -3px; margin-right: 2px; image-rendering: pixelated; }
 .gimg { height: 34px; width: auto; vertical-align: middle; image-rendering: auto; }
+.card { flex: 0 0 52px; height: 66px; border-radius: 8px; border: 2px solid rgba(0,0,0,.4); background: #263046;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; touch-action: none;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); }
+.card img { width: 42px; height: 34px; object-fit: contain; pointer-events: none; }
+.card span { font-size: 12px; font-weight: 800; color: #eef2fa; pointer-events: none; }
+.card.sel { outline: 3px solid var(--accent); outline-offset: 1px; }
+.deck .qrow { min-height: 70px; }
+.ghost.card { width: 52px; }
