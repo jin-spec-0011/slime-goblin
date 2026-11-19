@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#2b3447"/>
+  <rect x="72" y="360" width="368" height="40" rx="12" fill="#4a3b33"/>
+  <path d="M96 360 C96 140 416 140 416 360 Z" fill="#4fa3ff" stroke="#1b2130" stroke-width="14"/>
+  <ellipse cx="190" cy="230" rx="34" ry="18" fill="#ffffff" opacity=".45" transform="rotate(-25 190 230)"/>
+  <text x="256" y="335" font-family="Arial, sans-serif" font-size="150" font-weight="900" text-anchor="middle" fill="#10151f">O</text>
+</svg>
