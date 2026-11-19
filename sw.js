@@ -1,10 +1,10 @@
 // 앱 셸 캐시. 파일 변경 시 VERSION을 올리면 구버전 캐시가 삭제된다.
-const VERSION = 'esd-v0.4.0';
+const VERSION = 'esd-v0.4.1';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './src/style.css', './src/main.js', './src/engine.js', './src/data.js', './src/sprites.js',
   './icons/icon.svg',
-  './assets/goblin.png', './assets/goblin_frozen.png', './assets/slime_mega.png', './assets/slime_mix.png', './assets/slime_H2O.png', './assets/slime_NH3.png', './assets/slime_O.png', './assets/slime_H.png', './assets/slime_C.png', './assets/slime_N.png', './assets/slime_He.png', './assets/slime_Fe.png', './assets/slime_Na.png', './assets/slime_Cl.png', './assets/slime_S.png', './assets/slime_U.png', './icons/icon-192.png', './icons/icon-512.png',
+  './assets/goblin.png', './assets/goblin_normal.png', './assets/goblin_fighter.png', './assets/goblin_mage.png', './assets/goblin_rider.png', './assets/goblin_archer.png', './assets/goblin_captain.png', './assets/goblin_giant.png', './assets/goblin_smart.png', './assets/item_catalyst.png', './assets/goblin_frozen.png', './assets/slime_mega.png', './assets/slime_mix.png', './assets/slime_H2O.png', './assets/slime_NH3.png', './assets/slime_O.png', './assets/slime_H.png', './assets/slime_C.png', './assets/slime_N.png', './assets/slime_He.png', './assets/slime_Fe.png', './assets/slime_Na.png', './assets/slime_Cl.png', './assets/slime_S.png', './assets/slime_U.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

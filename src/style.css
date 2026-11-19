@@ -40,3 +40,5 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .mbtns { display: flex; gap: 8px; margin-top: 12px; }
 .mbtns .btn { flex: 1; }
 .hidden { display: none !important; }
+.ico { height: 18px; width: auto; vertical-align: -3px; margin-right: 2px; image-rendering: pixelated; }
+.gimg { height: 34px; width: auto; vertical-align: middle; image-rendering: auto; }

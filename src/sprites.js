@@ -152,7 +152,8 @@ export function drawSprite(ctx, spr, cx, bottom, maxW, maxH) {
 // 로드 전이거나 실패하면 위의 도트 격자 스프라이트로 대체한다.
 const IMG = {};
 export const ASSET_NAMES = [
-  'goblin', 'goblin_frozen', 'slime_mega', 'slime_mix', 'slime_H2O', 'slime_NH3',
+  'goblin', 'goblin_frozen', 'goblin_normal', 'goblin_fighter', 'goblin_mage', 'goblin_rider',
+  'goblin_archer', 'goblin_captain', 'goblin_giant', 'goblin_smart', 'slime_mega', 'slime_mix', 'slime_H2O', 'slime_NH3',
   'slime_O', 'slime_H', 'slime_C', 'slime_N', 'slime_He', 'slime_Fe', 'slime_Na', 'slime_Cl', 'slime_S', 'slime_U',
 ];
 export function loadAssets(base = 'assets/') {
@@ -187,8 +188,22 @@ export function drawSlimeArt(ctx, sl, cx, bottom, maxW, maxH) {
   return { rect: fit(ctx, img, cx, bottom, maxW, maxH), label };
 }
 
+// 빙결: 종류별 이미지에 얼음색을 덧입힌 사본을 캐시
+const frozenCache = new Map();
+function frozenOf(img, key) {
+  if (!frozenCache.has(key)) {
+    const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+    const c = cv.getContext('2d');
+    c.drawImage(img, 0, 0);
+    c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(120,205,255,0.6)'; c.fillRect(0, 0, cv.width, cv.height);
+    frozenCache.set(key, cv);
+  }
+  return frozenCache.get(key);
+}
+
 export function drawGoblinArt(ctx, type, frozen, cx, bottom, size) {
-  const img = frozen ? IMG.goblin_frozen : IMG.goblin;
-  if (!img) return drawSprite(ctx, goblinSprite(type, frozen), cx, bottom, size, size);
+  const base = IMG['goblin_' + type] || IMG.goblin;
+  if (!base) return drawSprite(ctx, goblinSprite(type, frozen), cx, bottom, size, size);
+  const img = frozen ? frozenOf(base, type) : base;
   return fit(ctx, img, cx, bottom, size, size);
 }

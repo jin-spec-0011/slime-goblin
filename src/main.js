@@ -119,11 +119,6 @@ function drawPath() {
       } else {
         rc = drawGoblinArt(pctx, gb.type, frozen, cx, bottom - 2, size);
       }
-      // 종류 배지 (종류색 원 + 한 글자)
-      const bx = Math.round(rc.x + 6), by = Math.round(Math.max(y * ch + 8, rc.y + 4));
-      pctx.fillStyle = gb.color; pctx.strokeStyle = '#10151f'; pctx.lineWidth = 1.5;
-      pctx.beginPath(); pctx.arc(bx, by, 7, 0, Math.PI * 2); pctx.fill(); pctx.stroke();
-      pixelText(pctx, gb.ch, bx, by + 4, 10, '#ffffff');
       hpBar(pctx, cx - size * 0.45, bottom + 1, size * 0.9, gb.hp / gb.maxhp, '#ff5a5a');
       let k = 0;
       for (const [n, e] of Object.entries(gb.st)) if (e.t > 0) {
@@ -357,7 +352,7 @@ function showModal(title, html, alt = false) {
 function showHelp() {
   const rec = RECIPES.map(r => `<tr><td>${r.label} ${r.name}</td><td>${Object.entries(r.need).map(([k, v]) => v > 1 ? `${k}×${v}` : k).join(' + ')}</td><td>${STATUS[r.st.name].label}</td></tr>`).join('');
   const els = ELEMENTS.map(e => `<tr><td>${e.sym} ${e.name}</td><td>${STATUS[e.st.name].label}</td><td>R${e.unlock}</td></tr>`).join('');
-  const gbs = Object.values(GOBLINS).map(d => `<tr><td>${d.ch} ${d.name}</td><td>${d.atk ? '공격' : '공격 안 함'}</td><td>-${d.leak}</td></tr>`).join('');
+  const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}</td><td>${d.atk ? '공격' : '공격 안 함'}</td><td>-${d.leak}</td></tr>`).join('');
   showModal('게임 방법', `
     <p>고블린은 위 <b>ㄹ자 경로</b>로 이동합니다. 슬라임이 있는 칸에 들어가면 <b>구덩이에 빠져</b> 최상층 슬라임부터 대결하고, 슬라임이 없으면 통과합니다.</p>
     <p>슬라임은 <b>3초마다 1개</b> 지급됩니다. 같은 원소를 겹치면 Lv+1(최대 5). <b>조합</b>(촉매 1개 소모): 족보 일치 시 화합물 150%, 불일치 시 혼합물 70%.</p>
