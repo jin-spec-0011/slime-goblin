@@ -26,7 +26,7 @@ function lsSet(k, v) { try { localStorage.setItem(k, v); } catch { /* 저장 불
 // ---------- 캔버스 ----------
 const pathCv = $('pathCv'), pitCv = $('pitCv');
 const pctx = pathCv.getContext('2d'), kctx = pitCv.getContext('2d');
-const PATH_ASPECT = 0.56, PIT_ASPECT = 0.76;
+const PATH_ASPECT = 0.7, PIT_ASPECT = 0.68;
 
 function fitCanvas(cv, aspect) {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -107,15 +107,18 @@ function drawPath() {
     const [x, y] = PATH[idx];
     list.forEach((gb, i) => {
       const off = list.length > 1 ? (gb.pit ? -0.2 : 0.2) * cw + (i > 1 ? 4 : 0) : 0;
-      const cx = x * cw + cw / 2 + off, size = Math.min(cw * (list.length > 1 ? 0.55 : 0.7), ch * 0.78);
-      const bottom = y * ch + ch - 8;
-      const spr = goblinSprite(gb.color); let rc;
+      const cx = x * cw + cw / 2 + off, size = Math.min(cw * (list.length > 1 ? 0.55 : 0.85), ch * 0.95) * (gb.type === 'giant' ? 1.25 : 1);
+      const bottom = y * ch + ch - 6;
+      const spr = goblinSprite(gb.type, !!(gb.st.freeze && gb.st.freeze.t > 0)); let rc;
       if (gb.pit) {
         // 구덩이: 어두운 구멍 + 하반신이 가려진 고블린
         pctx.fillStyle = '#120d0a';
         pctx.beginPath(); pctx.ellipse(cx, bottom - size * 0.28, size * 0.48, size * 0.16, 0, 0, Math.PI * 2); pctx.fill();
-        pctx.save(); pctx.beginPath(); pctx.rect(cx - size, bottom - size * 1.4, size * 2, size * 1.12); pctx.clip();
-        rc = drawSprite(pctx, spr, cx, bottom + size * 0.1, size, size);
+        // 구멍 선(holeY) 아래는 가려서 허리천·다리만 잠긴 것처럼 보이게 함
+        const holeY = bottom - size * 0.28, sprH = goblinSprite(gb.type).height;
+        const k = Math.min(size / 20, size / sprH);
+        pctx.save(); pctx.beginPath(); pctx.rect(cx - size, holeY - size * 2, size * 2, size * 2); pctx.clip();
+        rc = drawSprite(pctx, spr, cx, holeY + sprH * k * 0.3, size, size);
         pctx.restore();
         pctx.strokeStyle = '#ff4040'; pctx.lineWidth = 2;
         pctx.beginPath(); pctx.ellipse(cx, bottom - size * 0.28, size * 0.48, size * 0.16, 0, 0, Math.PI * 2); pctx.stroke();

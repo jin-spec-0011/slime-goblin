@@ -13,22 +13,73 @@ const SLIME = [
   'osssssssssssssso',
   '.oooooooooooooo.',
 ];
-const GOBLIN = [
-  '...oooooooo...',
-  'o.oggggggggo.o',
-  'oggggggggggggo',
-  '.ogwwggggwwgo.',
-  '.ogwrggggrwgo.',
-  '..oggggggggo..',
-  '..oggttttggo..',
-  '...oggggggo...',
-  '..occccccccco.',
-  '.ogocccccccogo',
-  '.ogocccccccogo',
-  '..occccccccco.',
-  '...ogo...ogo..',
-  '...ooo...ooo..',
+// 참고 이미지 기준 고블린: 큰 뾰족 귀, 화난 눈썹, 주황 눈, 송곳니, 3단 녹색 음영, 빨간 허리천
+// 20x24 (위 4줄은 모자/왕관용 여백)
+const GOBLIN_BASE = [
+  '....................',
+  '....................',
+  '....................',
+  '....................',
+  '......KKKKKKKK......',
+  '.....KGLLGGGGGK.....',
+  '....KGLGGGGGGGGK....',
+  'KK.KGGGGGGGGGGGGK.KK',
+  'KLKKGDDGGGGGGDDGKKLK',
+  '.KLGGYYPGGGGPYYGGLK.',
+  '..KDGYYGGGGGGYYGDK..',
+  '...KGGGGGDDGGGGGK...',
+  '...KGMWMMMMMMWMGK...',
+  '....KGMMWMMWMMGK....',
+  '.....KDGGGGGGDK.....',
+  '...KKGGGLLGGGGGKK...',
+  '..KGGKGGLGGGGGKGGK..',
+  '..KGGKGGGGGGGGKGGK..',
+  '..KGGKBBBBBBBBKGGK..',
+  '..KDDKRRRRRRRRKDDK..',
+  '...KK.RRrRRrRR.KK...',
+  '.....KGGKRRKGGK.....',
+  '.....KGGK..KGGK.....',
+  '....KKKKK..KKKKK....',
 ];
+// 종류별 장비 오버레이: [행, 20자 문자열] ('.'은 투명)
+const GEAR = {
+  normal: [],
+  fighter: [ // 철 투구 + 검
+    [3, '......KKKKKKKK......'], [4, '.....KSSSSSSSSK.....'], [5, '....KSsSSSSSSsSK....'], [6, '....KKKKKKKKKKKK....'],
+    [12, '..................S.'], [13, '..................S.'], [14, '..................S.'], [15, '..................S.'],
+    [16, '..................S.'], [17, '.................BBB'], [18, '..................B.'],
+  ],
+  mage: [ // 보라 고깔모자 + 지팡이
+    [0, '..........K.........'], [1, '.........KVK........'], [2, '........KVVvK.......'], [3, '.......KVVVVvK......'],
+    [4, '...KKKKVVVVVVvKKKK..'], [5, '...KVVVVVVVVVVVVVK..'],
+    [11, '.Y..................'], [12, '.B..................'], [13, '.B..................'], [14, '.B..................'],
+    [15, '.B..................'], [16, '.B..................'], [17, '.B..................'], [18, '.B..................'],
+  ],
+  rider: [ // 가죽 모자 + 깃털 + 창
+    [2, '.............f......'], [3, '......KKKKKKKf......'], [4, '.....KBBBBBBBBK.....'], [5, '....KBBbBBBBBBbK....'],
+    [3, '..................S.'], [4, '.................SSS'], [5, '..................B.'], [6, '..................B.'],
+    [7, '..................B.'], [8, '..................B.'], [9, '..................B.'], [10, '..................B.'],
+    [11, '..................B.'], [12, '..................B.'], [13, '..................B.'], [14, '..................B.'],
+  ],
+  archer: [ // 초록 두건 + 활
+    [3, '......KKKKKKKK......'], [4, '.....KHHHHHHHHK.....'], [5, '....KHHhHHHHHHhHK...'], [6, '....KHK........KHK..'],
+    [12, '.B..................'], [13, 'B.w.................'], [14, 'B.w.................'], [15, 'B.w.................'],
+    [16, 'B.w.................'], [17, 'B.w.................'], [18, '.B..................'],
+  ],
+  captain: [ // 금 왕관 + 망토 어깨
+    [1, '......Y..YY..Y......'], [2, '......YY.YY.YY......'], [3, '......YYYYYYYY......'], [4, '......YOYYYYOY......'],
+    [15, '..CC............CC..'], [16, '.C................C.'], [17, '.C................C.'], [18, '.C................C.'],
+  ],
+  giant: [ // 뼈 몽둥이
+    [10, '.................bb.'], [11, '................bbbb'], [12, '.................bb.'], [13, '.................bb.'],
+    [14, '.................bb.'], [15, '.................bb.'], [16, '.................bb.'],
+  ],
+  smart: [ // 안경 + 책
+    [9, '....KccK....KccK....'], [10, '....KccKKKKKKccK....'],
+    [17, 'PPP.................'], [18, 'PwP.................'], [19, 'PPP.................'],
+  ],
+};
+
 
 function hex(c) {
   const n = parseInt(c.slice(1), 16);
@@ -63,18 +114,33 @@ export function slimeSprite(color, color2) {
   return cache.get(key);
 }
 
-export function goblinSprite(cloth) {
-  const key = `g|${cloth}`;
+const SKIN = {
+  normal: { K: '#16220e', D: '#3f7a2a', G: '#5fae3a', L: '#8fd65a' },
+  giant:  { K: '#1e1a0c', D: '#4d5a2a', G: '#6f7d3a', L: '#93a052' },
+  frozen: { K: '#10304a', D: '#4f9cc9', G: '#8fd3f2', L: '#d4f3ff' },
+};
+const COMMON = {
+  Y: '#ffb02e', P: '#3a1a00', W: '#f4f0d8', M: '#4a0e0e', R: '#c0392b', r: '#7a1f1a', B: '#6b4423', b: '#efe6cc',
+  S: '#c9d1dc', s: '#7d8796', V: '#7d3cc9', v: '#4b1f80', f: '#ffd34d', H: '#2f6b4f', h: '#1f4a36',
+  O: '#c45a00', C: '#a01818', c: '#bfe9ff', w: '#f4f0d8',
+};
+export function goblinSprite(type, frozen = false) {
+  const key = `g|${type}|${frozen}`;
   if (!cache.has(key)) {
-    const pal = { o: '#18200f', g: '#6cbf4b', w: '#ffffff', r: '#d82020', t: '#f4f0d8', c: cloth };
-    cache.set(key, bake(GOBLIN, pal));
+    const rows = GOBLIN_BASE.slice();
+    for (const [r, line] of GEAR[type] || []) {
+      rows[r] = [...rows[r]].map((ch, i) => (line[i] && line[i] !== '.' ? line[i] : ch)).join('');
+    }
+    const skin = frozen ? SKIN.frozen : type === 'giant' ? SKIN.giant : SKIN.normal;
+    cache.set(key, bake(rows, { ...COMMON, ...skin }));
   }
   return cache.get(key);
 }
 
 // 목표 크기 이하의 최대 정수배로 그린다 (도트 선명도 유지). 반환: 실제 그려진 {x,y,w,h}
 export function drawSprite(ctx, spr, cx, bottom, maxW, maxH) {
-  const k = Math.max(1, Math.floor(Math.min(maxW / spr.width, maxH / spr.height)));
+  const raw = Math.min(maxW / spr.width, maxH / spr.height);
+  const k = raw >= 2 ? Math.floor(raw) : Math.max(1, Math.floor(raw * 2) / 2);
   const w = spr.width * k, h = spr.height * k;
   const x = Math.round(cx - w / 2), y = Math.round(bottom - h);
   ctx.imageSmoothingEnabled = false;
