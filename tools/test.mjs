@@ -1,4 +1,5 @@
 // 핵심 규칙 단위 테스트: node tools/test.mjs
+import { CFG, ROUND_TABLE, GOBLINS } from '../src/data.js';
 import { createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
 const t = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL', name)); };
@@ -48,7 +49,8 @@ t('뒤 고블린은 다음 칸으로 진행', passed >= 1);
 // 빈 맵 → 전원 통과 → 거점 피해
 s = createGame(5); s.queue = []; s.prepLeft = 1;
 let n = 0; while (s.phase !== 'prep' || n < 2) { step(s); n++; if (n > 200) break; s.queue = []; }
-t('빈 맵 통과 시 거점 -6', s.baseHp === 14);
+const leakR1 = ROUND_TABLE[0].reduce((a, [type, n]) => a + GOBLINS[type].leak * n, 0);
+t(`빈 맵 통과 시 거점 -${leakR1}`, s.baseHp === CFG.BASE_HP - leakR1);
 // 패배 판정
 s = createGame(6); s.baseHp = 1; s.prepLeft = 1; n = 0;
 while (s.phase !== 'over' && n++ < 200) { s.queue = []; step(s); }
