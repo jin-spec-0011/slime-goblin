@@ -250,7 +250,7 @@ function makeGoblin(s, type) {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
     atk: d.atk * (1 + CFG.ATK_GROWTH * r), def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
     multi: d.multi || 1, range: d.range || 0, aura: !!d.aura, evade: d.evade || 0, cleanse: !!d.cleanse,
-    weak: d.weak || [], resist: d.resist || [],
+    weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, atkBuff: 1,
     idx: 0, pit: false, st: {}, fights: 0, dead: false,
   };
 }
@@ -267,6 +267,7 @@ function startRound(s) {
 
 function applyStatus(g, st, owner) {
   const def = STATUS[st.name]; if (!def) return;
+  if (g.immune && g.immune.includes(st.name)) return; // 방독: 독·질식 면역
   const e = g.st[st.name] || (g.st[st.name] = { t: 0, v: 0, fresh: false });
   const m = lvMult(owner.lv > CFG.MAX_LV ? CFG.MAX_LV : owner.lv);
   e.t = Math.max(e.t, st.dur || 1); e.fresh = true;
@@ -291,7 +292,15 @@ function effDef(s, g) {
 function hurt(s, g, dmg, aff = 1) {
   if (g.dead) return;
   g.hp -= dmg; s.fx.push({ k: 'dmg', idx: g.idx, v: Math.round(dmg), who: 'g', aff });
-  if (g.hp <= 0) { g.dead = true; s.kills++; s.fx.push({ k: 'kill', idx: g.idx }); }
+  if (g.hp <= 0) {
+    g.dead = true; s.kills++; s.fx.push({ k: 'kill', idx: g.idx, type: g.type });
+    if (g.feast) { // 요리사: 쓰러지면서 앞뒤 2칸 고블린에게 음식 -> 회복 + 공격 +20%
+      for (const o of s.goblins) if (!o.dead && Math.abs(o.idx - g.idx) <= 2) {
+        o.hp = Math.min(o.maxhp, o.hp + o.maxhp * g.feast); o.atkBuff = 1.2;
+        s.fx.push({ k: 'heal', idx: o.idx, v: Math.round(o.maxhp * g.feast) });
+      }
+    }
+  }
 }
 
 function slimeStatus(s, sl, g, x, y, aff = 1) {
@@ -365,7 +374,7 @@ function fight(s, g, x, y) {
   // 고블린 반격 (일반 고블린은 공격 불가)
   if (!g.dead && g.atk > 0 && !locked(s, g)) {
     const aura = auraOf(s, g).atk;
-    const gatk = g.atk * aura * (hasSt(g, 'suffocate') ? 0.5 : 1);
+    const gatk = g.atk * aura * g.atkBuff * (hasSt(g, 'suffocate') ? 0.5 : 1);
     if (col.length) {
       const b = bonus(s, col[0], row);
       for (const t of col.slice(0, g.multi)) {
@@ -385,6 +394,12 @@ function fight(s, g, x, y) {
 
 function actGoblin(s, g) {
   if (g.cleanse && s.tick % 2 === 0) g.st = {};
+  if (g.heal && s.tick % 2 === 0 && !locked(s, g)) { // 주술사: 앞뒤 2칸(자신 포함) 고블린 회복
+    for (const o of s.goblins) if (!o.dead && o.hp < o.maxhp && Math.abs(o.idx - g.idx) <= 2) {
+      const v = o.maxhp * g.heal; o.hp = Math.min(o.maxhp, o.hp + v);
+      s.fx.push({ k: 'heal', idx: o.idx, v: Math.round(v) });
+    }
+  }
   const [x, y] = PATH[g.idx];
   if (g.pit) {
     if (!trapAt(s, x, y)) { g.pit = false; moveGoblin(s, g); } else fight(s, g, x, y);

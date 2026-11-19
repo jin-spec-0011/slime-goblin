@@ -14,7 +14,7 @@ export const CFG = {
   START_SLIMES: 6,
   ROUND_BONUS_SLIMES: 3,
   CATALYST_START: 2,
-  HP_GROWTH: 1.17,              // 라운드별 고블린 HP 성장
+  HP_GROWTH: 1.12,              // 라운드별 고블린 HP 성장
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
@@ -107,28 +107,33 @@ export const FUSIONS = [
 ];
 
 export const GOBLINS = {
-  normal:  { name: '일반',   ch: '일', hp: 20,  atk: 0,  def: 0, spd: 1, leak: 1,  color: '#6cbf4b', weak: [], resist: [] },
-  fighter: { name: '전투',   ch: '전', hp: 45,  atk: 5,  def: 2, spd: 1, leak: 2,  color: '#c96a3a', weak: ['elec'], resist: ['earth'] },
-  mage:    { name: '마법',   ch: '마', hp: 25,  atk: 3,  def: 0, spd: 1, leak: 2,  color: '#8f6bd6', weak: ['earth'], resist: ['fire'] },
-  rider:   { name: '기마',   ch: '기', hp: 22,  atk: 4,  def: 1, spd: 2, leak: 2,  color: '#d6b13c', weak: ['water', 'ice'], resist: ['wind'] },
-  archer:  { name: '궁수',   ch: '궁', hp: 18,  atk: 4,  def: 0, spd: 1, leak: 2,  range: 2, color: '#4fb39a', weak: ['wind'], resist: ['water'] },
-  captain: { name: '대장',   ch: '대', hp: 40,  atk: 5,  def: 2, spd: 1, leak: 3,  aura: true, color: '#d64a4a', weak: ['poison'], resist: ['elec'] },
-  giant:   { name: '초대형', ch: '초', hp: 200, atk: 10, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, color: '#7a5a3a', weak: ['rad', 'elec'], resist: ['ice'] }, // 2틱에 1칸, 2칸 크기
-  smart:   { name: '지능형', ch: '지', hp: 30,  atk: 4,  def: 1, spd: 1, leak: 3,  evade: 1, cleanse: true, color: '#3ab0d6', weak: ['water'], resist: ['poison'] },
+  normal:  { name: '일반', desc: '슬라임을 공격하지 않음',   ch: '일', hp: 20,  atk: 0,  def: 0, spd: 1, leak: 1,  color: '#6cbf4b', weak: [], resist: [] },
+  fighter: { name: '전투', desc: '높은 체력·방어',   ch: '전', hp: 45,  atk: 5,  def: 2, spd: 1, leak: 2,  color: '#c96a3a', weak: ['elec'], resist: ['earth'] },
+  mage:    { name: '마법', desc: '3번에 1번 슬라임 봉인',   ch: '마', hp: 25,  atk: 3,  def: 0, spd: 1, leak: 2,  color: '#8f6bd6', weak: ['earth'], resist: ['fire'] },
+  rider:   { name: '기마', desc: '2칸씩 이동',   ch: '기', hp: 22,  atk: 4,  def: 1, spd: 2, leak: 2,  color: '#d6b13c', weak: ['water', 'ice'], resist: ['wind'] },
+  archer:  { name: '궁수', desc: '앞 2칸 슬라임 저격',   ch: '궁', hp: 18,  atk: 4,  def: 0, spd: 1, leak: 2,  range: 2, color: '#4fb39a', weak: ['wind'], resist: ['water'] },
+  captain: { name: '대장', desc: '주변 고블린 공격·방어 강화',   ch: '대', hp: 40,  atk: 5,  def: 2, spd: 1, leak: 3,  aura: true, color: '#d64a4a', weak: ['poison'], resist: ['elec'] },
+  giant:   { name: '초대형', desc: '2칸 크기, 슬라임 2마리 동시 공격, 느림', ch: '초', hp: 200, atk: 10, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, color: '#7a5a3a', weak: ['rad', 'elec'], resist: ['ice'] }, // 2틱에 1칸, 2칸 크기
+  smart:   { name: '지능형', desc: '함정 1회 회피, 상태이상 정화', ch: '지', hp: 30,  atk: 4,  def: 1, spd: 1, leak: 3,  evade: 1, cleanse: true, color: '#3ab0d6', weak: ['water'], resist: ['poison'] },
+  // ---- 개편 추가 4종 ----
+  gasmask: { name: '방독', desc: '독·질식 면역', ch: '독', hp: 34,  atk: 4,  def: 1, spd: 1, leak: 2,  immune: ['poison', 'suffocate'], color: '#5f7a4a', weak: ['fire'], resist: ['poison', 'wind'] }, // 독·질식 면역
+  armored: { name: '중갑', desc: '방어 6 (관통 슬라임에 약함)', ch: '갑', hp: 70,  atk: 4,  def: 6, spd: 1, leak: 3,  color: '#8e96a3', weak: ['elec', 'water'], resist: ['earth', 'fire'] }, // 방어 6 (관통 슬라임에 약함)
+  shaman:  { name: '주술사', desc: '2초마다 주변 고블린 8% 회복', ch: '주', hp: 26, atk: 2,  def: 0, spd: 1, leak: 2,  heal: 0.08, color: '#4b4f7a', weak: ['rad'], resist: ['ice'] }, // 2틱마다 앞뒤 2칸 고블린 최대HP 8% 회복
+  cook:    { name: '요리사', desc: '쓰러지면 주변 고블린 40% 회복 + 공격 +20%', ch: '요', hp: 38, atk: 3,  def: 1, spd: 1, leak: 2,  feast: 0.4, color: '#d9c2a0', weak: ['water'], resist: ['fire'] },  // 쓰러지면 앞뒤 2칸 고블린 40% 회복 + 공격 +20%
 };
 
 // 라운드별 편성 [종류, 마릿수]. 목록을 번갈아 섞어 1초에 1마리씩 출발한다.
 // 1~4라운드: 경로 한 바퀴(25칸 = 25초) 안에 전원 출발 (최대 25마리)
 // 5~10라운드: 두 바퀴(50초) 동안 계속 출발 (26~50마리)
 export const ROUND_TABLE = [
-  [['normal', 10]],                                                                      // 10
-  [['normal', 14]],                                                                      // 14
-  [['normal', 12], ['fighter', 6]],                                                      // 18
-  [['normal', 12], ['fighter', 10]],                                                     // 22
-  [['normal', 14], ['fighter', 8], ['rider', 8]],                                        // 30 (두 바퀴 시작)
-  [['normal', 12], ['fighter', 10], ['archer', 8], ['rider', 6]],                        // 36
-  [['normal', 4], ['fighter', 12], ['mage', 8], ['archer', 8], ['rider', 8]],            // 40
-  [['normal', 10], ['fighter', 14], ['archer', 8], ['mage', 8], ['captain', 4]],         // 44
-  [['fighter', 14], ['rider', 10], ['mage', 8], ['captain', 6], ['smart', 10]],          // 48
-  [['normal', 16], ['fighter', 16], ['captain', 4], ['smart', 10], ['giant', 4]],        // 50
+  [['normal', 10]],                                                                                      // 10
+  [['normal', 12], ['gasmask', 2]],                                                                      // 14
+  [['normal', 10], ['fighter', 6], ['gasmask', 2]],                                                      // 18
+  [['normal', 10], ['fighter', 8], ['armored', 2], ['cook', 2]],                                         // 22
+  [['normal', 12], ['fighter', 6], ['rider', 8], ['shaman', 2], ['armored', 2]],                         // 30 (두 바퀴 시작)
+  [['normal', 10], ['fighter', 8], ['archer', 8], ['rider', 4], ['cook', 3], ['gasmask', 3]],            // 36
+  [['fighter', 10], ['mage', 8], ['archer', 6], ['rider', 6], ['shaman', 4], ['armored', 6]],            // 40
+  [['normal', 8], ['fighter', 10], ['archer', 6], ['mage', 6], ['captain', 4], ['cook', 4], ['armored', 6]], // 44
+  [['fighter', 10], ['rider', 8], ['mage', 6], ['captain', 4], ['smart', 8], ['shaman', 6], ['gasmask', 6]], // 48
+  [['normal', 12], ['fighter', 10], ['armored', 6], ['captain', 4], ['smart', 8], ['shaman', 4], ['cook', 2], ['giant', 4]], // 50
 ];

@@ -1,19 +1,23 @@
 // 앱 셸 캐시. 파일 변경 시 VERSION을 올리면 구버전 캐시가 삭제된다.
-const VERSION = 'esd-v0.8.0';
+const VERSION = 'esd-v0.9.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './src/style.css', './src/main.js', './src/engine.js', './src/data.js', './src/sprites.js',
   './icons/icon.svg',
   './assets/goblin.png',
   './assets/goblin_archer.png',
+  './assets/goblin_armored.png',
   './assets/goblin_captain.png',
+  './assets/goblin_cook.png',
   './assets/goblin_fighter.png',
   './assets/goblin_frozen.png',
+  './assets/goblin_gasmask.png',
   './assets/goblin_giant.png',
   './assets/goblin_giant_walk.png',
   './assets/goblin_mage.png',
   './assets/goblin_normal.png',
   './assets/goblin_rider.png',
+  './assets/goblin_shaman.png',
   './assets/goblin_smart.png',
   './assets/item_catalyst.png',
   './assets/slime_C.png',

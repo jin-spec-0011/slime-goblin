@@ -16,6 +16,9 @@ const ui = {
   combo: false, comboList: [],
   floats: [],           // 데미지 숫자 표시
   anim: new Map(),      // 고블린 id -> {from, to, t0, flip} 칸 이동 보간
+  hpPrev: new Map(),    // 고블린 id -> 직전 HP (피격 번쩍임 판정)
+  hitUntil: new Map(),  // 고블린 id -> 번쩍임 끝 시각
+  puffs: [],            // 처치 먼지 효과
   drag: null,           // 드래그 상태
   msg: '',
 };
@@ -131,6 +134,9 @@ function drawBoard() {
   const inside = new Map(), walking = [];
   for (const gb of g.goblins) {
     live.add(gb.id);
+    const prev = ui.hpPrev.get(gb.id);
+    if (prev !== undefined && gb.hp < prev - 0.01) ui.hitUntil.set(gb.id, now + 140);
+    ui.hpPrev.set(gb.id, gb.hp);
     let a = ui.anim.get(gb.id);
     if (!a) { a = { from: gb.idx, to: gb.idx, t0: 0, flip: false }; ui.anim.set(gb.id, a); }
     if (a.to !== gb.idx) { a.from = a.to; a.to = gb.idx; a.t0 = now; }
@@ -147,8 +153,22 @@ function drawBoard() {
       walking.push({ gb, fx: x0 + (x1 - x0) * f, fy: y0 + (y1 - y0) * f, moving, flip: a.flip });
     }
   }
-  for (const id of ui.anim.keys()) if (!live.has(id)) ui.anim.delete(id);
+  for (const id of ui.anim.keys()) if (!live.has(id)) { ui.anim.delete(id); ui.hpPrev.delete(id); ui.hitUntil.delete(id); }
   // 걷기 프레임: 배속에 맞춰 재생 속도도 빨라짐. 느린 고블린은 이동 시간이 길어 자연스럽게 천천히 걷는다
+  // 절차적 움직임 (걷기 프레임이 없는 고블린): 걷기=통통 튐+기울기+착지 찌그러짐, 정지=숨쉬기, 갇힘=버둥거림
+  const motion = (gb, state) => {
+    const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
+    const hit = (ui.hitUntil.get(gb.id) || 0) > now;
+    if (frozen) return { hit };
+    const seed = (gb.id % 7) * 0.9;
+    if (state === 'trapped') return { tilt: Math.sin(now / 85 + seed) * 0.13, dx: Math.sin(now / 55 + seed) * 1.2, hit };
+    if (walkFrames(gb.type)) return { hit };
+    if (state === 'walk') {
+      const ph = (now * ui.speed * Math.min(1, gb.spd)) / 115 + seed, s1 = Math.abs(Math.sin(ph));
+      return { bob: s1 * 5, tilt: Math.sin(ph) * 0.09, squash: (1 - s1) * 0.07, hit };
+    }
+    return { squash: (Math.sin(now / 480 + seed) + 1) * 0.018, hit };
+  };
   const frameOf = (gb, moving) => (moving && walkFrames(gb.type) ? Math.floor((now * ui.speed * Math.min(1, gb.spd * 1.6)) / walkFrameMs(gb.type)) % walkFrames(gb.type) : 0);
 
   // 칸 바닥
@@ -190,7 +210,7 @@ function drawBoard() {
         // 고블린을 슬라임 몸 안에 작게 그리고, 그 위에 슬라임을 반투명으로 덮어 "갇힌" 느낌
         const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
         const size = Math.min(art.rect.w, art.rect.h) * (gb.type === 'giant' ? 0.95 : 0.78);
-        drawGoblinArt(ctx, gb.type, frozen, X + cw / 2, art.rect.y + art.rect.h - 2, size);
+        drawGoblinArt(ctx, gb.type, frozen, X + cw / 2, art.rect.y + art.rect.h - 2, size, motion(gb, 'trapped'));
         ctx.globalAlpha = 0.45; drawSlimeArt(ctx, sl, X + cw / 2, Y + ch - 10, cw * 0.94, ch - 18); ctx.globalAlpha = 1;
         hpBar(ctx, X + 8, Y + 18, cw - 16, gb.hp / gb.maxhp, '#ff5a5a');
         goblinStatus(ctx, gb, X + cw - 10, Y + 24);
@@ -206,7 +226,7 @@ function drawBoard() {
       // 메가 구역 안에 갇힌 고블린
       for (const gb of trapped) {
         if (isBig(gb)) { bigs.push({ gb, trappedIn: null, x, y, moving: false, flip: ui.anim.get(gb.id)?.flip }); continue; }
-        drawGoblinArt(ctx, gb.type, false, X + cw / 2, Y + ch - 8, Math.min(cw, ch) * 0.7);
+        drawGoblinArt(ctx, gb.type, false, X + cw / 2, Y + ch - 8, Math.min(cw, ch) * 0.7, motion(gb, 'trapped'));
         hpBar(ctx, X + 8, Y + 18, cw - 16, gb.hp / gb.maxhp, '#ff5a5a');
         ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
       }
@@ -223,7 +243,7 @@ function drawBoard() {
     const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
     const size = Math.min(cw, ch) * (occupied ? 0.55 : 0.82);
     const cx = wk.fx * cw + (occupied ? cw * 0.72 : cw / 2), bottom = wk.fy * ch + (occupied ? ch * 0.62 : ch - 8);
-    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, wk.moving), flip: wk.flip });
+    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, wk.moving), flip: wk.flip, ...motion(gb, wk.moving ? 'walk' : 'idle') });
     hpBar(ctx, cx - size * 0.4, Math.max(wk.fy * ch + 3, rc.y - 6), size * 0.8, gb.hp / gb.maxhp, '#ff5a5a');
     goblinStatus(ctx, gb, cx + size * 0.42, rc.y);
   }
@@ -233,7 +253,7 @@ function drawBoard() {
     const size = Math.min(cw, ch) * cells;
     const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
     const cx = bg.x * cw + cw / 2, bottom = bg.y * ch + ch - 4;
-    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, bg.moving), flip: !!bg.flip });
+    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, bg.moving), flip: !!bg.flip, ...motion(gb, bg.trappedIn ? 'big' : bg.moving ? 'walk' : 'idle') });
     if (bg.trappedIn) {
       // 다리가 슬라임에 잠긴 모습: 해당 칸의 슬라임을 반투명으로 덧그림
       // 슬라임은 항상 오우거 발밑에 (맨 윗줄 보정으로 몸이 내려가도 다리가 잠기게)
@@ -245,6 +265,17 @@ function drawBoard() {
     }
     hpBar(ctx, cx - size * 0.3, Math.max(2 - pad, rc.y - 6), size * 0.6, gb.hp / gb.maxhp, '#ff5a5a');
     goblinStatus(ctx, gb, cx + size * 0.32, Math.max(2 - pad, rc.y));
+  }
+  // 처치 먼지 효과: 회색 원이 퍼지며 사라짐
+  ui.puffs = ui.puffs.filter(p => now - p.t0 < 450);
+  for (const p of ui.puffs) {
+    const [px, py] = PATH[Math.min(p.idx, PATH.length - 1)], a = (now - p.t0) / 450;
+    ctx.globalAlpha = 1 - a; ctx.fillStyle = '#d8dde8';
+    for (let k = 0; k < 6; k++) {
+      const ang = k * Math.PI / 3 + p.seed, r = 4 + a * cw * 0.35;
+      ctx.beginPath(); ctx.arc(px * cw + cw / 2 + Math.cos(ang) * r, py * ch + ch * 0.6 + Math.sin(ang) * r * 0.6, 3.5 * (1 - a) + 1, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
   for (const [sl, X, Y] of badges) elemBadge(ctx, sl, X, Y, cw);
   drawFloats(ctx, cw, ch);
@@ -441,7 +472,7 @@ function showHelp() {
   const els = ELEMENTS.map(e => `<tr><td>${e.label || e.sym} ${e.label ? '' : e.name}</td><td>${ATTRS[e.attr].icon} ${ATTRS[e.attr].label}</td><td>${STATUS[e.st.name].label}</td><td>R${e.unlock}</td></tr>`).join('');
   const fus = FUSIONS.map(f => `<tr><td>${ATTRS[f.pair[0]].icon}${ATTRS[f.pair[0]].label} + ${ATTRS[f.pair[1]].icon}${ATTRS[f.pair[1]].label}</td><td><b>${f.label}</b></td><td>${f.st.map(s => STATUS[s.name].label).join('·')}${f.pierce ? '·관통' : ''}</td></tr>`).join('');
   const atl = arr => arr.map(a => ATTRS[a].icon + ATTRS[a].label).join(' ') || '-';
-  const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}</td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
+  const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}<br><small>${d.desc || ''}</small></td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
   showModal('게임 방법', `
     <p>고블린은 전장을 <b>ㄹ자 경로</b>로 이동합니다. 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
     <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임 카드는 <b>3초마다 1장</b> 덱에 들어옵니다(최대 ${CFG.QUEUE_MAX}장). 같은 슬라임을 겹치면 Lv+1(최대 5).</p>
@@ -464,6 +495,8 @@ function collectFx() {
       ui.floats.push({ idx: f.idx, text: (f.who === 'g' ? '-' : '▼') + f.v + (weak ? '!' : ''), t0: now, dx: (Math.random() - 0.5) * 18,
         col: f.who !== 'g' ? '#ff7b7b' : weak ? '#ff8a1e' : resist ? '#9aa4b8' : '#ffd34d' });
     }
+    if (f.k === 'kill') ui.puffs.push({ idx: f.idx, t0: now, seed: Math.random() * 6 });
+    if (f.k === 'heal') ui.floats.push({ idx: f.idx, text: '+' + f.v, col: '#7dff9a', t0: now, dx: (Math.random() - 0.5) * 18 });
     if (f.k === 'leak') ui.floats.push({ idx: f.idx, text: `거점 -${f.v}`, col: '#ff4040', t0: now, dx: 0 });
   }
 }

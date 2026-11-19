@@ -37,6 +37,20 @@ put(s, 'WATER', 0, 2, 0); put(s, 'O', 1, 2, 0); put(s, 'C', 2, 2, 0);
 t('기마 vs 물 = 약점 1.5', affinity(getCell(s, 0, 2, 0), rider) === 1.5);
 t('기마 vs 산소(바람) = 내성 0.5', affinity(getCell(s, 1, 2, 0), rider) === 0.5);
 t('기마 vs 탄소(대지) = 보통 1', affinity(getCell(s, 2, 2, 0), rider) === 1);
+// 개편 고블린 능력
+s = createGame(9); s.queue = []; s.prepLeft = 1; step(s); s.spawnList = [];
+const mk = (type, idx) => { const d = GOBLINS[type]; const g = { id: 1e6 + idx, type, name: d.name, hp: 10, maxhp: 100, atk: d.atk, def: d.def, spd: 0, leak: 1, multi: 1, range: 0, aura: false, evade: 0, cleanse: false, weak: d.weak, resist: d.resist, immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, atkBuff: 1, idx, pit: false, st: {}, fights: 0, dead: false, mv: 0 }; s.goblins.push(g); return g; };
+const sh = mk('shaman', 10), ally = mk('normal', 11);
+s.tick = 1; step(s);
+t('주술사: 주변 고블린 회복', ally.hp > 10 && sh.hp > 10);
+s.goblins = []; const ck = mk('cook', 5), friend = mk('fighter', 6);
+ck.hp = 1; s.cells[0][PATH[5][1]][PATH[5][0]] = null;
+put(s, 'FIRE', PATH[5][0], PATH[5][1], 0); getCell(s, PATH[5][0], PATH[5][1], 0).lv = 5;
+ck.pit = true; step(s);
+t('요리사: 쓰러지면 주변 회복 + 공격 버프', ck.dead && friend.hp > 10 && friend.atkBuff === 1.2);
+s.goblins = []; const gm = mk('gasmask', 15);
+put(s, 'Cl', PATH[15][0], PATH[15][1], 0); gm.pit = true; gm.hp = 100; step(s);
+t('방독: 독 면역', !gm.st.poison);
 // 메가
 s = createGame(3);
 for (const x of [0, 1, 2]) for (let i = 0; i < 5; i++) put(s, 'Fe', x, 2, 0);

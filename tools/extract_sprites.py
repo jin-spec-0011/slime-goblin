@@ -38,6 +38,10 @@ BOXES = {
     'goblin_giant':   ('8.webp', 590, 50, 1310, 815, False, 'checker_beige'), # Ogre Chieftain
     'goblin_smart':   ('6.webp', 1390, 440, 1550, 670, False, 'checker'),# Rogue Goblin
     'item_catalyst':  ('6.webp', 835, 790, 920, 920, False, 'checker'),  # Catalyst
+    'goblin_gasmask': ('6.webp', 745, 85, 960, 305, False, 'checker'),  # Gasmask Goblin
+    'goblin_armored': ('6.webp', 1065, 450, 1255, 670, False, 'checker'),# Armored Goblin
+    'goblin_shaman':  ('6.webp', 1325, 45, 1640, 335, False, 'checker'), # Shaman Goblin
+    'goblin_cook':    ('6.webp', 1715, 405, 1985, 672, False, 'checker'),# Cook Goblin
     # 고블린 (구버전 단일 이미지, 로스터 로드 실패 시 대체)
     'goblin':        ('1.webp', 1062, 1640, 1208, 1792, True, 18),
     'goblin_frozen': ('1.webp', 730, 1655, 880, 1790, True, 40),
@@ -154,6 +158,8 @@ for name, (f, x0, y0, x1, y1, disp, tol) in ({} if VIDEO_MODE else BOXES).items(
     k = S if disp else 1
     crop = im.crop((round(x0 * k), round(y0 * k), round(x1 * k), round(y1 * k)))
     out = remove_checker(crop, tol) if isinstance(tol, str) else remove_bg(crop, tol)
+    if tol == 'checker':
+        out = drop_specks(out, 40)  # 후광·잔상 등 떨어진 작은 조각 제거
     if isinstance(tol, str) and tol.startswith('checker_dark'):
         out = add_outline(add_outline(drop_specks(out)))  # 원본 도트 외곽선 두께(약 2px) 복원
     bbox = out.getbbox()

@@ -222,15 +222,34 @@ export const walkFrames = type => (WALK[type] ? WALK[type].n : 0);
 export const walkFrameMs = type => (WALK[type] ? WALK[type].ms : 100);
 
 // opts: { frame: 걷기 프레임 번호(null이면 정지), flip: 좌우 반전 }
+// 맞았을 때 붉은 번쩍임용 사본
+const hitCache = new Map();
+function hitOf(img, key) {
+  if (!hitCache.has(key)) {
+    const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+    const c = cv.getContext('2d');
+    c.drawImage(img, 0, 0);
+    c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(255,60,60,0.55)'; c.fillRect(0, 0, cv.width, cv.height);
+    hitCache.set(key, cv);
+  }
+  return hitCache.get(key);
+}
+
+// opts: frame(걷기 프레임), flip(좌우 반전), bob(위로 뜨는 px), tilt(라디안), squash(0~0.1 찌그러짐), dx(좌우 흔들림 px), hit(피격)
 export function drawGoblinArt(ctx, type, frozen, cx, bottom, size, opts = {}) {
   let base = walkFrames(type) ? walkFrame(type, opts.frame ?? 0) : null;
   const key = base ? `${type}|f${(opts.frame ?? 0) % walkFrames(type)}` : type;
   if (!base) base = IMG['goblin_' + type] || IMG.goblin;
   if (!base) return drawSprite(ctx, goblinSprite(type, frozen), cx, bottom, size, size);
-  const img = frozen ? frozenOf(base, key) : base;
-  if (!opts.flip) return fit(ctx, img, cx, bottom, size, size);
-  ctx.save(); ctx.translate(cx, 0); ctx.scale(-1, 1);
-  const r = fit(ctx, img, 0, bottom, size, size);
+  const img = frozen ? frozenOf(base, key) : opts.hit ? hitOf(base, key) : base;
+  const bob = opts.bob || 0, sq = opts.squash || 0, x = cx + (opts.dx || 0);
+  const sx = (opts.flip ? -1 : 1) * (1 + sq * 0.6), sy = 1 - sq;
+  ctx.save();
+  ctx.translate(x, bottom - bob);           // 발밑을 기준점으로 변형 (찌그러져도 발은 바닥에)
+  if (opts.tilt) ctx.rotate(opts.tilt);
+  ctx.scale(sx, sy);
+  const r = fit(ctx, img, 0, 0, size, size);
   ctx.restore();
-  return { x: cx - (r.x + r.w), y: r.y, w: r.w, h: r.h };
+  const w = r.w * Math.abs(sx), h = r.h * sy;
+  return { x: x - w / 2, y: bottom - bob - h, w, h };
 }
