@@ -9,7 +9,7 @@ import {
 const $ = id => document.getElementById(id);
 const EL = Object.fromEntries(ELEMENTS.map(e => [e.sym, e]));
 const LS_BEST = 'esd.bestRound';
-export const APP_VERSION = 'v0.9.2'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v0.9.3'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -32,7 +32,7 @@ function lsSet(k, v) { try { localStorage.setItem(k, v); } catch { /* 저장 불
 const boardCv = $('boardCv');
 const bctx = boardCv.getContext('2d');
 // 판 위 여백: 2칸 크기 오우거가 맨 윗줄에 있어도 머리가 잘리지 않도록 (칸 높이 기준 배수)
-const BOARD_PAD = 0.85;
+const BOARD_PAD = 1.1; // 2칸 크기 오우거가 맨 윗줄에서도 머리가 들어가도록 1칸 이상
 const BOARD_ASPECT = (CFG.H + BOARD_PAD) / CFG.W;
 const MEGA_ALPHA = 0.25; // 메가 슬라임 겹침 표시 불투명도 (이전 0.6)
 
@@ -253,13 +253,13 @@ function drawBoard() {
     const { gb } = bg, cells = GOBLINS[gb.type].size || 2;
     const size = Math.min(cw, ch) * cells;
     const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
-    const cx = bg.x * cw + cw / 2, bottom = bg.y * ch + ch - 4;
-    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, bg.moving), flip: !!bg.flip, ...motion(gb, bg.trappedIn ? 'big' : bg.moving ? 'walk' : 'idle') });
+    let cx = bg.x * cw + cw / 2; const bottom = bg.y * ch + ch - 4;
+    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, bg.moving), flip: !!bg.flip, clampW: w, ...motion(gb, bg.trappedIn ? 'big' : bg.moving ? 'walk' : 'idle') });
+    const cellCx = cx; cx = rc.x + rc.w / 2; // 체력바는 보정된 몸 위치, 슬라임 덮개는 원래 칸 위치
     if (bg.trappedIn) {
-      // 다리가 슬라임에 잠긴 모습: 해당 칸의 슬라임을 반투명으로 덧그림
-      // 슬라임은 항상 오우거 발밑에 (맨 윗줄 보정으로 몸이 내려가도 다리가 잠기게)
-      const footY = rc.y + rc.h, X = cx - cw / 2, Y = footY - ch + 4;
-      ctx.globalAlpha = 0.6; drawSlimeArt(ctx, bg.trappedIn, cx, footY + 6, cw * 0.94, ch - 18); ctx.globalAlpha = 1;
+      // 다리가 슬라임에 잠긴 모습: 갇힌 칸의 슬라임을 반투명으로 덧그림
+      const footY = rc.y + rc.h, X = cellCx - cw / 2, Y = footY - ch + 4;
+      ctx.globalAlpha = 0.6; drawSlimeArt(ctx, bg.trappedIn, cellCx, footY + 6, cw * 0.94, ch - 18); ctx.globalAlpha = 1;
       ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
       hpBar(ctx, X + 8, Math.min(footY + 2, ch * CFG.H - 6), cw - 16, bg.trappedIn.hp / bg.trappedIn.maxhp, '#6be08a');
       badges.push([bg.trappedIn, X, Math.max(Y, footY - ch * 0.55)]);
@@ -484,7 +484,7 @@ function showHelp() {
   const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}<br><small>${d.desc || ''}</small></td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
   showModal(`게임 방법 · ${APP_VERSION}`, `
     <p>고블린은 전장을 <b>ㄹ자 경로</b>로 이동합니다. 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
-    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임 카드는 <b>3초마다 1장</b> 덱에 들어옵니다(최대 ${CFG.QUEUE_MAX}장). 같은 슬라임을 겹치면 Lv+1(최대 5).</p>
+    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임은 <b>3초마다 1마리</b> 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 그때부터 덱에 쌓입니다(최대 ${CFG.QUEUE_MAX}장). 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
     <p><b>속성</b>: 모든 슬라임은 8속성 중 하나입니다(🔥불 💧물 ⚡전기 ❄얼음 🌪바람 ⛰대지 ☠독 ☢방사). 고블린마다 <b>약점 속성(피해 ×${CFG.WEAK_MUL}, 주황 숫자)</b>과 <b>내성 속성(×${CFG.RESIST_MUL}, 회색 숫자)</b>이 있습니다.</p>
     <p><b>조합</b>(촉매 1개): ① 화학 족보 정확히 일치 → 화합물 150% ② <b>서로 다른 속성 2마리 → 속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%</b> ③ 그 외 → 혼합물 70%.</p>
     <p><b>메가</b>: ${CFG.MEGA_ROUND}라운드부터 사용 가능. Lv5 같은 원소 3개 → 3×3 구역, 최대 5마리 동시 공격.</p>

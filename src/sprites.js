@@ -242,8 +242,13 @@ export function drawGoblinArt(ctx, type, frozen, cx, bottom, size, opts = {}) {
   if (!base) base = IMG['goblin_' + type] || IMG.goblin;
   if (!base) return drawSprite(ctx, goblinSprite(type, frozen), cx, bottom, size, size);
   const img = frozen ? frozenOf(base, key) : opts.hit ? hitOf(base, key) : base;
-  const bob = opts.bob || 0, sq = opts.squash || 0, x = cx + (opts.dx || 0);
+  const bob = opts.bob || 0, sq = opts.squash || 0;
   const sx = (opts.flip ? -1 : 1) * (1 + sq * 0.6), sy = 1 - sq;
+  let x = cx + (opts.dx || 0);
+  if (opts.clampW) { // 판 가장자리 밖으로 나가지 않게 가로 위치 보정 (2칸 크기 오우거)
+    const half = (img.width * Math.min(size / img.width, size / img.height) * Math.abs(sx)) / 2;
+    x = Math.min(Math.max(x, half + 2), opts.clampW - half - 2);
+  }
   ctx.save();
   ctx.translate(x, bottom - bob);           // 발밑을 기준점으로 변형 (찌그러져도 발은 바닥에)
   if (opts.tilt) ctx.rotate(opts.tilt);

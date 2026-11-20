@@ -1,10 +1,19 @@
-import { createGame, step, placeFromQueue, getCell, slimeCount, makeMega, skipPrep, PATH } from '../src/engine.js';
+import { createGame, step, placeFromQueue, moveSlime, getCell, slimeCount, makeMega, skipPrep, PATH } from '../src/engine.js';
 import { CFG } from '../src/data.js';
 
 // 단순 AI: 같은 원소에 겹치기 우선, 없으면 경로 앞쪽 기둥의 위층부터 배치
 const WEAK = process.argv[3]==='weak';
 function ai(s) {
   if (WEAK) { let g=0; while (s.queue.length && g++<60){ const x=Math.floor(s.rng()*5), y=Math.floor(s.rng()*5), z=Math.floor(s.rng()*CFG.D); if(!placeFromQueue(s,0,x,y,z).ok && g>20) s.queue.shift(); } return; }
+  // 0) 필드 정리: 같은 원소 슬라임을 경로 앞쪽 칸에 겹친다 (자동 랜덤 배치 대응)
+  for (let changed = true, n = 0; changed && n < 30; n++) {
+    changed = false;
+    const cells = PATH.map(([x, y]) => ({ x, y, z: 0, sl: getCell(s, x, y, 0) })).filter(c => c.sl && c.sl.kind === 'element');
+    outer: for (let i = 0; i < cells.length; i++) for (let j = cells.length - 1; j > i; j--) {
+      const a = cells[i], b = cells[j];
+      if (a.sl.key === b.sl.key && a.sl.lv + b.sl.lv <= 5) { if (moveSlime(s, b, a).ok) { changed = true; break outer; } }
+    }
+  }
   let guard = 0;
   while (s.queue.length && guard++ < 60) {
     const q = s.queue[0]; let done = false;

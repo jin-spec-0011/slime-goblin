@@ -12,9 +12,10 @@ export const CFG = {
   FIRST_PREP: 24,               // 게임 시작 준비 틱(초)
   PREP_TICKS: 12,               // 라운드 사이 준비 틱(초)
   START_SLIMES: 6,
+  AUTO_FIELD: true,             // 지급 슬라임을 필드 빈칸에 랜덤 배치, 필드가 가득 차면 덱으로
   ROUND_BONUS_SLIMES: 3,
   CATALYST_START: 2,
-  HP_GROWTH: 1.12,              // 라운드별 고블린 HP 성장
+  HP_GROWTH: 1.04,              // 라운드별 고블린 HP 성장
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,

@@ -35,7 +35,7 @@ BOXES = {
     'goblin_rider':   ('6.webp', 95, 460, 370, 670, False, 'checker'),   # Spear Goblin
     'goblin_archer':  ('6.webp', 440, 460, 665, 670, False, 'checker'),  # Archer Goblin
     'goblin_captain': ('6.webp', 1665, 50, 1920, 325, False, 'checker'), # Goblin King
-    'goblin_giant':   ('8.webp', 590, 50, 1310, 815, False, 'checker_beige'), # Ogre Chieftain
+    # goblin_giant(정지 그림)은 영상 걷기 시트의 첫 프레임을 쓴다 (video 모드에서 생성). Ogre Chieftain(8.webp)은 사용 안 함
     'goblin_smart':   ('6.webp', 1390, 440, 1550, 670, False, 'checker'),# Rogue Goblin
     'item_catalyst':  ('6.webp', 835, 790, 920, 920, False, 'checker'),  # Catalyst
     'goblin_gasmask': ('6.webp', 745, 85, 960, 305, False, 'checker'),  # Gasmask Goblin
@@ -173,9 +173,8 @@ for name, (f, x0, y0, x1, y1, disp, tol) in ({} if VIDEO_MODE else BOXES).items(
 # ---------- 걷기 모션 시트 ----------
 # 이름: (파일, y0, y1, [(x0, x1) 프레임별 열 구간], 배경모드, 출력 프레임 높이)
 WALKS = {
-    'goblin_giant_walk': ('9.webp', 80, 420,
-                          [(41, 269), (274, 504), (513, 741), (747, 979), (1001, 1234), (1239, 1464), (1472, 1702), (1710, 1943)],
-                          'checker_beige', 200),
+    # 오우거 걷기는 영상(video 모드)에서 만든 16프레임 시트를 쓴다.
+    # 예전 9.webp 8프레임 시트는 여기서 다시 만들면 16프레임 시트를 덮어쓰므로 제외.
 }
 
 def keep_largest(im):

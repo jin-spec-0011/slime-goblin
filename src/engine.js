@@ -15,16 +15,16 @@ function mulberry32(a) {
   };
 }
 
-export function createGame(seed = Date.now()) {
+export function createGame(seed = Date.now(), opts = {}) {
   const s = {
     seed, rng: mulberry32(seed), tick: 0, round: 1, phase: 'prep', prepLeft: CFG.FIRST_PREP,
     baseHp: CFG.BASE_HP, catalysts: CFG.CATALYST_START,
     cells: Array.from({ length: CFG.D }, () => Array.from({ length: CFG.H }, () => Array(CFG.W).fill(null))),
     queue: [], goblins: [], spawnList: [], megas: [], nextId: 1, kills: 0, lost: 0,
-    log: [], fx: [], counts: {},
+    log: [], fx: [], counts: {}, autoField: opts.autoField ?? CFG.AUTO_FIELD,
   };
   for (let i = 0; i < CFG.START_SLIMES; i++) addQueue(s);
-  say(s, '준비 단계: 슬라임을 구덩이에 배치하세요.');
+  say(s, s.autoField ? '준비 단계: 슬라임이 필드에 랜덤 배치됩니다. 끌어서 겹치거나 옮기세요.' : '준비 단계: 슬라임을 배치하세요.');
   return s;
 }
 
@@ -90,9 +90,21 @@ function makeFusion(s, fu, lv) {
 const fusionOf = (a, b) => FUSIONS.find(f => (f.pair[0] === a && f.pair[1] === b) || (f.pair[0] === b && f.pair[1] === a)) || null;
 
 // ---------- 지급 큐 ----------
+// 슬라임 지급: 필드에 빈칸이 있으면 빈칸에 랜덤 배치, 필드가 가득 차면 덱(큐)에 쌓는다
 function addQueue(s) {
   const pool = ELEMENTS.filter(e => e.unlock <= s.round);
   const e = pool[Math.floor(s.rng() * pool.length)];
+  if (s.autoField) {
+    const empty = [];
+    for (let y = 0; y < CFG.H; y++) for (let x = 0; x < CFG.W; x++) if (!s.cells[0][y][x]) empty.push([x, y]);
+    if (empty.length && slimeCount(s) < CFG.CAP) {
+      const [x, y] = empty[Math.floor(s.rng() * empty.length)];
+      s.cells[0][y][x] = makeElement(s, e.sym);
+      s.fx.push({ k: 'drop', x, y });
+      computeCounts(s);
+      return true;
+    }
+  }
   if (s.queue.length >= CFG.QUEUE_MAX) { s.lost++; return false; }
   s.queue.push({ id: s.nextId++, sym: e.sym });
   return true;
