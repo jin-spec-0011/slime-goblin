@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캐릭터 도감</title>
+<style>
+  :root { --bg: #2b3447; --panel: #3a4660; --line: #5b6a8a; --text: #eef2fa; --sub: #a9b6d0; --accent: #ffd34d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; padding: 16px; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .meta { color: var(--sub); font-size: 12px; margin-bottom: 14px; }
+  h2 { font-size: 16px; margin: 18px 0 8px; border-left: 4px solid var(--accent); padding-left: 8px; }
+  h2 small { color: var(--sub); font-weight: 400; font-size: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .card { background: var(--panel); border: 2px solid var(--line); border-radius: 10px; padding: 8px; text-align: center; }
+  .card .art { height: 92px; display: flex; align-items: flex-end; justify-content: center; }
+  .card img { max-height: 92px; max-width: 100%; image-rendering: pixelated; }
+  .card .name { font-weight: 800; font-size: 14px; margin-top: 4px; }
+  .card .key { color: var(--sub); font-size: 11px; }
+  .card .line { font-size: 11px; color: var(--sub); margin-top: 3px; line-height: 1.35; }
+  .card .line b { color: var(--text); }
+  .strip { background: var(--panel); border: 2px solid var(--line); border-radius: 10px; padding: 8px; overflow: hidden; }
+  .strip img { width: 100%; image-rendering: auto; }
+</style>
+</head>
+<body>
+<h1>Element Slime Defense · 캐릭터 도감</h1>
+<div class="meta" id="meta"></div>
+<div id="root"></div>
+<script type="module">
+import { CFG, ELEMENTS, FUSIONS, RECIPES, GOBLINS, ATTRS, STATUS } from '../src/data.js';
+
+const root = document.getElementById('root');
+const at = a => `${ATTRS[a].icon}${ATTRS[a].label}`;
+const atl = arr => (arr && arr.length ? arr.map(at).join(' ') : '-');
+const st = list => list.map(s => STATUS[s.name].label).join('·');
+
+function section(title, sub, cards) {
+  const h = document.createElement('h2'); h.innerHTML = `${title} <small>${sub}</small>`;
+  const g = document.createElement('div'); g.className = 'grid'; g.innerHTML = cards.join('');
+  root.append(h, g);
+}
+const card = (img, name, key, lines) => `<div class="card"><div class="art"><img src="../assets/${img}.png" alt=""></div>
+  <div class="name">${name}</div><div class="key">${key}</div>${lines.map(l => `<div class="line">${l}</div>`).join('')}</div>`;
+
+// 고블린 12종
+section(`고블린 ${Object.keys(GOBLINS).length}종`, '1라운드 기준 능력치 · 라운드마다 HP ×' + CFG.HP_GROWTH,
+  Object.entries(GOBLINS).map(([k, d]) => card(`goblin_${k}`, d.name, k, [
+    `HP <b>${d.hp}</b> · 공격 <b>${d.atk}</b> · 방어 <b>${d.def}</b> · 속도 <b>${d.spd}</b>칸/초`,
+    `약점 ${atl(d.weak)} · 내성 ${atl(d.resist)}`,
+    `${d.desc || ''} · 거점 -${d.leak}`,
+  ])));
+
+// 오우거 걷기 모션
+const h = document.createElement('h2'); h.innerHTML = '오우거 걷기 모션 <small>영상에서 추출한 16프레임</small>';
+const s = document.createElement('div'); s.className = 'strip'; s.innerHTML = '<img src="../assets/goblin_giant_walk.png" alt="">';
+root.append(h, s);
+
+// 슬라임
+const pure = ELEMENTS.filter(e => e.label), els = ELEMENTS.filter(e => !e.label);
+const elCard = e => card(`slime_${e.sym}`, e.label || e.name, e.label ? '순수 속성' : e.sym,
+  [`${at(e.attr)} · ${STATUS[e.st.name].label}`, `HP ${e.hp} · 공격 ${e.atk} · 방어 ${e.def} · R${e.unlock}부터`]);
+section(`순수 속성 슬라임 ${pure.length}종`, '원소가 아닌 속성 자체', pure.map(elCard));
+section(`원소 슬라임 ${els.length}종`, '각 원소는 속성 하나에 소속', els.map(elCard));
+section(`속성 합성 ${FUSIONS.length}종`, `촉매 + 서로 다른 속성 2마리 · 능력치 ×${CFG.FUSION_MUL}`,
+  FUSIONS.map(f => card(`slime_${f.key}`, f.label, `${at(f.pair[0])} + ${at(f.pair[1])}`,
+    [`${st(f.st)}${f.pierce ? '·관통' : ''}${f.decay ? '·자기 피해' : ''}`, `HP ${f.hp} · 공격 ${f.atk} · 방어 ${f.def}`])));
+section(`화학 족보 ${RECIPES.length}종`, `족보와 정확히 일치 · 능력치 ×${CFG.COMPOUND_MUL}`,
+  RECIPES.map(r => card(`slime_${r.key}`, `${r.label} ${r.name}`, Object.entries(r.need).map(([k, v]) => v > 1 ? `${k}×${v}` : k).join(' + '),
+    [`${STATUS[r.st.name].label}`, `HP ${r.hp} · 공격 ${r.atk} · 방어 ${r.def}`])));
+section('기타 2종', '혼합물 · 메가', [
+  card('slime_mix', '혼합물', '족보·합성 불일치', [`능력치 ×${CFG.MIXTURE_MUL}`, '재료 원소 효과 2개']),
+  card('slime_mega', '메가 슬라임', `Lv5 같은 원소 ×3`, [`${CFG.MEGA_ROUND}라운드부터 · 3×3 구역`, `최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격`]),
+]);
+
+const total = Object.keys(GOBLINS).length + ELEMENTS.length + FUSIONS.length + RECIPES.length + 2;
+document.getElementById('meta').textContent = `총 ${total}종 (고블린 ${Object.keys(GOBLINS).length} · 슬라임 ${total - Object.keys(GOBLINS).length})`;
+document.body.dataset.ready = '1';
+</script>
+</body>
+</html>
