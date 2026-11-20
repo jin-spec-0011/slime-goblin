@@ -12,7 +12,7 @@ const LS_BEST = 'esd.bestRound';
 const LS_UNLOCK = 'esd.unlockedChapter'; // 열린 최고 챕터 번호
 const lsBest = n => `esd.best.${n}`;     // 챕터별 최고 기록 (라운드 수, 11 = 클리어)
 const unlocked = () => Math.min(CHAPTERS.length, Math.max(1, +(lsGet(LS_UNLOCK) || 1)));
-export const APP_VERSION = 'v1.0.0'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v1.0.1'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -211,23 +211,31 @@ function drawBoard() {
     const trapped = inside.get(PATH_IDX.get(`${x},${y}`)) || [];
     const isSel = ui.sel?.t === 'c' && ui.sel.x === x && ui.sel.y === y;
     const inCombo = ui.comboList.some(p => p.x === x && p.y === y);
-    if (sl) {
+    if (sl && trapped.length) {
+      // C. 칸 분할: 위 띠 = 갇힌 고블린(아이콘·이름·체력바), 아래 = 슬라임 (서로 가리지 않음)
+      const gb = trapped[0], stripH = Math.round(ch * 0.3), sx = X + 4, sy = Y + 4, sw = cw - 8;
+      const art = drawSlimeArt(ctx, sl, X + cw / 2, Y + ch - 8, cw * 0.96, ch - stripH - 8);
+      if (art.label) pixelText(ctx, art.label, X + cw / 2, art.rect.y + art.rect.h * 0.86, Math.round(Math.min(cw, ch) * (art.label.length > 3 ? 0.14 : art.label.length > 2 ? 0.16 : 0.19)), '#ffffff');
+      lvTag(ctx, sl, X, Y + stripH + 2);
+      if (sl.sealed > 0) pixelText(ctx, '봉인', X + cw - 6, Y + stripH + 16, 10, '#c27bff', 'right');
+      hpBar(ctx, X + 8, Y + ch - 8, cw - 16, sl.hp / sl.maxhp, '#6be08a');
+      ctx.fillStyle = 'rgba(58,36,46,0.95)'; roundRect(ctx, sx, sy, sw, stripH, 6); ctx.fill();
+      const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0), mo = motion(gb, 'trapped');
+      const iconSize = stripH - 2;
+      ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, stripH); ctx.clip(); // 아이콘이 띠 밖으로 나가지 않게
+      drawGoblinArt(ctx, gb.type, frozen, sx + iconSize / 2 + 2, sy + stripH, iconSize, { ...mo, tilt: (mo.tilt || 0) * 0.5, dx: (mo.dx || 0) * 0.5 });
+      ctx.restore();
+      const tx = sx + iconSize + 5, tw = sw - iconSize - 9;
+      ctx.font = `bold ${Math.max(9, Math.round(stripH * 0.36))}px sans-serif`; ctx.textAlign = 'left'; ctx.fillStyle = '#ffd6d6';
+      ctx.fillText(GOBLINS[gb.type].name + (trapped.length > 1 ? ` +${trapped.length - 1}` : ''), tx, sy + stripH * 0.45);
+      hpBar(ctx, tx, sy + stripH * 0.62, tw, gb.hp / gb.maxhp, '#ff5a5a');
+      goblinStatus(ctx, gb, sx + sw - 7, sy + 2);
+      ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
+    } else if (sl) {
       const art = drawSlimeArt(ctx, sl, X + cw / 2, Y + ch - 10, cw * 0.94, ch - 18);
-      for (const gb of trapped) {
-        if (isBig(gb)) { bigs.push({ gb, trappedIn: sl, x, y, moving: false, flip: ui.anim.get(gb.id)?.flip }); continue; }
-        // 고블린을 슬라임 몸 안에 작게 그리고, 그 위에 슬라임을 반투명으로 덮어 "갇힌" 느낌
-        const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
-        const size = Math.min(art.rect.w, art.rect.h) * (gb.type === 'giant' ? 0.95 : 0.78);
-        drawGoblinArt(ctx, gb.type, frozen, X + cw / 2, art.rect.y + art.rect.h - 2, size, motion(gb, 'trapped'));
-        ctx.globalAlpha = 0.45; drawSlimeArt(ctx, sl, X + cw / 2, Y + ch - 10, cw * 0.94, ch - 18); ctx.globalAlpha = 1;
-        hpBar(ctx, X + 8, Y + 18, cw - 16, gb.hp / gb.maxhp, '#ff5a5a');
-        goblinStatus(ctx, gb, X + cw - 10, Y + 24);
-        ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
-      }
       if (art.label) pixelText(ctx, art.label, X + cw / 2, art.rect.y + art.rect.h * 0.86, Math.round(Math.min(cw, ch) * (art.label.length > 3 ? 0.15 : art.label.length > 2 ? 0.17 : 0.21)), '#ffffff');
-      if (trapped.some(gb => !isBig(gb))) badges.push([sl, X, Y]);
       lvTag(ctx, sl, X, Y);
-      if (!trapped.length) attrIcons(ctx, sl, X, Y, cw);
+      attrIcons(ctx, sl, X, Y, cw);
       if (sl.sealed > 0) pixelText(ctx, '봉인', X + cw - 6, Y + 14, 10, '#c27bff', 'right');
       hpBar(ctx, X + 8, Y + ch - 8, cw - 16, sl.hp / sl.maxhp, '#6be08a');
     } else if (trapped.length) {
@@ -261,16 +269,8 @@ function drawBoard() {
     const size = Math.min(cw, ch) * cells;
     const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
     let cx = bg.x * cw + cw / 2; const bottom = bg.y * ch + ch - 4;
-    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, bg.moving), flip: !!bg.flip, clampW: w, ...motion(gb, bg.trappedIn ? 'big' : bg.moving ? 'walk' : 'idle') });
-    const cellCx = cx; cx = rc.x + rc.w / 2; // 체력바는 보정된 몸 위치, 슬라임 덮개는 원래 칸 위치
-    if (bg.trappedIn) {
-      // 다리가 슬라임에 잠긴 모습: 갇힌 칸의 슬라임을 반투명으로 덧그림
-      const footY = rc.y + rc.h, X = cellCx - cw / 2, Y = footY - ch + 4;
-      ctx.globalAlpha = 0.6; drawSlimeArt(ctx, bg.trappedIn, cellCx, footY + 6, cw * 0.94, ch - 18); ctx.globalAlpha = 1;
-      ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2.5; roundRect(ctx, X + 2, Y + 2, cw - 4, ch - 4, 7); ctx.stroke();
-      hpBar(ctx, X + 8, Math.min(footY + 2, ch * CFG.H - 6), cw - 16, bg.trappedIn.hp / bg.trappedIn.maxhp, '#6be08a');
-      badges.push([bg.trappedIn, X, Math.max(Y, footY - ch * 0.55)]);
-    }
+    const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, bg.moving), flip: !!bg.flip, clampW: w, ...motion(gb, bg.moving ? 'walk' : 'idle') });
+    cx = rc.x + rc.w / 2; // 판 가장자리 보정된 몸 위치 기준으로 체력바 정렬
     hpBar(ctx, cx - size * 0.3, Math.max(2 - pad, rc.y - 6), size * 0.6, gb.hp / gb.maxhp, '#ff5a5a');
     goblinStatus(ctx, gb, cx + size * 0.32, Math.max(2 - pad, rc.y));
   }
