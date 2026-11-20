@@ -383,6 +383,13 @@ function fight(s, g, x, y) {
   const row = rowSlimes(s, y);
   const mega = megaAt(s, x, y);
   g.fights++;
+  // 포획 피로: 갇힌 지 TRAP_FATIGUE_AFTER초가 지나면 매초 최대 체력의 1%, 2%, 3%...씩 고정 피해
+  // (회복·내성·빙결이 겹쳐 아무도 죽지 않는 교착 상태 방지)
+  g.trapT = (g.trapT || 0) + 1;
+  if (g.trapT > CFG.TRAP_FATIGUE_AFTER) {
+    hurt(s, g, g.maxhp * CFG.TRAP_FATIGUE_STEP * (g.trapT - CFG.TRAP_FATIGUE_AFTER));
+    if (g.dead) { computeCounts(s); return; }
+  }
   const top = col[0] || null;
   // 슬라임(함정)이 먼저 공격
   if (top && !(top.sealed > 0)) {
@@ -423,7 +430,7 @@ function actGoblin(s, g) {
   }
   const [x, y] = PATH[g.idx];
   if (g.pit) {
-    if (!trapAt(s, x, y)) { g.pit = false; moveGoblin(s, g); } else fight(s, g, x, y);
+    if (!trapAt(s, x, y)) { g.pit = false; g.trapT = 0; moveGoblin(s, g); } else fight(s, g, x, y);
   } else moveGoblin(s, g);
   // 궁수: 이동 후 앞 range칸의 슬라임 저격
   if (!g.dead && g.range && !g.pit) {

@@ -15,13 +15,15 @@ export const CFG = {
   AUTO_FIELD: true,             // 지급 슬라임을 필드 빈칸에 랜덤 배치, 필드가 가득 차면 덱으로
   ROUND_BONUS_SLIMES: 3,
   CATALYST_START: 2,
-  HP_GROWTH: 1.12,              // 라운드별 고블린 HP 성장
+  HP_GROWTH: 1.03,              // 라운드별 고블린 HP 성장
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
   FUSION_MUL: 1.3,              // 속성 합성 슬라임 능력치 배율
   WEAK_MUL: 1.5,                // 고블린 약점 속성 피해 배율
   RESIST_MUL: 0.5,              // 고블린 내성 속성 피해 배율
+  TRAP_FATIGUE_AFTER: 8,        // 포획 피로 시작(갇힌 초)
+  TRAP_FATIGUE_STEP: 0.01,      // 포획 피로: 매초 최대 체력의 1%씩 누적 증가
   MEGA_ROUND: 5,                // 메가 슬라임 조합 가능 라운드 (이 라운드부터)
   MEGA_MUL: 1.2,
   MEGA_ATK: 2.4,
@@ -182,8 +184,8 @@ function genRounds({ focus = [], giants = 4, unlockShift = 0 }) {
 
 export const CHAPTERS = [
   { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 1.0, atkMul: 1.0, boost: {},                         unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
-  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 1.6, atkMul: 1.15, boost: { fire: 1.25, ice: 0.75 },    unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], giants: 4, unlockShift: 1 }) },
-  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 1.7, atkMul: 1.3, boost: { ice: 1.25, fire: 0.75 },     unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], giants: 5, unlockShift: 2 }) },
-  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 4.0, atkMul: 1.45, boost: { poison: 1.25, water: 0.85 }, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], giants: 5, unlockShift: 3 }) },
-  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 4.4, atkMul: 1.6, boost: { elec: 1.15, rad: 1.15 },     unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], giants: 8, unlockShift: 4 }) },
+  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 1.0, atkMul: 1.0, boost: { fire: 1.25, ice: 0.75 },    unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], giants: 4, unlockShift: 1 }) },
+  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 1.18, atkMul: 1.03, boost: { ice: 1.25, fire: 0.75 },     unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], giants: 5, unlockShift: 2 }) },
+  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 1.1, atkMul: 1.02, boost: { poison: 1.25, water: 0.85 }, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], giants: 5, unlockShift: 3 }) },
+  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 1.05, atkMul: 1.01, boost: { elec: 1.15, rad: 1.15 },     unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], giants: 8, unlockShift: 4 }) },
 ];

@@ -98,6 +98,15 @@ t('거점 0 → 패배', s.phase === 'over');
   for (let i = 0; i < CFG.DROP_EVERY; i++) step(a);
   t('필드가 가득 차면 덱에 쌓임', a.queue.length === 1);
 }
+// 교착 방지: 얼음 내성 주술사 2마리가 질소(빙결) 슬라임에 갇혀 서로 회복해도 결국 쓰러짐
+{
+  const s2 = cg(21); s2.prepLeft = 1; step(s2); s2.spawnList = [];
+  for (const i of [4, 6]) { put(s2, 'N', PATH[i][0], PATH[i][1], 0); getCell(s2, PATH[i][0], PATH[i][1], 0).lv = 5; }
+  const d = GOBLINS.shaman;
+  for (const i of [4, 6]) s2.goblins.push({ id: 5e6 + i, type: 'shaman', name: d.name, hp: 90, maxhp: 90, atk: 3, def: 0, spd: 0, leak: 2, multi: 1, range: 0, aura: false, evade: 0, cleanse: false, weak: d.weak, resist: d.resist, immune: [], heal: d.heal, feast: 0, atkBuff: 1, idx: i, pit: true, st: {}, fights: 0, dead: false, mv: 0 });
+  let n = 0; while (s2.goblins.length && n++ < 200) step(s2);
+  t('교착 방지: 서로 회복하는 갇힌 주술사도 200초 안에 쓰러짐', s2.goblins.length === 0);
+}
 // 챕터: 경로 유효성, 라운드 수, 난이도 상승, 환경 효과
 for (const c of CHAPTERS) {
   const g = createGame(1, { chapter: c.id, autoField: false });

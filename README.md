@@ -16,7 +16,8 @@ ES Module과 Service Worker 때문에 `file://`로는 실행되지 않습니다.
 | `src/main.js` | Canvas 렌더링, 터치·드래그 입력, HUD |
 | `sw.js` | 오프라인 캐시 (배포 시 `VERSION` 올릴 것) |
 | `tools/test.mjs` | 규칙 단위 테스트 |
-| `tools/sim.mjs` | 밸런스 시뮬레이터 (`node tools/sim.mjs 40 [weak]`) |
+| `tools/sim.mjs` | 밸런스 시뮬레이터. 기본값 = **x3 배속, 사람 30APM** (`node tools/sim.mjs 30 [strong\|weak] [챕터] [--speed=3] [--apm=30]`, `--apm=0` 무제한, `--debug` 시간초과 판 출력) |
+| `tools/tune.mjs` | 챕터별 목표 승률에 맞는 체력 배율 자동 탐색 |
 
 ## 배포
 GitHub 저장소 Settings → Pages → Source를 **GitHub Actions**로 설정한 뒤 `main`에 push.
