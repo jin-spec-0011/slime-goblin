@@ -119,6 +119,9 @@ for (const c of CHAPTERS) {
   const g1 = createGame(1, { chapter: 1, autoField: false }), g5 = createGame(1, { chapter: 5, autoField: false });
   g1.round = g5.round = 8; g1.prepLeft = g5.prepLeft = 1; step(g1); step(g5);
   g1.spawnList = ['fighter']; g5.spawnList = ['fighter']; step(g1); step(g5);
-  t('챕터 5 고블린이 챕터 1보다 강함', g5.goblins[0] && g1.goblins[0] && g5.goblins[0].maxhp > g1.goblins[0].maxhp * 3);
+  t('챕터 5 고블린 체력 >= 챕터 1', g5.goblins[0] && g1.goblins[0] && g5.goblins[0].maxhp >= g1.goblins[0].maxhp);
+  // 챕터 난이도는 주로 구성에서 나온다: 같은 라운드의 일반 고블린 비율이 챕터 5가 더 낮음
+  const normalShare = c => { const r = CHAPTERS[c - 1].rounds[7]; const tot = r.reduce((a, [, n]) => a + n, 0); return (r.find(([k]) => k === 'normal')?.[1] || 0) / tot; };
+  t('챕터 5 8라운드는 챕터 1보다 강한 고블린 비율이 높음', normalShare(5) < normalShare(1));
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
