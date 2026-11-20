@@ -1,7 +1,9 @@
 // 헤드리스 게임 엔진 (DOM 의존 없음, Node에서 시뮬레이션 가능)
-import { CFG, STATUS, ELEMENTS, RECIPES, FUSIONS, ATTRS, GOBLINS, ROUND_TABLE, buildPath } from './data.js';
+import { CFG, STATUS, ELEMENTS, RECIPES, FUSIONS, ATTRS, GOBLINS, CHAPTERS, buildPath } from './data.js';
 
-export const PATH = buildPath();
+// 경로는 챕터마다 바뀐다. 다른 모듈이 같은 배열을 참조하므로 내용만 교체한다
+export const PATH = buildPath('rows');
+function setPath(kind) { const p = buildPath(kind); PATH.length = 0; PATH.push(...p); }
 const EL = Object.fromEntries(ELEMENTS.map(e => [e.sym, e]));
 const RC = Object.fromEntries(RECIPES.map(r => [r.key, r]));
 export const lvMult = lv => 1 + CFG.LV_STEP * (lv - 1);
@@ -16,12 +18,15 @@ function mulberry32(a) {
 }
 
 export function createGame(seed = Date.now(), opts = {}) {
+  const chapter = Math.min(CHAPTERS.length, Math.max(1, opts.chapter || 1));
+  const ch = CHAPTERS[chapter - 1];
+  setPath(ch.path);
   const s = {
     seed, rng: mulberry32(seed), tick: 0, round: 1, phase: 'prep', prepLeft: CFG.FIRST_PREP,
     baseHp: CFG.BASE_HP, catalysts: CFG.CATALYST_START,
     cells: Array.from({ length: CFG.D }, () => Array.from({ length: CFG.H }, () => Array(CFG.W).fill(null))),
     queue: [], goblins: [], spawnList: [], megas: [], nextId: 1, kills: 0, lost: 0,
-    log: [], fx: [], counts: {}, autoField: opts.autoField ?? CFG.AUTO_FIELD,
+    log: [], fx: [], counts: {}, autoField: opts.autoField ?? CFG.AUTO_FIELD, chapter, ch,
   };
   for (let i = 0; i < CFG.START_SLIMES; i++) addQueue(s);
   say(s, s.autoField ? '준비 단계: 슬라임이 필드에 랜덤 배치됩니다. 끌어서 겹치거나 옮기세요.' : '준비 단계: 슬라임을 배치하세요.');
@@ -92,7 +97,7 @@ const fusionOf = (a, b) => FUSIONS.find(f => (f.pair[0] === a && f.pair[1] === b
 // ---------- 지급 큐 ----------
 // 슬라임 지급: 필드에 빈칸이 있으면 빈칸에 랜덤 배치, 필드가 가득 차면 덱(큐)에 쌓는다
 function addQueue(s) {
-  const pool = ELEMENTS.filter(e => e.unlock <= s.round);
+  const pool = ELEMENTS.filter(e => s.ch.unlockAll || e.unlock <= s.round);
   const e = pool[Math.floor(s.rng() * pool.length)];
   if (s.autoField) {
     const empty = [];
@@ -137,6 +142,7 @@ const sameAttr = (a, b) => a.attrs.some(x => b.attrs.includes(x));
 
 function bonus(s, sl, col) {
   let atk = 1, take = 1;
+  for (const a of sl.attrs) atk *= s.ch.boost[a] || 1; // 챕터 환경 효과
   const cnt = Math.max(0, ...sl.attrs.map(a => s.counts[a] || 0));
   if (cnt >= 3) atk *= CFG.GROUP3_ATK;
   if (cnt >= 2) take *= CFG.GROUP2_TAKEN;
@@ -248,8 +254,8 @@ export function skipPrep(s) {
 }
 
 // ---------- 고블린 ----------
-function buildSpawn(round) {
-  const groups = ROUND_TABLE[round - 1].map(([t, n]) => Array(n).fill(t));
+function buildSpawn(s, round) {
+  const groups = s.ch.rounds[round - 1].map(([t, n]) => Array(n).fill(t));
   const out = []; let more = true;
   while (more) { more = false; for (const g of groups) if (g.length) { out.push(g.shift()); more = true; } }
   return out;
@@ -257,10 +263,13 @@ function buildSpawn(round) {
 
 function makeGoblin(s, type) {
   const d = GOBLINS[type], r = s.round - 1;
-  const hp = Math.round(d.hp * Math.pow(CFG.HP_GROWTH, r));
+  // 챕터 배율은 라운드가 갈수록 커진다: 1라운드 30% 적용 -> 10라운드 100% (초반 붕괴 방지)
+  const ramp = 0.3 + 0.7 * (r / (CFG.ROUNDS - 1));
+  const hpMul = 1 + (s.ch.hpMul - 1) * ramp, atkMul = 1 + (s.ch.atkMul - 1) * ramp;
+  const hp = Math.round(d.hp * Math.pow(CFG.HP_GROWTH, r) * hpMul);
   return {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
-    atk: d.atk * (1 + CFG.ATK_GROWTH * r), def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
+    atk: d.atk * (1 + CFG.ATK_GROWTH * r) * atkMul, def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
     multi: d.multi || 1, range: d.range || 0, aura: !!d.aura, evade: d.evade || 0, cleanse: !!d.cleanse,
     weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, atkBuff: 1,
     idx: 0, pit: false, st: {}, fights: 0, dead: false,
@@ -273,7 +282,7 @@ const surfaceOcc = (s, idx) => s.goblins.some(g => !g.dead && !g.pit && g.idx ==
 const pitOcc = (s, idx, self = null) => s.goblins.some(g => !g.dead && g.pit && g.idx === idx && g !== self);
 
 function startRound(s) {
-  s.phase = 'run'; s.spawnList = buildSpawn(s.round);
+  s.phase = 'run'; s.spawnList = buildSpawn(s, s.round);
   say(s, `라운드 ${s.round} 시작! 고블린 ${s.spawnList.length}마리`);
 }
 
@@ -478,7 +487,7 @@ export function step(s) {
 
   if (s.baseHp <= 0) { s.baseHp = 0; s.phase = 'over'; say(s, '거점이 함락되었습니다…'); return; }
   if (!s.spawnList.length && !s.goblins.length) {
-    if (s.round >= CFG.ROUNDS) { s.phase = 'won'; say(s, '챕터 클리어!'); return; }
+    if (s.round >= CFG.ROUNDS) { s.phase = 'won'; say(s, `챕터 ${s.chapter} ${s.ch.name} 클리어!`); return; }
     s.round++; s.phase = 'prep'; s.prepLeft = CFG.PREP_TICKS; s.catalysts++;
     for (let i = 0; i < CFG.ROUND_BONUS_SLIMES; i++) addQueue(s);
     say(s, `라운드 ${s.round - 1} 클리어! 보너스 슬라임 +${CFG.ROUND_BONUS_SLIMES}, 촉매 +1`);

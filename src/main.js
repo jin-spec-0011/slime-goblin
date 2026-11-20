@@ -1,5 +1,5 @@
 // UI · 렌더링 · 입력 (Canvas 2D)
-import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS, ATTRS, FUSIONS } from './data.js';
+import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS, ATTRS, FUSIONS, CHAPTERS } from './data.js';
 import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames, walkFrameMs } from './sprites.js';
 import {
   createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
@@ -9,7 +9,10 @@ import {
 const $ = id => document.getElementById(id);
 const EL = Object.fromEntries(ELEMENTS.map(e => [e.sym, e]));
 const LS_BEST = 'esd.bestRound';
-export const APP_VERSION = 'v0.9.3'; // sw.js VERSION과 함께 올린다
+const LS_UNLOCK = 'esd.unlockedChapter'; // 열린 최고 챕터 번호
+const lsBest = n => `esd.best.${n}`;     // 챕터별 최고 기록 (라운드 수, 11 = 클리어)
+const unlocked = () => Math.min(CHAPTERS.length, Math.max(1, +(lsGet(LS_UNLOCK) || 1)));
+export const APP_VERSION = 'v1.0.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -78,7 +81,9 @@ function hpBar(ctx, x, y, w, ratio, col) {
 }
 
 // ---------- 전장 ----------
-const PATH_IDX = new Map(PATH.map(([x, y], i) => [`${x},${y}`, i]));
+// 경로가 챕터마다 바뀌므로 새 게임마다 다시 만든다
+let PATH_IDX = new Map();
+const rebuildPathIdx = () => { PATH_IDX = new Map(PATH.map(([x, y], i) => [`${x},${y}`, i])); };
 
 // 원소 배지: 고블린이 갇혀 슬라임 그림의 원소 글자가 가려질 때 칸 오른쪽 위에 표시
 function elemBadge(ctx, sl, X, Y, cw) {
@@ -120,9 +125,11 @@ function goblinStatus(ctx, gb, x, y) {
 function drawBoard() {
   const g = ui.g, ctx = bctx, { w, h, cw, ch, pad } = dims(boardCv);
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#2f3a50'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = g.ch.color; ctx.fillRect(0, 0, w, h); // 챕터별 바탕색
   ctx.fillStyle = '#28324a'; ctx.fillRect(0, 0, w, pad);
-  pixelText(ctx, '▼ 고블린 진입', cw / 2, pad - 6, 10, '#9fe08a');
+  // 입구가 맨 윗줄이면 그 칸 위에 진입 표시 (맨 아래 입구는 칸 안 '입구' 표시만)
+  if (PATH[0][1] === 0) pixelText(ctx, '▼ 고블린 진입', Math.min(w - 50, Math.max(50, PATH[0][0] * cw + cw / 2)), pad - 6, 10, '#9fe08a');
+  pixelText(ctx, `${g.chapter}. ${g.ch.name}`, w - 6, 16, 12, '#ffd34d', 'right');
   ctx.save(); ctx.translate(0, pad); // 이하 좌표는 판(5x5) 기준
   // 칸 이동 보간: 틱마다 바뀐 경로 위치(idx)를 짧은 시간 동안 부드럽게 이동
   // 일반: 틱의 60% 동안 이동. 느린 고블린(spd<1, 초대형): 다음 이동까지 쉬지 않고 천천히 걷도록 1/spd 틱에 걸쳐 이동
@@ -329,7 +336,7 @@ function renderQueue() {
 
 function renderHud() {
   const g = ui.g;
-  $('hRound').textContent = `${g.round}/${CFG.ROUNDS}`;
+  $('hRound').textContent = `${g.chapter}-${g.round}`;
   $('hBase').textContent = g.baseHp;
   $('hBase').style.color = g.baseHp <= 5 ? 'var(--danger)' : '';
   $('hCount').textContent = `${slimeCount(g)}/${CFG.CAP}`;
@@ -468,22 +475,44 @@ $('bMega').onclick = () => {
   if (ui.megaMode) { flash(makeMega(ui.g, ui.comboList)); ui.combo = false; ui.megaMode = false; ui.comboList = []; render(); }
 };
 $('bHelp').onclick = () => showHelp();
-$('mOk').onclick = () => { $('modal').classList.add('hidden'); if (ui.endShown) newGame(); };
-$('mAlt').onclick = () => { $('modal').classList.add('hidden'); newGame(); };
+// 팝업 버튼은 열 때마다 동작을 지정한다 (ok: 확인 버튼, alt: 보조 버튼)
+let modalOk = null, modalAlt = null;
+const closeModal = () => $('modal').classList.add('hidden');
+$('mOk').onclick = () => { closeModal(); const f = modalOk; modalOk = null; if (f) f(); };
+$('mAlt').onclick = () => { closeModal(); const f = modalAlt; modalAlt = null; if (f) f(); };
 
-function showModal(title, html, alt = false) {
+function showModal(title, html, opts = {}) {
   $('mTitle').textContent = title; $('mBody').innerHTML = html;
-  $('mAlt').classList.toggle('hidden', !alt); $('modal').classList.remove('hidden');
+  $('mOk').textContent = opts.okText || '확인';
+  $('mAlt').textContent = opts.altText || '';
+  $('mOk').classList.toggle('hidden', opts.noOk === true);
+  $('mAlt').classList.toggle('hidden', !opts.altText);
+  modalOk = opts.onOk || null; modalAlt = opts.onAlt || null;
+  $('modal').classList.remove('hidden');
 }
 
-function showHelp() {
+// 챕터 선택 화면
+function showChapterSelect(canClose = false) {
+  const open = unlocked();
+  const atl = b => Object.entries(b).map(([a, v]) => `${ATTRS[a].icon}${ATTRS[a].label} ${v > 1 ? '+' : ''}${Math.round((v - 1) * 100)}%`).join(' · ') || '없음';
+  const rows = CHAPTERS.map(c => {
+    const best = +(lsGet(lsBest(c.id)) || 0), locked = c.id > open;
+    const rec = best > CFG.ROUNDS ? '✅ 클리어' : best ? `최고 ${best}라운드` : '기록 없음';
+    return `<button class="chbtn" data-ch="${c.id}" ${locked ? 'disabled' : ''} style="border-color:${c.color}">
+      <b>${locked ? '🔒' : c.id}. ${c.name}</b><span>${c.pathLabel} · 환경 ${atl(c.boost)}</span><span>${locked ? `챕터 ${c.id - 1} 클리어 시 열림` : rec}</span></button>`;
+  }).join('');
+  showModal('챕터 선택', `<div class="chlist">${rows}</div>`, canClose ? { okText: '닫기' } : { noOk: true });
+  for (const b of document.querySelectorAll('.chbtn')) b.onclick = () => { closeModal(); newGame(+b.dataset.ch); };
+}
+
+function showHelp(after = null) {
   const rec = RECIPES.map(r => `<tr><td>${r.label} ${r.name}</td><td>${Object.entries(r.need).map(([k, v]) => v > 1 ? `${k}×${v}` : k).join(' + ')}</td><td>${STATUS[r.st.name].label}</td></tr>`).join('');
   const els = ELEMENTS.map(e => `<tr><td>${e.label || e.sym} ${e.label ? '' : e.name}</td><td>${ATTRS[e.attr].icon} ${ATTRS[e.attr].label}</td><td>${STATUS[e.st.name].label}</td><td>R${e.unlock}</td></tr>`).join('');
   const fus = FUSIONS.map(f => `<tr><td>${ATTRS[f.pair[0]].icon}${ATTRS[f.pair[0]].label} + ${ATTRS[f.pair[1]].icon}${ATTRS[f.pair[1]].label}</td><td><b>${f.label}</b></td><td>${f.st.map(s => STATUS[s.name].label).join('·')}${f.pierce ? '·관통' : ''}</td></tr>`).join('');
   const atl = arr => arr.map(a => ATTRS[a].icon + ATTRS[a].label).join(' ') || '-';
   const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}<br><small>${d.desc || ''}</small></td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
   showModal(`게임 방법 · ${APP_VERSION}`, `
-    <p>고블린은 전장을 <b>ㄹ자 경로</b>로 이동합니다. 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
+    <p>고블린은 전장의 <b>점선 경로</b>를 따라 이동합니다(챕터마다 모양이 다름). 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
     <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임은 <b>3초마다 1마리</b> 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 그때부터 덱에 쌓입니다(최대 ${CFG.QUEUE_MAX}장). 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
     <p><b>속성</b>: 모든 슬라임은 8속성 중 하나입니다(🔥불 💧물 ⚡전기 ❄얼음 🌪바람 ⛰대지 ☠독 ☢방사). 고블린마다 <b>약점 속성(피해 ×${CFG.WEAK_MUL}, 주황 숫자)</b>과 <b>내성 속성(×${CFG.RESIST_MUL}, 회색 숫자)</b>이 있습니다.</p>
     <p><b>조합</b>(촉매 1개): ① 화학 족보 정확히 일치 → 화합물 150% ② <b>서로 다른 속성 2마리 → 속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%</b> ③ 그 외 → 혼합물 70%.</p>
@@ -492,7 +521,8 @@ function showHelp() {
     <table><tr><th>속성 합성</th><th>결과</th><th>효과</th></tr>${fus}</table>
     <table><tr><th>슬라임</th><th>속성</th><th>효과</th><th>해금</th></tr>${els}</table>
     <table><tr><th>화합물</th><th>족보</th><th>효과</th></tr>${rec}</table>
-    <table><tr><th>고블린</th><th>약점</th><th>내성</th><th>거점</th></tr>${gbs}</table>`);
+    <p><b>챕터</b>: 5개 챕터 × 10라운드. 챕터마다 경로 모양, 환경 효과(속성 강화·약화), 주력 고블린이 다릅니다. 챕터를 클리어하면 다음 챕터가 열립니다. 상단의 <b>챕터-라운드</b>를 누르면 챕터를 고를 수 있습니다.</p>
+    <table><tr><th>고블린</th><th>약점</th><th>내성</th><th>거점</th></tr>${gbs}</table>`, { onOk: after });
 }
 
 // ---------- 루프 ----------
@@ -514,10 +544,16 @@ function checkEnd() {
   const g = ui.g; if (ui.endShown) return;
   if (g.phase === 'over' || g.phase === 'won') {
     ui.endShown = true;
-    const best = Math.max(+(lsGet(LS_BEST) || 0), g.phase === 'won' ? CFG.ROUNDS + 1 : g.round);
-    lsSet(LS_BEST, String(best));
-    showModal(g.phase === 'won' ? '챕터 1 클리어!' : '거점 함락',
-      `<p>도달 라운드 <b>${g.round}</b> · 처치 <b>${g.kills}</b> · 남은 거점 <b>${g.baseHp}</b></p><p>최고 기록: ${best > CFG.ROUNDS ? '클리어' : `라운드 ${best}`}</p>`);
+    const won = g.phase === 'won', n = g.chapter;
+    const best = Math.max(+(lsGet(lsBest(n)) || 0), won ? CFG.ROUNDS + 1 : g.round);
+    lsSet(lsBest(n), String(best));
+    const next = won && n < CHAPTERS.length ? n + 1 : 0;
+    if (next && unlocked() < next) lsSet(LS_UNLOCK, String(next));
+    const body = `<p>챕터 ${n} <b>${g.ch.name}</b> · 도달 라운드 <b>${g.round}</b> · 처치 <b>${g.kills}</b> · 남은 거점 <b>${g.baseHp}</b></p>
+      <p>최고 기록: ${best > CFG.ROUNDS ? '클리어' : `라운드 ${best}`}</p>
+      ${next ? `<p>🔓 챕터 ${next} <b>${CHAPTERS[next - 1].name}</b>이(가) 열렸습니다!</p>` : won ? '<p>🏆 모든 챕터를 클리어했습니다!</p>' : ''}`;
+    if (won) showModal(`챕터 ${n} 클리어!`, body, { okText: next ? `챕터 ${next} 시작` : '챕터 선택', onOk: () => (next ? newGame(next) : showChapterSelect()), altText: '챕터 선택', onAlt: () => showChapterSelect() });
+    else showModal('거점 함락', body, { okText: '다시 하기', onOk: () => newGame(n), altText: '챕터 선택', onAlt: () => showChapterSelect() });
   }
 }
 
@@ -540,17 +576,29 @@ function frame(t) {
   requestAnimationFrame(frame);
 }
 
-function newGame() {
-  ui.g = createGame((Date.now() ^ (Math.random() * 1e9)) >>> 0);
+function newGame(chapter = ui.g?.chapter || 1) {
+  ui.g = createGame((Date.now() ^ (Math.random() * 1e9)) >>> 0, { chapter });
+  rebuildPathIdx(); ui.anim.clear(); ui.hpPrev.clear(); ui.hitUntil.clear(); ui.puffs = [];
+  $('queue').dataset.ids = '';
   ui.sel = null; ui.combo = false; ui.megaMode = false; ui.comboList = []; ui.acc = 0; ui.endShown = false; ui.msg = ''; ui.floats = [];
 }
 
 // 디버그/테스트용 접근점
 window.__esd = { ui, lvMult };
 
-newGame(); resize();
+// 예전 단일 챕터 기록(esd.bestRound)은 챕터 1 기록으로 이어받는다
+if (lsGet(LS_BEST) && !lsGet(lsBest(1))) lsSet(lsBest(1), lsGet(LS_BEST));
+newGame(Math.min(unlocked(), 1)); resize();
 loadAssets().then(() => { $('queue').dataset.ids = ''; render(); });
-if (!lsGet('esd.seenHelp')) { lsSet('esd.seenHelp', '1'); showHelp(); }
+if (!lsGet('esd.seenHelp')) { lsSet('esd.seenHelp', '1'); showHelp(() => showChapterSelect()); }
+else showChapterSelect();
+// HUD의 챕터-라운드를 누르면 챕터 선택 (진행 중이면 포기 확인)
+$('hRound').parentElement.style.cursor = 'pointer';
+$('hRound').parentElement.onclick = () => {
+  const g = ui.g;
+  if (g.phase === 'run' || g.round > 1) showModal('챕터 선택', '<p>진행 중인 게임을 포기하고 챕터 선택으로 갈까요?</p>', { okText: '계속하기', altText: '챕터 선택', onAlt: () => showChapterSelect(true) });
+  else showChapterSelect(true);
+};
 requestAnimationFrame(frame);
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

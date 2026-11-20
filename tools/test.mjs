@@ -1,5 +1,5 @@
 // 핵심 규칙 단위 테스트: node tools/test.mjs
-import { CFG, ROUND_TABLE, GOBLINS } from '../src/data.js';
+import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS } from '../src/data.js';
 import { createGame, step, affinity, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
 // 기존 규칙 테스트는 빈 필드를 전제로 하므로 자동 배치를 끄고 실행
@@ -97,5 +97,19 @@ t('거점 0 → 패배', s.phase === 'over');
   a.goblins = []; a.spawnList = ['normal']; // 슬라임이 쓰러지지 않게 고블린 제거
   for (let i = 0; i < CFG.DROP_EVERY; i++) step(a);
   t('필드가 가득 차면 덱에 쌓임', a.queue.length === 1);
+}
+// 챕터: 경로 유효성, 라운드 수, 난이도 상승, 환경 효과
+for (const c of CHAPTERS) {
+  const g = createGame(1, { chapter: c.id, autoField: false });
+  const uniq = new Set(PATH.map(p => p.join(','))).size;
+  const linked = PATH.every((p, i) => !i || Math.abs(p[0] - PATH[i - 1][0]) + Math.abs(p[1] - PATH[i - 1][1]) === 1);
+  t(`챕터 ${c.id} 경로 25칸 한붓그리기`, PATH.length === 25 && uniq === 25 && linked);
+  t(`챕터 ${c.id} 라운드 10개`, c.rounds.length === 10 && g.chapter === c.id);
+}
+{
+  const g1 = createGame(1, { chapter: 1, autoField: false }), g5 = createGame(1, { chapter: 5, autoField: false });
+  g1.round = g5.round = 8; g1.prepLeft = g5.prepLeft = 1; step(g1); step(g5);
+  g1.spawnList = ['fighter']; g5.spawnList = ['fighter']; step(g1); step(g5);
+  t('챕터 5 고블린이 챕터 1보다 강함', g5.goblins[0] && g1.goblins[0] && g5.goblins[0].maxhp > g1.goblins[0].maxhp * 3);
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

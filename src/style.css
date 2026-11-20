@@ -57,3 +57,9 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
   display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 15px; pointer-events: none; }
 .card .attr { position: absolute; top: 1px; right: 2px; font-size: 11px; pointer-events: none; }
 .card .cardart { pointer-events: none; image-rendering: auto; }
+.chlist { display: flex; flex-direction: column; gap: 8px; }
+.chbtn { display: flex; flex-direction: column; gap: 2px; text-align: left; background: var(--panel2); color: var(--text);
+  border: 2px solid var(--line); border-left-width: 8px; border-radius: 10px; padding: 10px 12px; cursor: pointer; font: inherit; }
+.chbtn b { font-size: 15px; }
+.chbtn span { font-size: 12px; color: var(--sub); }
+.chbtn:disabled { opacity: .45; cursor: default; }

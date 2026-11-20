@@ -2,7 +2,9 @@ import { createGame, step, placeFromQueue, moveSlime, getCell, slimeCount, makeM
 import { CFG } from '../src/data.js';
 
 // 단순 AI: 같은 원소에 겹치기 우선, 없으면 경로 앞쪽 기둥의 위층부터 배치
+// 사용: node tools/sim.mjs <판수> [strong|weak] [챕터]
 const WEAK = process.argv[3]==='weak';
+const CHAPTER = +process.argv[4] || 1;
 function ai(s) {
   if (WEAK) { let g=0; while (s.queue.length && g++<60){ const x=Math.floor(s.rng()*5), y=Math.floor(s.rng()*5), z=Math.floor(s.rng()*CFG.D); if(!placeFromQueue(s,0,x,y,z).ok && g>20) s.queue.shift(); } return; }
   // 0) 필드 정리: 같은 원소 슬라임을 경로 앞쪽 칸에 겹친다 (자동 랜덤 배치 대응)
@@ -38,10 +40,10 @@ function ai(s) {
 const N = +process.argv[2] || 30;
 let wins = 0; const reach = Array(11).fill(0); const hpLeft = [];
 for (let seed = 1; seed <= N; seed++) {
-  const s = createGame(seed);
+  const s = createGame(seed, { chapter: CHAPTER });
   let t = 0;
   while (s.phase !== 'over' && s.phase !== 'won' && t++ < 3000) { ai(s); step(s); }
   if (s.phase === 'won') { wins++; hpLeft.push(s.baseHp); }
   reach[s.round]++;
 }
-console.log(`승률 ${wins}/${N}, 도달 라운드 분포`, reach.slice(1).join(','), '평균 잔여HP', hpLeft.length ? (hpLeft.reduce((a, b) => a + b) / hpLeft.length).toFixed(1) : '-');
+console.log(`[챕터 ${CHAPTER}] 승률 ${wins}/${N}, 도달 라운드 분포`, reach.slice(1).join(','), '평균 잔여HP', hpLeft.length ? (hpLeft.reduce((a, b) => a + b) / hpLeft.length).toFixed(1) : '-');

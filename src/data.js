@@ -15,7 +15,7 @@ export const CFG = {
   AUTO_FIELD: true,             // 지급 슬라임을 필드 빈칸에 랜덤 배치, 필드가 가득 차면 덱으로
   ROUND_BONUS_SLIMES: 3,
   CATALYST_START: 2,
-  HP_GROWTH: 1.04,              // 라운드별 고블린 HP 성장
+  HP_GROWTH: 1.12,              // 라운드별 고블린 HP 성장
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
@@ -32,10 +32,29 @@ export const CFG = {
 };
 
 // ㄹ자 경로 (최상단 5x5): (0,0)->(4,0) ↓ (4,1)->(0,1) ↓ ...
-export function buildPath() {
-  const p = [];
-  for (let y = 0; y < CFG.H; y++) {
-    for (let i = 0; i < CFG.W; i++) p.push([y % 2 === 0 ? i : CFG.W - 1 - i, y]);
+// 경로 모양 (5x5 전 칸을 한 번씩 지나는 한붓그리기)
+//  rows: 가로 ㄹ자 / cols: 세로 ㄹ자 / spiral: 바깥->가운데 나선 / rowsRev: 아래->위 가로 ㄹ자 / colsRev: 오른쪽->왼쪽 세로 ㄹ자
+export function buildPath(kind = 'rows') {
+  const p = [], W = CFG.W, H = CFG.H;
+  if (kind === 'cols' || kind === 'colsRev') {
+    for (let i = 0; i < W; i++) {
+      const x = kind === 'cols' ? i : W - 1 - i;
+      for (let j = 0; j < H; j++) p.push([x, i % 2 === 0 ? j : H - 1 - j]);
+    }
+  } else if (kind === 'spiral') {
+    let x0 = 0, y0 = 0, x1 = W - 1, y1 = H - 1;
+    while (x0 <= x1 && y0 <= y1) {
+      for (let x = x0; x <= x1; x++) p.push([x, y0]);
+      for (let y = y0 + 1; y <= y1; y++) p.push([x1, y]);
+      if (y0 < y1) for (let x = x1 - 1; x >= x0; x--) p.push([x, y1]);
+      if (x0 < x1) for (let y = y1 - 1; y > y0; y--) p.push([x0, y]);
+      x0++; y0++; x1--; y1--;
+    }
+  } else {
+    for (let j = 0; j < H; j++) {
+      const y = kind === 'rowsRev' ? H - 1 - j : j;
+      for (let i = 0; i < W; i++) p.push([j % 2 === 0 ? i : W - 1 - i, y]);
+    }
   }
   return p;
 }
@@ -137,4 +156,34 @@ export const ROUND_TABLE = [
   [['normal', 8], ['fighter', 10], ['archer', 6], ['mage', 6], ['captain', 4], ['cook', 4], ['armored', 6]], // 44
   [['fighter', 10], ['rider', 8], ['mage', 6], ['captain', 4], ['smart', 8], ['shaman', 6], ['gasmask', 6]], // 48
   [['normal', 12], ['fighter', 10], ['armored', 6], ['captain', 4], ['smart', 8], ['shaman', 4], ['cook', 2], ['giant', 4]], // 50
+];
+
+// ---------- 챕터 (5개 x 10라운드) ----------
+const ROUND_COUNTS = [10, 14, 18, 22, 30, 36, 40, 44, 48, 50];
+// 고블린 첫 등장 라운드 (챕터가 올라갈수록 unlockShift만큼 앞당겨짐)
+const FIRST_ROUND = { normal: 1, gasmask: 2, fighter: 3, armored: 4, cook: 4, rider: 5, shaman: 5, archer: 6, mage: 7, captain: 8, smart: 9 };
+
+// 주력(focus) 고블린은 가중치 3, 일반 고블린은 초반에만 많이. 큰 나머지 방식으로 정확히 ROUND_COUNTS를 맞춘다
+function genRounds({ focus = [], giants = 4, unlockShift = 0 }) {
+  return ROUND_COUNTS.map((total, i) => {
+    const r = i + 1;
+    const giantN = r === 10 ? giants : r >= 8 && unlockShift >= 3 ? 1 : 0;
+    const types = Object.keys(FIRST_ROUND).filter(k => Math.max(1, FIRST_ROUND[k] - unlockShift) <= r);
+    const w = types.map(k => (focus.includes(k) ? 3 : k === 'normal' ? Math.max(0.3, 2 - r * 0.25) : 1));
+    const sum = w.reduce((a, b) => a + b, 0), n = total - giantN;
+    const raw = w.map(x => (x / sum) * n), cnt = raw.map(Math.floor);
+    let left = n - cnt.reduce((a, b) => a + b, 0);
+    raw.map((x, k) => [x - Math.floor(x), k]).sort((a, b) => b[0] - a[0]).forEach(([, k]) => { if (left > 0) { cnt[k]++; left--; } });
+    const row = types.map((k, j) => [k, cnt[j]]).filter(([, c]) => c > 0);
+    if (giantN) row.push(['giant', giantN]);
+    return row;
+  });
+}
+
+export const CHAPTERS = [
+  { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 1.0, atkMul: 1.0, boost: {},                         unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
+  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 1.6, atkMul: 1.15, boost: { fire: 1.25, ice: 0.75 },    unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], giants: 4, unlockShift: 1 }) },
+  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 1.7, atkMul: 1.3, boost: { ice: 1.25, fire: 0.75 },     unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], giants: 5, unlockShift: 2 }) },
+  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 4.0, atkMul: 1.45, boost: { poison: 1.25, water: 0.85 }, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], giants: 5, unlockShift: 3 }) },
+  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 4.4, atkMul: 1.6, boost: { elec: 1.15, rad: 1.15 },     unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], giants: 8, unlockShift: 4 }) },
 ];
