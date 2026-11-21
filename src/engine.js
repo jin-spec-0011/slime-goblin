@@ -1,5 +1,5 @@
 // 헤드리스 게임 엔진 (DOM 의존 없음, Node에서 시뮬레이션 가능)
-import { CFG, STATUS, ELEMENTS, RECIPES, FUSIONS, ATTRS, GOBLINS, CHAPTERS, buildPath } from './data.js';
+import { CFG, STATUS, ELEMENTS, RECIPES, FUSIONS, JOKES, ATTRS, GOBLINS, CHAPTERS, buildPath } from './data.js';
 
 // 경로는 챕터마다 바뀐다. 다른 모듈이 같은 배열을 참조하므로 내용만 교체한다
 export const PATH = buildPath('rows');
@@ -92,6 +92,18 @@ function makeFusion(s, fu, lv) {
   };
   recalc(sl); return sl;
 }
+function makeJoke(s, j, lv) {
+  const syms = Object.keys(j.need);
+  const sl = {
+    id: s.nextId++, kind: 'joke', key: j.key, label: j.label, name: j.name, els: syms,
+    attrs: [...new Set(syms.map(k => EL[k].attr))], lv,
+    base: { hp: j.hp, atk: j.atk, def: j.def }, status: j.st, kindMul: CFG.JOKE_MUL,
+    healAura: j.healAura || 0, color: j.color, color2: null, cd: 0, sealed: 0,
+  };
+  recalc(sl); return sl;
+}
+const sameCounts = (a, b) => { const k = new Set([...Object.keys(a), ...Object.keys(b)]); for (const x of k) if ((a[x] || 0) !== (b[x] || 0)) return false; return true; };
+
 const fusionOf = (a, b) => FUSIONS.find(f => (f.pair[0] === a && f.pair[1] === b) || (f.pair[0] === b && f.pair[1] === a)) || null;
 
 // ---------- 지급 큐 ----------
@@ -179,7 +191,7 @@ export function moveSlime(s, a, b) {
   const A = getCell(s, a.x, a.y, a.z); if (!A) return err('이동할 슬라임이 없습니다.');
   const B = getCell(s, b.x, b.y, b.z);
   if (!B) { s.cells[b.z][b.y][b.x] = A; s.cells[a.z][a.y][a.x] = null; return ok('이동'); }
-  const stackable = A.key === B.key && (A.kind === 'element' || A.kind === 'compound' || A.kind === 'fusion');
+  const stackable = A.key === B.key && (A.kind === 'element' || A.kind === 'compound' || A.kind === 'fusion' || A.kind === 'joke');
   if (stackable) {
     if (A.lv + B.lv > CFG.MAX_LV) return err('합치면 Lv5를 초과합니다.');
     B.lv += A.lv; recalc(B); s.cells[a.z][a.y][a.x] = null; computeCounts(s);
@@ -193,6 +205,9 @@ export function recipeHint(s, list) {
   if (sl.length < 2) return { state: 'none', text: '슬라임 2개 이상을 선택하세요.' };
   if (sl.some(c => c.kind !== 'element')) return { state: 'bad', text: '원소·속성 슬라임만 조합할 수 있습니다.' };
   const cnt = {}; sl.forEach(c => { cnt[c.key] = (cnt[c.key] || 0) + 1; });
+  // 0) 비밀 족보 (말장난 화학식) - 정확히 일치하면 최우선. 이름은 만들기 전까지 숨김
+  const joke = JOKES.find(j => sameCounts(j.need, cnt));
+  if (joke) return { state: 'joke', joke, text: '✨ 뭔가 특별한 반응이 일어날 것 같다...' };
   if (Object.keys(cnt).length < 2) return { state: 'bad', text: '같은 슬라임은 겹치기로 성장합니다.' };
   // 1) 화학 족보 정확히 일치 -> 화합물 150%
   let best = null;
@@ -220,11 +235,17 @@ export function combine(s, list) {
   const sl = list.map(p => getCell(s, p.x, p.y, p.z));
   const cnt = {}; sl.forEach(c => { cnt[c.key] = (cnt[c.key] || 0) + 1; });
   const lv = Math.min(CFG.MAX_LV, Math.ceil(sl.reduce((a, c) => a + c.lv, 0) / sl.length));
-  const res = h.state === 'match' ? makeCompound(s, h.recipe, lv)
+  const res = h.state === 'joke' ? makeJoke(s, h.joke, lv)
+    : h.state === 'match' ? makeCompound(s, h.recipe, lv)
     : h.state === 'fusion' ? makeFusion(s, h.fusion, lv) : makeMixture(s, cnt, lv);
+  // 비밀 족보의 '만드는 순간' 효과
+  const oc = h.state === 'joke' ? h.joke.onCreate : null;
+  if (oc?.baseHp) { s.baseHp += oc.baseHp; say(s, `${res.name}: 거점 +${oc.baseHp}`); }
+  if (oc?.catalysts) { s.catalysts += oc.catalysts; say(s, `${res.name}: 선물로 촉매 +${oc.catalysts}`); }
   list.forEach(p => { s.cells[p.z][p.y][p.x] = null; });
   const p0 = list[0]; s.cells[p0.z][p0.y][p0.x] = res;
   s.catalysts--; computeCounts(s);
+  if (h.state === 'joke') return { ok: true, msg: `🎉 비밀 족보 발견! ${res.label} ${res.name}`, joke: h.joke.key };
   return ok(h.state === 'match' ? `${res.label} 합성 성공!` : h.state === 'fusion' ? `속성 합성: ${res.label}!` : `혼합물 ${res.label} 생성`);
 }
 
@@ -488,6 +509,13 @@ export function step(s) {
   // 상태 정리
   for (const g of s.goblins) for (const e of Object.values(g.st)) { if (e.fresh) e.fresh = false; else if (e.t > 0) e.t--; }
   for (const sl of s.cells.flat(2)) if (sl && sl.sealed > 0) sl.sealed--;
+  // 회복 오라(전기밥솥): 상하좌우 슬라임과 자신을 최대 체력 비율만큼 회복
+  for (let y = 0; y < CFG.H; y++) for (let x = 0; x < CFG.W; x++) {
+    const src = s.cells[0][y][x]; if (!src || !src.healAura) continue;
+    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const o = s.cells[0][y + dy]?.[x + dx]; if (o && o.hp < o.maxhp) o.hp = Math.min(o.maxhp, o.hp + o.maxhp * src.healAura);
+    }
+  }
   for (const m of s.megas) if (m.sealed > 0) m.sealed--;
   s.goblins = s.goblins.filter(g => !g.dead);
   computeCounts(s);

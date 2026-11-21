@@ -19,7 +19,8 @@ export const CFG = {
   ATK_GROWTH: 0.08,
   COMPOUND_MUL: 1.5,
   MIXTURE_MUL: 0.7,
-  FUSION_MUL: 1.3,              // 속성 합성 슬라임 능력치 배율
+  FUSION_MUL: 1.3,
+  JOKE_MUL: 1.4,                // 비밀 족보(말장난) 슬라임 능력치 배율              // 속성 합성 슬라임 능력치 배율
   WEAK_MUL: 1.5,                // 고블린 약점 속성 피해 배율
   RESIST_MUL: 0.5,              // 고블린 내성 속성 피해 배율
   TRAP_FATIGUE_AFTER: 8,        // 포획 피로 시작(갇힌 초)
@@ -123,6 +124,22 @@ export const RECIPES = [
   { key: 'UO2',   label: 'UO₂',   name: '이산화우라늄', need: { U: 1, O: 2 },    hp: 50, atk: 11, def: 3, color: '#4a5a3a', st: { name: 'radiate', every: 1, dur: 3, mul: 0.8, aoe: 0.4 } },
   { key: 'NaOH',  label: 'NaOH',  name: '가성소다', need: { Na: 1, O: 1, H: 1 }, hp: 44, atk: 9, def: 2, color: '#eef0ff', st: { name: 'corrode', every: 1, dur: 4, mul: 0.7 } },
   { key: 'H2O2',  label: 'H₂O₂',  name: '과산화수소', need: { H: 2, O: 2 },      hp: 40, atk: 8, def: 1, color: '#bfe8ff', st: { name: 'burn', every: 1, dur: 3, mul: 0.6 } },
+];
+
+// 비밀 족보: 말도 안 되지만 위트 있는 '화학식'. 정확히 일치하면 화학 족보·속성 합성보다 우선
+// 같은 원소끼리도 가능(HeHe 등). onCreate: 만드는 순간 효과, healAura: 주변 슬라임 회복
+export const JOKES = [
+  { key: 'HEHE',   label: 'HeHe',   name: '헤헤',       need: { He: 2 },               hint: '웃음소리가 나는 기체 둘',     color: '#fff1a8', hp: 36, atk: 6,  def: 1, st: [{ name: 'stun', every: 2, dur: 1 }, { name: 'suffocate', every: 1, dur: 2 }] },
+  { key: 'NANA',   label: 'NaNa',   name: '바나나',     need: { Na: 2 },               hint: '나... 나...?',               color: '#ffe14a', hp: 38, atk: 7,  def: 1, st: [{ name: 'stun', every: 2, dur: 1 }, { name: 'slow', every: 1, dur: 2 }] },
+  { key: 'SUN',    label: 'SUN',    name: '태양',       need: { S: 1, U: 1, N: 1 },    hint: '하늘에 떠 있는 세 글자',       color: '#ffb020', hp: 44, atk: 12, def: 1, st: [{ name: 'burn', every: 1, dur: 3, mul: 0.7, aoe: 0.4 }, { name: 'radiate', every: 1, dur: 2, mul: 0.4 }] },
+  { key: 'SOS',    label: 'SOS',    name: '구조 신호',  need: { S: 2, O: 1 },          hint: '살려주세요!',                  color: '#ff5a5a', hp: 60, atk: 4,  def: 4, onCreate: { baseHp: 3 }, st: [{ name: 'slow', every: 1, dur: 2 }] },
+  { key: 'HOHOHO', label: 'HOHOHO', name: '산타',       need: { H: 3, O: 3 },          hint: '빨간 옷 할아버지의 웃음',      color: '#e03a3a', hp: 48, atk: 7,  def: 2, onCreate: { catalysts: 2 }, st: [{ name: 'freeze', every: 2, dur: 1 }] },
+  { key: 'CHUU',   label: 'CHUU',   name: '츄',         need: { C: 1, H: 1, U: 2 },    hint: '쪽!',                          color: '#ff8ac8', hp: 40, atk: 8,  def: 1, st: [{ name: 'suffocate', every: 1, dur: 3 }, { name: 'stun', every: 4, dur: 1 }] },
+  { key: 'CON',    label: 'CON',    name: '팝콘',       need: { C: 1, O: 1, N: 1 },    hint: '영화관 간식의 재료',           color: '#fff6d8', hp: 36, atk: 9,  def: 1, st: [{ name: 'explode', every: 2, mul: 1.0 }] },
+  { key: 'HUSH',   label: 'HUSH',   name: '쉿',         need: { H: 2, U: 1, S: 1 },    hint: '도서관에서는 조용히',          color: '#3a4a8a', hp: 42, atk: 7,  def: 2, st: [{ name: 'stun', every: 2, dur: 1 }] },
+  { key: 'COOKER', label: '전기밥솥', name: '전기밥솥', need: { FIRE: 1, WATER: 1, ELEC: 1 }, hint: '불·물·전기로 밥을 짓는 기계', color: '#e8eef8', hp: 70, atk: 4, def: 4, healAura: 0.04, st: [{ name: 'slow', every: 2, dur: 1 }] },
+  { key: 'NADIVE', label: 'Na+물',  name: '나트륨 다이빙', need: { Na: 1, WATER: 1 },   hint: '절대 물에 넣지 마시오',        color: '#4aa8ff', hp: 30, atk: 10, def: 0, st: [{ name: 'explode', every: 2, mul: 2.0 }] },
+  { key: 'FEFEFE', label: 'FeFeFe', name: '철벽',       need: { Fe: 3 },               hint: '철철철',                       color: '#6a7080', hp: 110, atk: 4, def: 9, st: [{ name: 'defdown', every: 1, dur: 3, val: 2, cap: 10 }] },
 ];
 
 // 속성 합성 (촉매 1개 + 서로 다른 속성 슬라임 2마리). pair 순서 무관

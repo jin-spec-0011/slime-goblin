@@ -1,5 +1,5 @@
 // 핵심 규칙 단위 테스트: node tools/test.mjs
-import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS } from '../src/data.js';
+import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS, JOKES } from '../src/data.js';
 import { existsSync } from 'node:fs';
 import { createGame, step, affinity, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
@@ -121,6 +121,28 @@ t('거점 0 → 패배', s.phase === 'over');
   t('H + Cl = 염산(화학 족보가 속성 합성보다 우선)', combine(s3, [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }]).ok && getCell(s3, 0, 0, 0).key === 'HCl');
   put(s3, 'FIRE', 2, 0, 0); put(s3, 'Fe', 3, 0, 0);
   t('불 + 철(대지) = 용암', combine(s3, [{ x: 2, y: 0, z: 0 }, { x: 3, y: 0, z: 0 }]).ok && getCell(s3, 2, 0, 0).key === 'LAVA');
+}
+// 비밀 족보(말장난)
+{
+  const s4 = cg(41); s4.catalysts = 20;
+  const C = (...cells) => combine(s4, cells.map(([x, y]) => ({ x, y, z: 0 })));
+  put(s4, 'He', 0, 0, 0); put(s4, 'He', 1, 0, 0);
+  const r1 = C([0, 0], [1, 0]);
+  t('He + He = 헤헤 (같은 원소끼리도 비밀 족보)', r1.ok && r1.joke === 'HEHE' && getCell(s4, 0, 0, 0).kind === 'joke');
+  const hp0 = s4.baseHp; put(s4, 'S', 2, 0, 0); put(s4, 'O', 3, 0, 0); put(s4, 'S', 4, 0, 0);
+  t('S + O + S = 구조 신호 (거점 +3)', C([2, 0], [3, 0], [4, 0]).joke === 'SOS' && s4.baseHp === hp0 + 3);
+  const c0 = s4.catalysts; ['H', 'O', 'H', 'O', 'H'].forEach((k, i) => put(s4, k, i, 1, 0)); put(s4, 'O', 0, 2, 0);
+  t('H×3 + O×3 = 산타 (촉매 +2, 사용 1)', C([0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [0, 2]).joke === 'HOHOHO' && s4.catalysts === c0 - 1 + 2);
+  put(s4, 'Na', 1, 2, 0); put(s4, 'WATER', 2, 2, 0);
+  t('Na + 물 = 나트륨 다이빙 (감전수보다 우선)', C([1, 2], [2, 2]).joke === 'NADIVE');
+  put(s4, 'FIRE', 0, 3, 0); put(s4, 'WATER', 1, 3, 0); put(s4, 'ELEC', 2, 3, 0);
+  t('불 + 물 + 전기 = 전기밥솥', C([0, 3], [1, 3], [2, 3]).joke === 'COOKER');
+  put(s4, 'Fe', 1, 4, 0); const nb = getCell(s4, 1, 4, 0); nb.hp = 1;
+  put(s4, 'C', 0, 4, 0); s4.cells[0][4][0] = s4.cells[0][3][0]; s4.cells[0][3][0] = null; // 밥솥을 (0,4)로 옮겨 Fe 옆에 둠
+  s4.prepLeft = 99; s4.phase = 'run'; s4.spawnList = []; s4.goblins = []; step(s4);
+  t('전기밥솥: 옆 슬라임 회복', nb.hp > 1);
+  const miss = JOKES.map(j => j.key).filter(k => !existsSync(new URL(`../assets/slime_${k}.png`, import.meta.url)));
+  t(`비밀 족보 ${JOKES.length}종 전용 그림`, miss.length === 0);
 }
 // 챕터: 경로 유효성, 라운드 수, 난이도 상승, 환경 효과
 for (const c of CHAPTERS) {

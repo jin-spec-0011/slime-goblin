@@ -29,7 +29,7 @@
 <div class="meta" id="meta"></div>
 <div id="root"></div>
 <script type="module">
-import { CFG, ELEMENTS, FUSIONS, RECIPES, GOBLINS, ATTRS, STATUS } from '../src/data.js';
+import { CFG, ELEMENTS, FUSIONS, RECIPES, GOBLINS, ATTRS, STATUS, JOKES } from '../src/data.js';
 
 const root = document.getElementById('root');
 const at = a => `${ATTRS[a].icon}${ATTRS[a].label}`;
@@ -69,12 +69,15 @@ section(`속성 합성 ${FUSIONS.length}종`, `촉매 + 서로 다른 속성 2�
 section(`화학 족보 ${RECIPES.length}종`, `족보와 정확히 일치 · 능력치 ×${CFG.COMPOUND_MUL}`,
   RECIPES.map(r => card(`slime_${r.key}`, `${r.label} ${r.name}`, Object.entries(r.need).map(([k, v]) => v > 1 ? `${k}×${v}` : k).join(' + '),
     [`${STATUS[r.st.name].label}`, `HP ${r.hp} · 공격 ${r.atk} · 방어 ${r.def}`])));
+section(`비밀 족보 ${JOKES.length}종`, `말장난 화학식 · 능력치 ×${CFG.JOKE_MUL} · 게임에서는 발견 전까지 숨김`,
+  JOKES.map(j => card(`slime_${j.key}`, `${j.label} ${j.name}`, Object.entries(j.need).map(([k, v]) => { const l = ELEMENTS.find(e => e.sym === k)?.label || k; return v > 1 ? `${l}×${v}` : l; }).join(' + '),
+    [`${st(j.st)}${j.healAura ? '·주변 회복' : ''}${j.onCreate?.baseHp ? '·거점+' + j.onCreate.baseHp : ''}${j.onCreate?.catalysts ? '·촉매+' + j.onCreate.catalysts : ''}`, `💡 ${j.hint}`])));
 section('기타 2종', '혼합물 · 메가', [
   card('slime_mix', '혼합물', '족보·합성 불일치', [`능력치 ×${CFG.MIXTURE_MUL}`, '재료 원소 효과 2개']),
   card('slime_mega', '메가 슬라임', `Lv5 같은 원소 ×3`, [`${CFG.MEGA_ROUND}라운드부터 · 3×3 구역`, `최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격`]),
 ]);
 
-const total = Object.keys(GOBLINS).length + ELEMENTS.length + FUSIONS.length + RECIPES.length + 2;
+const total = Object.keys(GOBLINS).length + ELEMENTS.length + FUSIONS.length + RECIPES.length + JOKES.length + 2;
 document.getElementById('meta').textContent = `총 ${total}종 (고블린 ${Object.keys(GOBLINS).length} · 슬라임 ${total - Object.keys(GOBLINS).length})`;
 document.body.dataset.ready = '1';
 </script>

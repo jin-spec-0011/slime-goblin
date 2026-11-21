@@ -746,6 +746,161 @@ def build(key):
     return cv.image()
 
 
+
+# =====================================================================
+# 비밀 족보(말장난) 11종: 표정·소품 부품 추가
+# =====================================================================
+DARK = (27, 27, 42, 255)
+
+
+def face_fun(cv, kind, ex=CX, ey=21):
+    if kind == 'laugh':        # ^ ^ 눈 + 크게 벌린 입
+        for x0 in (ex - 8, ex + 4):
+            cv.put(x0, ey + 2, DARK); cv.put(x0 + 1, ey + 1, DARK); cv.put(x0 + 2, ey, DARK); cv.put(x0 + 3, ey + 1, DARK); cv.put(x0 + 4, ey + 2, DARK)
+        cv.rect(ex - 3, ey + 4, 6, 3, DARK); cv.rect(ex - 2, ey + 6, 4, 1, (240, 90, 110, 255))
+    elif kind == 'cool':       # 선글라스
+        cv.rect(ex - 10, ey, 8, 4, DARK); cv.rect(ex + 2, ey, 8, 4, DARK); cv.rect(ex - 2, ey + 1, 4, 1, DARK)
+        cv.put(ex - 9, ey + 1, (120, 140, 180, 255)); cv.put(ex + 3, ey + 1, (120, 140, 180, 255))
+        cv.rect(ex - 2, ey + 6, 5, 1, DARK); cv.put(ex + 3, ey + 5, DARK)
+    elif kind == 'kiss':       # 감은 눈 + 뽀뽀 입
+        for x0 in (ex - 8, ex + 4):
+            cv.rect(x0, ey + 2, 4, 1, DARK)
+        cv.rect(ex - 1, ey + 5, 2, 2, (230, 60, 110, 255))
+        for bx in (ex - 11, ex + 9):
+            cv.rect(bx, ey + 4, 3, 2, (255, 120, 160, 255))
+    elif kind == 'worried':    # 걱정 눈썹
+        face(cv, ex, ey)
+        cv.put(ex - 8, ey - 1, DARK); cv.put(ex - 7, ey - 2, DARK); cv.put(ex + 8, ey - 1, DARK); cv.put(ex + 7, ey - 2, DARK)
+        cv.rect(ex - 2, ey + 6, 4, 1, DARK)
+    elif kind == 'hush':       # 졸린 눈 + 입 앞 손가락
+        face(cv, ex, ey, sleepy=True)
+        cv.rect(ex, ey + 3, 2, 6, (255, 220, 190, 255))
+    else:
+        face_v(cv, kind, ex, ey)
+
+
+def fx_hearts(cv):
+    hrt = [(0, 0), (2, 0), (-1, 1), (0, 1), (1, 1), (2, 1), (3, 1), (0, 2), (1, 2), (2, 2), (1, 3)]
+    for ox, oy in ((5, 5), (35, 3), (30, 10)):
+        for x, y in hrt:
+            cv.put(ox + x, oy + y, (255, 90, 140, 255))
+
+
+def fx_santa(cv):
+    red, white = (220, 40, 50, 255), (250, 250, 250, 255)
+    for k in range(8):           # 모자(삼각형) - 몸통 위쪽에 얹음
+        for x in range(CX - 9 + k, CX + 10 - k * 2 + k):
+            cv.put(x, 11 - k, red)
+    cv.rect(CX - 11, 11, 23, 3, white)          # 흰 테두리
+    for x, y in ((CX + 5, 2), (CX + 6, 2), (CX + 5, 3), (CX + 6, 3), (CX + 7, 3)):
+        cv.put(x, y, white)                       # 방울
+
+
+def fx_beard(cv, pts):
+    for (x, y) in pts:
+        if y >= 26 and abs(x - CX) < 14 - (y - 26):
+            cv.put(x, y, (248, 248, 250, 255))
+
+
+def fx_popcorn(cv):
+    for bx, by in ((8, 6), (15, 2), (30, 3), (37, 8), (23, 0)):
+        for x, y in ((0, 0), (1, 0), (0, 1), (1, 1), (2, 1), (1, 2)):
+            cv.put(bx + x, by + y, (255, 248, 220, 255))
+        cv.put(bx + 2, by, (255, 210, 90, 255))
+
+
+def fx_zzz(cv):
+    for ox, oy, s in ((33, 2, 3), (38, 7, 2)):
+        for k in range(s + 1):
+            cv.put(ox + k, oy, (220, 230, 255, 255)); cv.put(ox + s - k, oy + k, (220, 230, 255, 255)); cv.put(ox + k, oy + s, (220, 230, 255, 255))
+
+
+def fx_puffs(cv):
+    for sx in (16, 22, 28):
+        for k in range(6):
+            cv.put(sx + round(math.sin(k * 1.1) * 1.3), 8 - k, (250, 252, 255, 255))
+
+
+def fx_panel(cv):
+    cv.rect(13, 27, 12, 4, (40, 60, 80, 255)); cv.rect(14, 28, 3, 2, (120, 255, 160, 255)); cv.put(20, 28, (255, 120, 80, 255))
+
+
+def fx_burst(cv):
+    for k in range(16):
+        a = k / 16 * math.pi * 2; r = 7 if k % 2 else 4
+        for rr in range(r + 1):
+            cv.put(CX + 6 + round(math.cos(a) * rr), 6 + round(math.sin(a) * rr), (255, 210, 60, 255) if rr < r - 1 else (255, 110, 40, 255))
+
+
+def fx_rivets(cv, pts):
+    for (x, y) in pts:
+        if (x in (12, 28) and y % 5 == 0) or (y in (17, 31) and x % 5 == 0):
+            cv.put(x, y, (200, 205, 215, 255))
+
+
+def fx_stem(cv):
+    cv.rect(CX - 1, 2, 3, 5, (110, 80, 40, 255)); cv.rect(CX - 1, 1, 3, 1, (70, 50, 25, 255))
+    for k in range(5):           # 껍질 날개
+        cv.put(CX - 4 - k, 9 + k, (255, 225, 80, 255)); cv.put(CX + 4 + k, 9 + k, (255, 225, 80, 255))
+
+
+def fx_stripes(cv, pts):
+    for (x, y) in pts:
+        a = (math.degrees(math.atan2(y - 21, x - CX)) + 360) % 90
+        if a < 45:
+            cv.put(x, y, (250, 250, 250, 255))
+    for (x, y) in pts:          # 가운데 구멍(구명튜브)
+        if math.hypot(x - CX, y - 21) < 4:
+            cv.put(x, y, (58, 70, 96, 0))
+
+
+JOKE_SPEC = {
+    'HEHE':   dict(shape='dome', c1='#fff1a8', c2='#f0d070', face='laugh', after=[('sparkles', '#ffffff')]),
+    'NANA':   dict(shape='drop', c1='#ffe14a', c2='#e0b020', face='laugh', back=[('stem',)]),
+    'SUN':    dict(shape='orb', c1='#ffcf3a', c2='#ff8a1a', mode='radial', face='cool', after=[('rays', '#ffb020')], glow='#ffd060'),
+    'SOS':    dict(shape='orb', c1='#ff4a4a', c2='#d03030', face='worried', front=[('stripes',)], fey=13),
+    'HOHOHO': dict(shape='dome', c1='#e03a3a', c2='#b02020', face='laugh', back=[('santa',)], front=[('beard',)], fey=19),
+    'CHUU':   dict(shape='dome', c1='#ff9ad0', c2='#ff6ab0', face='kiss', after=[('hearts',)]),
+    'CON':    dict(shape='cloud', c1='#fff6d8', c2='#f0d890', face='laugh', back=[('popcorn',)]),
+    'HUSH':   dict(shape='ghost', c1='#4a5aa0', c2='#2a3a7a', alpha=240, face='hush', after=[('zzz',)], fey=17),
+    'COOKER': dict(shape='cube', c1='#f2f6fc', c2='#c8d2e0', cube=True, face='laugh', back=[('puffs',)], front=[('panel',)], fex=20, fey=19),
+    'NADIVE': dict(shape='drop', c1='#4aa8ff', c2='#2a70d0', face='worried', back=[('burst',)]),
+    'FEFEFE': dict(shape='cube', c1='#7a8090', c2='#4a5060', cube=True, face='angry', front=[('rivets',)], fex=20),
+}
+
+
+def build_joke(key):
+    sp = JOKE_SPEC[key]; cv = Canvas()
+    def run(items, pts=None):
+        for it in items:
+            n, args = it[0], it[1:]
+            {'stem': lambda: fx_stem(cv), 'santa': lambda: fx_santa(cv), 'popcorn': lambda: fx_popcorn(cv),
+             'puffs': lambda: fx_puffs(cv), 'burst': lambda: fx_burst(cv), 'hearts': lambda: fx_hearts(cv),
+             'zzz': lambda: fx_zzz(cv), 'panel': lambda: fx_panel(cv),
+             'beard': lambda: fx_beard(cv, pts), 'rivets': lambda: fx_rivets(cv, pts), 'stripes': lambda: fx_stripes(cv, pts),
+             'rays': lambda: fx_rays(cv, *args),
+             'sparkles': lambda: [star(cv, x, y, (255, 255, 255, 255)) for x, y in ((4, 6), (40, 9), (36, 2))]}[n]()
+    run(sp.get('back', []))
+    pts = shape_set(sp['shape'])
+    paint_body(cv, pts, hexc(sp['c1']), hexc(sp['c2']), mode=sp.get('mode', 'light'), alpha=sp.get('alpha', 255))
+    if sp.get('cube'):
+        cube_faces(cv, pts)
+    run(sp.get('front', []), pts)
+    if key == 'SOS':  # 구명튜브 구멍: 투명 처리
+        for (x, y) in list(cv.px):
+            if cv.px[(x, y)][3] == 0:
+                del cv.px[(x, y)]
+    face_fun(cv, sp.get('face', 'normal'), sp.get('fex', CX), sp.get('fey', 21 if sp['shape'] != 'drop' else 19))
+    if sp['shape'] in ('dome', 'drop', 'cloud') and key != 'HOHOHO':
+        shine(cv, pts, 14 if sp['shape'] != 'drop' else 17, 16 if sp['shape'] != 'drop' else 14)
+    cv.outline()
+    if sp.get('glow'):
+        glow(cv, pts, sp['glow'], 2, 90)
+    run(sp.get('after', []), pts)
+    for x, y in ((41, 16), (3, 15)):  # 비밀 족보 공통 표식: 음표 모양 반짝이
+        cv.put(x, y, (255, 160, 220, 255)); cv.put(x, y - 1, (255, 160, 220, 255)); cv.put(x + 1, y - 2, (255, 160, 220, 255))
+    return cv.image()
+
 SPECIAL_KEYS = ['STEAM', 'PLASMA', 'SHOCK', 'FROST', 'STORM', 'MUD', 'MIASMA', 'FUSION',
                 'H2O', 'CO2', 'NaCl', 'NH3', 'Fe2O3', 'H2SO4', 'mix']
 
@@ -756,7 +911,9 @@ def main_special():
         special(k).save(f'{OUT}/slime_{k}.png')
     for k in SPEC:
         build(k).save(f'{OUT}/slime_{k}.png')
-    print(len(SPECIAL_KEYS) + len(SPEC), 'combo slimes:', ' '.join(SPECIAL_KEYS + list(SPEC)))
+    for k in JOKE_SPEC:
+        build_joke(k).save(f'{OUT}/slime_{k}.png')
+    print(len(SPECIAL_KEYS) + len(SPEC) + len(JOKE_SPEC), 'combo slimes:', ' '.join(SPECIAL_KEYS + list(SPEC) + list(JOKE_SPEC)))
 
 
 if __name__ == '__main__':
