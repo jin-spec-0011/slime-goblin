@@ -114,6 +114,15 @@ export const RECIPES = [
   { key: 'NH3',   label: 'NH₃',   name: '암모니아', need: { N: 1, H: 3 },      hp: 40, atk: 7, def: 1, color: '#4fd1b0', st: { name: 'poison', every: 1, dur: 4, mul: 0.6 } },
   { key: 'Fe2O3', label: 'Fe₂O₃', name: '녹',     need: { Fe: 2, O: 3 },       hp: 70, atk: 6, def: 5, color: '#a8452a', st: { name: 'defdown', every: 1, dur: 4, val: 2.5, cap: 10 } },
   { key: 'H2SO4', label: 'H₂SO₄', name: '황산',   need: { H: 2, S: 1, O: 4 },  hp: 55, atk: 10, def: 3, color: '#e6c800', st: { name: 'corrode', every: 1, dur: 4, mul: 0.8 } },
+  // ---- 확장 8종 ----
+  { key: 'HCl',   label: 'HCl',   name: '염산',     need: { H: 1, Cl: 1 },       hp: 36, atk: 9, def: 1, color: '#c8f04a', st: { name: 'corrode', every: 1, dur: 3, mul: 0.7 } },
+  { key: 'CH4',   label: 'CH₄',   name: '메탄',     need: { C: 1, H: 4 },        hp: 38, atk: 8, def: 1, color: '#9cc8ff', st: { name: 'explode', every: 2, mul: 1.0 } },
+  { key: 'NO2',   label: 'NO₂',   name: '이산화질소', need: { N: 1, O: 2 },       hp: 38, atk: 7, def: 1, color: '#c8763a', st: { name: 'poison', every: 1, dur: 3, mul: 0.6, aoe: 0.3 } },
+  { key: 'SO2',   label: 'SO₂',   name: '이산화황', need: { S: 1, O: 2 },        hp: 38, atk: 7, def: 1, color: '#e8dc6a', st: { name: 'suffocate', every: 1, dur: 3 } },
+  { key: 'FeS',   label: 'FeS',   name: '황화철',   need: { Fe: 1, S: 1 },       hp: 66, atk: 6, def: 5, color: '#c8a838', st: { name: 'defdown', every: 1, dur: 3, val: 2, cap: 10 } },
+  { key: 'UO2',   label: 'UO₂',   name: '이산화우라늄', need: { U: 1, O: 2 },    hp: 50, atk: 11, def: 3, color: '#4a5a3a', st: { name: 'radiate', every: 1, dur: 3, mul: 0.8, aoe: 0.4 } },
+  { key: 'NaOH',  label: 'NaOH',  name: '가성소다', need: { Na: 1, O: 1, H: 1 }, hp: 44, atk: 9, def: 2, color: '#eef0ff', st: { name: 'corrode', every: 1, dur: 4, mul: 0.7 } },
+  { key: 'H2O2',  label: 'H₂O₂',  name: '과산화수소', need: { H: 2, O: 2 },      hp: 40, atk: 8, def: 1, color: '#bfe8ff', st: { name: 'burn', every: 1, dur: 3, mul: 0.6 } },
 ];
 
 // 속성 합성 (촉매 1개 + 서로 다른 속성 슬라임 2마리). pair 순서 무관
@@ -126,6 +135,27 @@ export const FUSIONS = [
   { key: 'MUD',    label: '진흙',     pair: ['earth', 'water'],  color: '#8a6a3a', hp: 60, atk: 5,  def: 4, st: [{ name: 'slow', every: 1, dur: 3 }, { name: 'defdown', every: 1, dur: 3, val: 1.5, cap: 8 }] },
   { key: 'MIASMA', label: '독안개',   pair: ['poison', 'wind'],  color: '#9fd14f', hp: 34, atk: 6,  def: 1, st: [{ name: 'poison', every: 1, dur: 4, mul: 0.6, aoe: 0.4 }] },
   { key: 'FUSION', label: '핵융합',   pair: ['rad', 'fire'],     color: '#e05cff', hp: 45, atk: 14, def: 2, pierce: true, decay: true, st: [{ name: 'radiate', every: 1, dur: 3, mul: 0.7, aoe: 0.5 }] },
+  // ---- 확장 20종: 8속성의 모든 두 속성 쌍(28쌍)이 결과를 갖도록 ----
+  { key: 'FROSTFIRE', label: '얼음불꽃', pair: ['fire', 'ice'],     color: '#7fd8ff', hp: 36, atk: 9,  def: 1, st: [{ name: 'burn', every: 1, dur: 2, mul: 0.5 }, { name: 'freeze', every: 3, dur: 1 }] },
+  { key: 'LAVA',      label: '용암',     pair: ['fire', 'earth'],   color: '#ff5a1f', hp: 62, atk: 8,  def: 4, st: [{ name: 'burn', every: 1, dur: 3, mul: 0.6 }, { name: 'defdown', every: 1, dur: 3, val: 1.5, cap: 8 }] },
+  { key: 'NAPALM',    label: '네이팜',   pair: ['fire', 'poison'],  color: '#ff7a2a', hp: 34, atk: 9,  def: 0, st: [{ name: 'burn', every: 1, dur: 3, mul: 0.6, aoe: 0.3 }, { name: 'poison', every: 1, dur: 3, mul: 0.4 }] },
+  { key: 'RAINSTORM', label: '폭풍우',   pair: ['water', 'wind'],   color: '#5a6f8f', hp: 40, atk: 6,  def: 1, st: [{ name: 'slow', every: 1, dur: 2 }, { name: 'suffocate', every: 2, dur: 2 }] },
+  { key: 'ACIDRAIN',  label: '산성비',   pair: ['water', 'poison'], color: '#b8e04a', hp: 38, atk: 7,  def: 1, st: [{ name: 'corrode', every: 1, dur: 3, mul: 0.6, aoe: 0.3 }] },
+  { key: 'HEAVYWATER',label: '중수',     pair: ['water', 'rad'],    color: '#3a5fd0', hp: 46, atk: 9,  def: 2, st: [{ name: 'radiate', every: 1, dur: 3, mul: 0.6 }, { name: 'slow', every: 2, dur: 1 }] },
+  { key: 'AURORA',    label: '오로라',   pair: ['elec', 'ice'],     color: '#6fffd0', hp: 38, atk: 8,  def: 1, st: [{ name: 'chain', every: 1, mul: 0.5 }, { name: 'freeze', every: 2, dur: 1 }] },
+  { key: 'THUNDER',   label: '뇌운',     pair: ['elec', 'wind'],    color: '#4a4f6a', hp: 36, atk: 10, def: 0, st: [{ name: 'chain', every: 1, mul: 0.8 }] },
+  { key: 'MAGNET',    label: '자석',     pair: ['elec', 'earth'],   color: '#c94040', hp: 58, atk: 7,  def: 4, st: [{ name: 'stun', every: 2, dur: 1 }, { name: 'defdown', every: 1, dur: 3, val: 1.5, cap: 8 }] },
+  { key: 'NEURO',     label: '신경독',   pair: ['elec', 'poison'],  color: '#c8ff4a', hp: 34, atk: 8,  def: 0, st: [{ name: 'stun', every: 3, dur: 1 }, { name: 'poison', every: 1, dur: 4, mul: 0.6 }] },
+  { key: 'GAMMA',     label: '감마선',   pair: ['elec', 'rad'],     color: '#7aff5a', hp: 34, atk: 13, def: 0, pierce: true, st: [{ name: 'radiate', every: 1, dur: 2, mul: 0.5 }] },
+  { key: 'BLIZZARD',  label: '눈보라',   pair: ['ice', 'wind'],     color: '#e6f6ff', hp: 40, atk: 6,  def: 1, st: [{ name: 'freeze', every: 2, dur: 1 }, { name: 'slow', every: 1, dur: 2 }] },
+  { key: 'PERMAFROST',label: '영구동토', pair: ['ice', 'earth'],    color: '#a8c8d8', hp: 72, atk: 5,  def: 6, st: [{ name: 'freeze', every: 3, dur: 1 }, { name: 'defdown', every: 1, dur: 3, val: 1, cap: 6 }] },
+  { key: 'TOXICICE',  label: '독고드름', pair: ['ice', 'poison'],   color: '#9fe89a', hp: 38, atk: 7,  def: 1, st: [{ name: 'poison', every: 1, dur: 4, mul: 0.6 }, { name: 'freeze', every: 3, dur: 1 }] },
+  { key: 'CRYO',      label: '핵동결',   pair: ['ice', 'rad'],      color: '#c0f0ff', hp: 44, atk: 10, def: 2, st: [{ name: 'freeze', every: 2, dur: 1 }, { name: 'radiate', every: 1, dur: 2, mul: 0.5 }] },
+  { key: 'SANDSTORM', label: '모래폭풍', pair: ['wind', 'earth'],   color: '#d8b46a', hp: 46, atk: 7,  def: 2, st: [{ name: 'stun', every: 3, dur: 1 }, { name: 'defdown', every: 1, dur: 2, val: 1, cap: 6 }] },
+  { key: 'FALLOUT',   label: '낙진',     pair: ['wind', 'rad'],     color: '#8a8f6a', hp: 40, atk: 9,  def: 1, st: [{ name: 'radiate', every: 1, dur: 3, mul: 0.5, aoe: 0.5 }] },
+  { key: 'SWAMP',     label: '독늪',     pair: ['earth', 'poison'], color: '#5f7a3a', hp: 56, atk: 6,  def: 3, st: [{ name: 'poison', every: 1, dur: 4, mul: 0.5 }, { name: 'slow', every: 1, dur: 2 }] },
+  { key: 'ORE',       label: '우라늄광석', pair: ['earth', 'rad'],  color: '#5a5f6a', hp: 70, atk: 9,  def: 5, st: [{ name: 'radiate', every: 1, dur: 3, mul: 0.5 }] },
+  { key: 'MUTAGEN',   label: '돌연변이', pair: ['poison', 'rad'],   color: '#a64dff', hp: 42, atk: 11, def: 1, decay: true, st: [{ name: 'poison', every: 1, dur: 3, mul: 0.6 }, { name: 'radiate', every: 1, dur: 3, mul: 0.6, aoe: 0.3 }] },
 ];
 
 export const GOBLINS = {

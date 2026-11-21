@@ -1,4 +1,5 @@
 // 도트(픽셀아트) 스프라이트: 문자 격자 → 오프스크린 캔버스 캐시 → 정수배 확대(스무딩 OFF)
+import { ELEMENTS, FUSIONS, RECIPES } from './data.js';
 const SLIME = [
   '......oooo......',
   '....oohbbboo....',
@@ -152,9 +153,8 @@ export function drawSprite(ctx, spr, cx, bottom, maxW, maxH) {
 // 로드 전이거나 실패하면 위의 도트 격자 스프라이트로 대체한다.
 const IMG = {};
 // 슬라임은 tools/gen_slimes.py가 생성(글자 없음, 원소 기호는 게임이 덧그림)
-const SLIME_KEYS = ['FIRE', 'WATER', 'ELEC', 'O', 'H', 'C', 'N', 'Fe', 'He', 'Na', 'Cl', 'S', 'U',
-  'STEAM', 'PLASMA', 'SHOCK', 'FROST', 'STORM', 'MUD', 'MIASMA', 'FUSION',
-  'H2O', 'CO2', 'NaCl', 'NH3', 'Fe2O3', 'H2SO4', 'mix', 'mega'];
+// 슬라임 그림 목록은 게임 데이터에서 자동으로 만든다 (조합을 추가하면 그림도 자동으로 불러옴)
+const SLIME_KEYS = [...ELEMENTS.map(e => e.sym), ...FUSIONS.map(f => f.key), ...RECIPES.map(r => r.key), 'mix', 'mega'];
 export const ASSET_NAMES = [
   'goblin', 'goblin_frozen', 'goblin_normal', 'goblin_fighter', 'goblin_mage', 'goblin_rider',
   'goblin_archer', 'goblin_captain', 'goblin_giant', 'goblin_smart', 'goblin_giant_walk',

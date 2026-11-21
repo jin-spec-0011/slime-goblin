@@ -503,6 +503,249 @@ def special(key):
     return cv.image()
 
 
+
+# =====================================================================
+# 확장 조합 28종: 부품(장식 효과)을 조합하는 사양(SPEC) 기반 생성
+# =====================================================================
+def fx_flames(cv, outer, inner, n=3):
+    o, c = hexc(outer), hexc(inner)
+    xs = {1: [CX], 2: [CX - 7, CX + 7], 3: [CX - 10, CX, CX + 10]}[n]
+    for i, fx in enumerate(xs):
+        h = 10 if (n == 3 and i == 1) or n == 1 else 7
+        for k in range(h):
+            w = max(0, (h - k) // 2 - (1 if k < 2 else 0)) + (1 if k < 3 else 0)
+            for x in range(fx - w, fx + w + 1):
+                cv.put(x, 12 - k, c if abs(x - fx) < w or k > h - 2 else o)
+
+
+def fx_crystals(cv, light_c, dark_c, top=12):
+    for sx, h in ((CX - 11, 8), (CX - 4, 11), (CX + 4, 9), (CX + 11, 7)):
+        for k in range(h):
+            w = (h - k) // 3
+            for x in range(sx - w, sx + w + 1):
+                cv.put(x, top + 2 - k, hexc(light_c) if x <= sx else hexc(dark_c))
+
+
+def fx_swirls(cv, col):
+    sw = [(0, 0), (1, 0), (2, 0), (3, 0), (4, -1), (5, -2), (5, -3), (4, -4), (3, -5), (2, -5), (1, -4), (1, -3), (2, -2)]
+    for ox, oy in ((CX - 19, 18), (CX + 13, 14), (CX - 4, 6)):
+        for x, y in sw:
+            cv.put(ox + x, oy + y, hexc(col))
+        for k in range(5):
+            cv.put(ox - k - 1, oy, hexc(col))
+
+
+def fx_rocks(cv, col):
+    c = hexc(col)
+    for rx, ry, s in ((CX - 13, 9, 6), (CX + 7, 7, 7), (CX - 2, 6, 5)):
+        cv.rect(rx, ry, s, s - 1, c); cv.put(rx, ry, light(c, 0.3)); cv.put(rx + s - 1, ry + s - 2, dark(c, 0.3))
+
+
+def fx_bubbles(cv, col, spots=((9, 8, 2), (33, 5, 3), (23, 1, 1))):
+    bubbles(cv, spots, hexc(col))
+
+
+def fx_bolts(cv, col='#ffec50'):
+    c = hexc(col)
+    for bx, by in ((CX + 13, 6), (CX - 17, 8)):
+        for k in range(9):
+            x = bx + (k % 3 == 1) - (k % 3 == 2)
+            cv.put(x, by + k, c); cv.put(x + 1, by + k, light(c, 0.5))
+
+
+def fx_inner_bolt(cv, col='#ffe23a'):
+    bolt(cv, CX - 1, 20, 10, hexc(col))
+
+
+def fx_trefoil(cv, y=4):
+    for x in range(CX - 4, CX + 5):
+        for yy in range(y - 4, y + 5):
+            d = math.hypot(x - CX, yy - y); a = (math.degrees(math.atan2(yy - y, x - CX)) + 360) % 120
+            if d <= 1.3 or (2 <= d <= 4.3 and a < 60):
+                cv.put(x, yy, (30, 30, 30, 255))
+            elif d <= 4.3:
+                cv.put(x, yy, (255, 222, 40, 255))
+
+
+def fx_drips(cv, col, xs=(9, 20, 33)):
+    for x in xs:
+        for k in range(4):
+            cv.put(x, 33 + k - 1, hexc(col))
+
+
+def fx_rain(cv, col):
+    c = hexc(col)
+    for x in range(6, 40, 5):
+        for k in range(3):
+            cv.put(x - k // 2, 34 - (x % 3) + k - 1, c)
+
+
+def fx_snow(cv):
+    for x, y in ((5, 6), (39, 9), (31, 2), (12, 1)):
+        for d in (-1, 0, 1):
+            cv.put(x + d, y, (245, 252, 255, 255)); cv.put(x, y + d, (245, 252, 255, 255))
+
+
+def fx_magnet(cv):
+    red, grey = (210, 50, 50, 255), (200, 205, 215, 255)
+    for k in range(7):
+        cv.rect(CX - 7, 4 + k, 3, 1, red if k < 5 else grey); cv.rect(CX + 5, 4 + k, 3, 1, red if k < 5 else grey)
+    cv.rect(CX - 7, 1, 15, 3, red)
+    for x, y in ((CX - 11, 2), (CX + 11, 3)):
+        cv.put(x, y, (255, 240, 120, 255))
+
+
+def fx_sand(cv, col):
+    c = hexc(col)
+    for k in range(26):
+        x = (k * 17) % 44; y = 3 + (k * 7) % 12
+        if abs(x - CX) > 8 or y < 8:
+            cv.put(x, y, c)
+
+
+def fx_skull(cv, y=1):
+    sk = [(0, 0), (1, 0), (2, 0), (-1, 1), (3, 1), (-1, 2), (0, 2), (2, 2), (3, 2), (0, 3), (2, 3)]
+    for x, yy in sk:
+        cv.put(CX - 1 + x, y + yy, (235, 240, 225, 255))
+
+
+def fx_ribbon(cv):
+    cols = [(120, 255, 200, 255), (110, 200, 255, 255), (190, 120, 255, 255)]
+    for x in range(4, 41):
+        y = 5 + round(2.5 * math.sin(x / 4.0))
+        for k, c in enumerate(cols):
+            cv.put(x, y + k, c)
+
+
+def fx_rays(cv, col):
+    c = hexc(col)
+    for k in range(12):
+        a = k / 12 * math.pi * 2
+        for r in (14, 15, 16):
+            cv.px.setdefault((CX + round(math.cos(a) * r), 21 + round(math.sin(a) * r)), c[:3] + (255 if r < 16 else 140,))
+
+
+def fx_shards(cv, col):
+    """몸에 박힌 발광 결정 (육각 기둥 모양)"""
+    c = hexc(col)
+    for sx, sy, h in ((12, 33, 7), (28, 33, 6), (20, 33, 4)):
+        for k in range(h):
+            w = 1 if k < h - 2 else 0
+            for x in range(sx - w, sx + w + 2):
+                cv.put(x, sy - k, light(c, 0.45) if x <= sx else c if k < h - 1 else light(c, 0.2))
+        cv.put(sx, sy - h, (240, 255, 220, 255))
+
+
+def fx_cracks(cv, col, pts):
+    c = hexc(col)
+    for (x0, y0), (x1, y1) in ((p1, p2) for p1, p2 in zip(((12, 20), (24, 17), (18, 26)), ((17, 24), (30, 22), (25, 30)))):
+        n = max(abs(x1 - x0), abs(y1 - y0))
+        for k in range(n + 1):
+            p = (round(x0 + (x1 - x0) * k / n), round(y0 + (y1 - y0) * k / n))
+            if p in pts:
+                cv.put(p[0], p[1], c)
+
+
+def face_v(cv, kind, ex=CX, ey=21):
+    if kind == 'angry':
+        face(cv, ex, ey)
+        for x0 in (ex - 8, ex + 5):  # 찌푸린 눈썹
+            cv.put(x0, ey - 2, (27, 27, 42, 255)); cv.put(x0 + 1, ey - 2 + (1 if x0 < ex else 0), (27, 27, 42, 255))
+            cv.put(x0 + 2, ey - 1 if x0 < ex else ey - 2, (27, 27, 42, 255))
+    elif kind == 'three':      # 돌연변이: 눈 3개
+        face(cv, ex, ey)
+        cv.rect(ex - 1, ey - 5, 3, 3, (27, 27, 42, 255)); cv.put(ex - 1, ey - 5, (255, 255, 255, 255))
+    elif kind == 'sleepy':
+        face(cv, ex, ey, sleepy=True)
+    else:
+        face(cv, ex, ey)
+
+
+# 사양: shape, c1, c2, mode(light|radial), pattern, alpha, face, back[], front[], after[], glow
+SPEC = {
+    'FROSTFIRE': dict(shape='dome', c1='#9fe6ff', c2='#4fa0ff', back=[('flames', '#2f8fff', '#e0f8ff')], after=[('snow',)], face='normal'),
+    'LAVA':      dict(shape='dome', c1='#ff6a1f', c2='#8a2a10', back=[('rocks', '#4a3a34')], front=[('cracks', '#ffd23a')], after=[('drips', '#ff8a2a')], glow='#ff7a2a', face='angry'),
+    'NAPALM':    dict(shape='ghost', c1='#ff7a2a', c2='#9fd14f', alpha=240, back=[('flames', '#ff6a1f', '#ffd040'), ('bubbles', '#b6ff6a', ((6, 10, 2), (38, 8, 2)))], face='angry'),
+    'RAINSTORM': dict(shape='cloud', c1='#6a7f9f', c2='#3d4f6b', after=[('rain', '#7fc8ff'), ('bolts', '#ffe86a')], face='angry'),
+    'ACIDRAIN':  dict(shape='cloud', c1='#c0e85a', c2='#7fb02a', after=[('rain', '#d8ff4a')], back=[('bubbles', '#e8ff9a', ((8, 9, 2), (36, 7, 2)))], face='sleepy'),
+    'HEAVYWATER':dict(shape='drop', c1='#3a5fd0', c2='#23308a', back=[('trefoil',)], glow='#7fffa0', face='normal'),
+    'AURORA':    dict(shape='orb', c1='#6fffd0', c2='#c070ff', mode='radial', back=[('ribbon',)], after=[('bolts', '#9ff8ff')], glow='#a0ffe8', face='normal'),
+    'THUNDER':   dict(shape='cloud', c1='#4a4f6a', c2='#2e3248', front=[('inner_bolt', '#ffe23a')], after=[('bolts', '#ffec50')], face='angry'),
+    'MAGNET':    dict(shape='dome', c1='#d04848', c2='#8a94a4', back=[('magnet',)], face='normal'),
+    'NEURO':     dict(shape='ghost', c1='#c8ff4a', c2='#8a4aff', alpha=240, back=[('skull',)], after=[('bolts', '#d8ff6a')], face='angry'),
+    'GAMMA':     dict(shape='orb', c1='#7aff5a', c2='#2a9a2a', mode='radial', after=[('rays', '#b6ff6a')], back=[('trefoil',)], glow='#b6ff6a', face='normal'),
+    'BLIZZARD':  dict(shape='cloud', c1='#eef8ff', c2='#b0d8f0', back=[('swirls', '#ffffff')], after=[('snow',)], face='sleepy'),
+    'PERMAFROST':dict(shape='cube', c1='#a8c8d8', c2='#6e8ea0', pattern='crystal', back=[('crystals', '#e6f8ff', '#9fd0e8')], cube=True, face='sleepy'),
+    'TOXICICE':  dict(shape='drop', c1='#9fe89a', c2='#4fb08a', back=[('crystals', '#d8ffd0', '#7fd0a0')], after=[('drips', '#7fe06a')], face='normal'),
+    'CRYO':      dict(shape='cube', c1='#c0f0ff', c2='#9a7aff', pattern='crystal', back=[('trefoil',)], after=[('snow',)], glow='#c8a0ff', cube=True, face='normal'),
+    'SANDSTORM': dict(shape='dome', c1='#d8b46a', c2='#a88440', pattern='mottle_s', back=[('swirls', '#f0d8a0')], after=[('sand', '#e8c890')], face='sleepy'),
+    'FALLOUT':   dict(shape='cloud', c1='#8a8f6a', c2='#5f6a4a', back=[('trefoil',)], after=[('sand', '#b6ff6a')], face='sleepy'),
+    'SWAMP':     dict(shape='puddle', c1='#5f7a3a', c2='#3f5a2a', back=[('bubbles', '#9fd14f', ((10, 18, 2), (32, 16, 3), (22, 13, 1)))], after=[('drips', '#4f6a2a', (6, 38))], face='sleepy', ey=24),
+    'ORE':       dict(shape='cube', c1='#5a5f6a', c2='#3a3f4a', pattern='crystal', front=[('shards', '#7aff5a')], glow='#7aff5a', cube=True, face='normal'),
+    'MUTAGEN':   dict(shape='ghost', c1='#a64dff', c2='#8fd14f', alpha=240, back=[('bubbles', '#c8ff6a', ((6, 9, 2), (38, 6, 3), (30, 1, 1)))], glow='#c88aff', face='three', ey=18),
+    # ---- 화학 족보 확장 8종 (공통: 반짝이 별) ----
+    'HCl':  dict(shape='drop', c1='#d8ff6a', c2='#a8d82a', back=[('bubbles', '#f0ffb0', ((8, 9, 2), (36, 11, 1)))], after=[('drips', '#c8f04a')], star=True, face='normal'),
+    'CH4':  dict(shape='cloud', c1='#b0d8ff', c2='#7fa8e0', back=[('flames', '#3a7bff', '#bfe0ff', 1)], star=True, face='sleepy'),
+    'NO2':  dict(shape='cloud', c1='#c8763a', c2='#9a4a20', back=[('swirls', '#e0a070')], star=True, face='angry'),
+    'SO2':  dict(shape='ghost', c1='#e8e07a', c2='#b0a840', alpha=240, back=[('swirls', '#fff4a0')], star=True, face='sleepy', ey=18),
+    'FeS':  dict(shape='cube', c1='#d8b848', c2='#7a6020', pattern='crystal', cube=True, star=True, after=[('sparkle_gold',)], face='normal'),
+    'UO2':  dict(shape='orb', c1='#5a6a3a', c2='#2a3a1a', mode='radial', back=[('trefoil',)], glow='#9aff5a', star=True, face='normal'),
+    'NaOH': dict(shape='cube', c1='#f4f6ff', c2='#ccd4ee', pattern='crystal', cube=True, back=[('bubbles', '#ffffff', ((8, 8, 2), (37, 6, 2)))], star=True, face='normal'),
+    'H2O2': dict(shape='drop', c1='#cfeeff', c2='#8fd0ff', back=[('bubbles', '#ffffff', ((7, 10, 1), (36, 9, 2), (30, 3, 1), (11, 4, 1)))], star=True, face='normal'),
+}
+
+
+def build(key):
+    sp = SPEC[key]; cv = Canvas()
+    def run(items):
+        for it in items:
+            name, args = it[0], it[1:]
+            if name == 'flames': fx_flames(cv, *args)
+            elif name == 'crystals': fx_crystals(cv, *args)
+            elif name == 'swirls': fx_swirls(cv, *args)
+            elif name == 'rocks': fx_rocks(cv, *args)
+            elif name == 'bubbles': fx_bubbles(cv, *args)
+            elif name == 'bolts': fx_bolts(cv, *args)
+            elif name == 'inner_bolt': fx_inner_bolt(cv, *args)
+            elif name == 'trefoil': fx_trefoil(cv)
+            elif name == 'drips': fx_drips(cv, *args)
+            elif name == 'rain': fx_rain(cv, *args)
+            elif name == 'snow': fx_snow(cv)
+            elif name == 'magnet': fx_magnet(cv)
+            elif name == 'sand': fx_sand(cv, *args)
+            elif name == 'skull': fx_skull(cv)
+            elif name == 'ribbon': fx_ribbon(cv)
+            elif name == 'rays': fx_rays(cv, *args)
+            elif name == 'shards': fx_shards(cv, *args)
+            elif name == 'cracks': fx_cracks(cv, args[0], pts)
+            elif name == 'sparkle_gold':
+                for sx, sy in ((5, 5), (39, 3), (33, 9)): star(cv, sx, sy, (255, 220, 90, 255))
+    run(sp.get('back', []))
+    pts = shape_set(sp['shape'])
+    pattern = sp.get('pattern')
+    paint_body(cv, pts, hexc(sp['c1']), hexc(sp['c2']) if sp.get('c2') else None, mode=sp.get('mode', 'light'),
+               alpha=sp.get('alpha', 255), pattern='mottle' if pattern == 'mottle_s' else pattern)
+    if pattern == 'mottle_s':
+        for (x, y) in pts:
+            if (x * 5 + y * 3) % 7 == 0:
+                c = cv.get(x, y); cv.put(x, y, light(c, 0.25)[:3] + (c[3],))
+    if sp.get('cube'):
+        cube_faces(cv, pts)
+    run(sp.get('front', []))
+    ex = 20 if sp['shape'] == 'cube' else CX
+    ey = sp.get('ey', 22 if sp['shape'] in ('cloud',) else 21 if sp['shape'] != 'drop' else 19)
+    face_v(cv, sp.get('face', 'normal'), ex, ey)
+    if sp['shape'] in ('dome', 'drop', 'cloud'):
+        shine(cv, pts, 14 if sp['shape'] != 'drop' else 17, 16 if sp['shape'] != 'drop' else 14)
+    cv.outline()
+    if sp.get('glow'):
+        glow(cv, pts, sp['glow'], 2 if sp['shape'] == 'orb' else 1, 90)
+    run(sp.get('after', []))
+    if sp.get('star'):
+        star(cv, 40, 13); star(cv, 4, 4)
+    return cv.image()
+
+
 SPECIAL_KEYS = ['STEAM', 'PLASMA', 'SHOCK', 'FROST', 'STORM', 'MUD', 'MIASMA', 'FUSION',
                 'H2O', 'CO2', 'NaCl', 'NH3', 'Fe2O3', 'H2SO4', 'mix']
 
@@ -511,7 +754,9 @@ def main_special():
     os.makedirs(OUT, exist_ok=True)
     for k in SPECIAL_KEYS:
         special(k).save(f'{OUT}/slime_{k}.png')
-    print(len(SPECIAL_KEYS), 'combo slimes:', ' '.join(SPECIAL_KEYS))
+    for k in SPEC:
+        build(k).save(f'{OUT}/slime_{k}.png')
+    print(len(SPECIAL_KEYS) + len(SPEC), 'combo slimes:', ' '.join(SPECIAL_KEYS + list(SPEC)))
 
 
 if __name__ == '__main__':

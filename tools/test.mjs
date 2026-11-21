@@ -1,5 +1,6 @@
 // 핵심 규칙 단위 테스트: node tools/test.mjs
-import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS } from '../src/data.js';
+import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS } from '../src/data.js';
+import { existsSync } from 'node:fs';
 import { createGame, step, affinity, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
 // 기존 규칙 테스트는 빈 필드를 전제로 하므로 자동 배치를 끄고 실행
@@ -19,9 +20,10 @@ const L = [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 2, y: 0, z: 0 }];
 t('족보 일치 힌트', recipeHint(s, L).state === 'match');
 const c0 = s.catalysts;
 t('H2O 합성', combine(s, L).ok && getCell(s, 0, 0, 0).key === 'H2O' && getCell(s, 0, 0, 0).kind === 'compound' && s.catalysts === c0 - 1);
-put(s, 'C', 3, 0, 0); put(s, 'N', 4, 0, 0);
-const L2 = [{ x: 3, y: 0, z: 0 }, { x: 4, y: 0, z: 0 }];
-t('혼합물', combine(s, L2).ok && getCell(s, 3, 0, 0).kind === 'mixture');
+// 속성 합성은 2마리 전용 -> 족보가 아닌 3마리 조합은 혼합물
+put(s, 'C', 3, 0, 0); put(s, 'N', 4, 0, 0); put(s, 'U', 0, 1, 0);
+const L2 = [{ x: 3, y: 0, z: 0 }, { x: 4, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }];
+t('혼합물 (족보 아닌 3마리)', combine(s, L2).ok && getCell(s, 3, 0, 0).kind === 'mixture');
 s.catalysts = 0; put(s, 'C', 0, 1, 0); put(s, 'O', 1, 1, 0);
 t('촉매 없으면 거부', !combine(s, [{ x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 }]).ok);
 // 속성 합성: 물 + 불 = 수증기, H(불 속성) + 물 = 수증기, 전기 + 불 = 플라즈마
@@ -106,6 +108,19 @@ t('거점 0 → 패배', s.phase === 'over');
   for (const i of [4, 6]) s2.goblins.push({ id: 5e6 + i, type: 'shaman', name: d.name, hp: 90, maxhp: 90, atk: 3, def: 0, spd: 0, leak: 2, multi: 1, range: 0, aura: false, evade: 0, cleanse: false, weak: d.weak, resist: d.resist, immune: [], heal: d.heal, feast: 0, atkBuff: 1, idx: i, pit: true, st: {}, fights: 0, dead: false, mv: 0 });
   let n = 0; while (s2.goblins.length && n++ < 200) step(s2);
   t('교착 방지: 서로 회복하는 갇힌 주술사도 200초 안에 쓰러짐', s2.goblins.length === 0);
+}
+// 조합 확장: 8속성 28쌍 전부 결과 존재, 모든 조합 슬라임에 전용 그림 존재
+{
+  const A = Object.keys(ATTRS), pairs = new Set(FUSIONS.map(f => [...f.pair].sort().join('+')));
+  let all = true; for (let i = 0; i < A.length; i++) for (let j = i + 1; j < A.length; j++) if (!pairs.has([A[i], A[j]].sort().join('+'))) all = false;
+  t('속성 합성: 28쌍 모두 결과 존재', all && FUSIONS.length === 28);
+  const missing = [...FUSIONS.map(f => f.key), ...RECIPES.map(r => r.key)].filter(k => !existsSync(new URL(`../assets/slime_${k}.png`, import.meta.url)));
+  t(`조합 슬라임 전용 그림 (${FUSIONS.length + RECIPES.length}종)`, missing.length === 0);
+  const s3 = cg(31); s3.catalysts = 9;
+  put(s3, 'H', 0, 0, 0); put(s3, 'Cl', 1, 0, 0);
+  t('H + Cl = 염산(화학 족보가 속성 합성보다 우선)', combine(s3, [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }]).ok && getCell(s3, 0, 0, 0).key === 'HCl');
+  put(s3, 'FIRE', 2, 0, 0); put(s3, 'Fe', 3, 0, 0);
+  t('불 + 철(대지) = 용암', combine(s3, [{ x: 2, y: 0, z: 0 }, { x: 3, y: 0, z: 0 }]).ok && getCell(s3, 2, 0, 0).key === 'LAVA');
 }
 // 챕터: 경로 유효성, 라운드 수, 난이도 상승, 환경 효과
 for (const c of CHAPTERS) {

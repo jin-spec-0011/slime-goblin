@@ -12,7 +12,7 @@ const LS_BEST = 'esd.bestRound';
 const LS_UNLOCK = 'esd.unlockedChapter'; // 열린 최고 챕터 번호
 const lsBest = n => `esd.best.${n}`;     // 챕터별 최고 기록 (라운드 수, 11 = 클리어)
 const unlocked = () => Math.min(CHAPTERS.length, Math.max(1, +(lsGet(LS_UNLOCK) || 1)));
-export const APP_VERSION = 'v1.1.0'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v1.2.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
