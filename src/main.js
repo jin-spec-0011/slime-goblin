@@ -2,7 +2,7 @@
 import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS, ATTRS, FUSIONS, CHAPTERS, JOKES } from './data.js';
 import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames, walkFrameMs } from './sprites.js';
 import {
-  createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
+  autoPlay, createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
   getCell, slimeCount, PATH, lvMult,
 } from './engine.js';
 
@@ -12,7 +12,7 @@ const LS_BEST = 'esd.bestRound';
 const LS_UNLOCK = 'esd.unlockedChapter'; // 열린 최고 챕터 번호
 const lsBest = n => `esd.best.${n}`;     // 챕터별 최고 기록 (라운드 수, 11 = 클리어)
 const unlocked = () => Math.min(CHAPTERS.length, Math.max(1, +(lsGet(LS_UNLOCK) || 1)));
-export const APP_VERSION = 'v1.3.0'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v1.4.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -351,6 +351,7 @@ function renderHud() {
   $('bSpeed').textContent = `×${ui.speed}`;
   $('bPause').textContent = ui.paused ? '재개' : '정지';
   $('bPause').classList.toggle('on', ui.paused);
+  $('bAuto').classList.toggle('on', !!ui.auto); $('bAuto').setAttribute('aria-pressed', String(!!ui.auto));
 }
 
 function setInfo(html) { $('info').innerHTML = html; }
@@ -475,11 +476,39 @@ $('bMega').onclick = () => {
   if (ui.megaMode) { flash(makeMega(ui.g, ui.comboList)); ui.combo = false; ui.megaMode = false; ui.comboList = []; render(); }
 };
 $('bHelp').onclick = () => showHelp();
+// ---------- 자동 조합 모드 (방치형): 끄기 전까지 매 틱 최적 행동 실행 ----------
+ui.auto = lsGet('esd.auto') === '1';
+function runAuto() {
+  const done = autoPlay(ui.g);
+  for (const d of done) {
+    ui.msg = `🤖 ${d.msg}`;
+    if (d.joke) discoverJoke(d.joke, true); // 자동 모드에서는 팝업 없이 기록만
+  }
+  return done.length;
+}
+$('bAuto').onclick = () => {
+  ui.auto = !ui.auto; lsSet('esd.auto', ui.auto ? '1' : '0');
+  ui.combo = false; ui.megaMode = false; ui.comboList = []; ui.sel = null;
+  ui.msg = ui.auto ? '🤖 자동 조합 ON: 끌 때까지 최적의 조합·배치를 계속합니다' : '자동 조합 OFF';
+  if (ui.auto) runAuto();
+  render();
+};
 // 팝업 버튼은 열 때마다 동작을 지정한다 (ok: 확인 버튼, alt: 보조 버튼)
 let modalOk = null, modalAlt = null;
 const closeModal = () => $('modal').classList.add('hidden');
-$('mOk').onclick = () => { closeModal(); const f = modalOk; modalOk = null; if (f) f(); };
-$('mAlt').onclick = () => { closeModal(); const f = modalAlt; modalAlt = null; if (f) f(); };
+let lastModalFire = 0;
+function bindModalBtn(id, take) {
+  const fire = e => {
+    if (e) e.preventDefault();
+    if (performance.now() - lastModalFire < 350 || $('modal').classList.contains('hidden')) return; // pointerup+click 중복 방지
+    lastModalFire = performance.now();
+    closeModal(); const f = take(); if (f) f();
+  };
+  $(id).addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') fire(e); });
+  $(id).addEventListener('click', () => fire());
+}
+bindModalBtn('mOk', () => { const f = modalOk; modalOk = null; return f; });
+bindModalBtn('mAlt', () => { const f = modalAlt; modalAlt = null; return f; });
 
 function showModal(title, html, opts = {}) {
   $('mTitle').textContent = title; $('mBody').innerHTML = html;
@@ -508,10 +537,11 @@ function showChapterSelect(canClose = false) {
 // ---------- 비밀 족보 발견 기록 ----------
 const LS_JOKES = 'esd.jokes';
 const foundJokes = () => { try { return new Set(JSON.parse(lsGet(LS_JOKES) || '[]')); } catch { return new Set(); } };
-function discoverJoke(key) {
+function discoverJoke(key, quiet = false) {
   const found = foundJokes(), j = JOKES.find(x => x.key === key); if (!j) return;
   const isNew = !found.has(key); found.add(key); lsSet(LS_JOKES, JSON.stringify([...found]));
   if (!isNew) return;
+  if (quiet) { ui.msg = `🎉 비밀 족보 발견! ${j.label} ${j.name} (${found.size}/${JOKES.length})`; return; }
   const fx = j.onCreate?.baseHp ? `<p>🛟 거점 체력 +${j.onCreate.baseHp}!</p>` : j.onCreate?.catalysts ? `<p>🎁 선물: 촉매 +${j.onCreate.catalysts}!</p>` : '';
   showModal('🎉 비밀 족보 발견!', `<div style="text-align:center"><img src="assets/slime_${j.key}.png" alt="" style="width:132px;image-rendering:pixelated">
     <p style="font-size:20px;margin:6px 0"><b>${j.label}</b> · ${j.name}</p><p>${needText(j.need)}</p>
@@ -543,6 +573,7 @@ function showHelp(after = null) {
     <table><tr><th>비밀 족보</th><th>재료</th><th>힌트·효과</th></tr>${jokeRows()}</table>
     <table><tr><th>슬라임</th><th>속성</th><th>효과</th><th>해금</th></tr>${els}</table>
     <table><tr><th>화합물</th><th>족보</th><th>효과</th></tr>${rec}</table>
+    <p><b>🤖 자동</b>: 켜 두면 끌 때까지 매초 필드·덱 전체를 분석해 가장 이득이 큰 행동(겹치기, 카드 배치, 비밀 족보·화학 족보·속성 합성, 메가)을 자동으로 합니다. 이번 라운드 고블린의 약점·내성과 경로 앞쪽 칸을 우선 고려합니다.</p>
     <p><b>챕터</b>: 5개 챕터 × 10라운드. 챕터마다 경로 모양, 환경 효과(속성 강화·약화), 주력 고블린이 다릅니다. 챕터를 클리어하면 다음 챕터가 열립니다. 상단의 <b>챕터-라운드</b>를 누르면 챕터를 고를 수 있습니다.</p>
     <table><tr><th>고블린</th><th>약점</th><th>내성</th><th>거점</th></tr>${gbs}</table>`, { onOk: after });
 }
@@ -589,6 +620,7 @@ function frame(t) {
     ui.acc += dt * ui.speed;
     while (ui.acc >= CFG.TICK_MS) {
       ui.acc -= CFG.TICK_MS; step(g); collectFx(); ui.msg = '';
+      if (ui.auto) runAuto();
       if (ui.sel?.t === 'q' && !g.queue.some(q => q.id === ui.sel.id)) ui.sel = null;
       if (ui.sel?.t === 'c' && !getCell(g, ui.sel.x, ui.sel.y, ui.sel.z)) ui.sel = null;
       ui.comboList = ui.comboList.filter(p => getCell(g, p.x, p.y, p.z));

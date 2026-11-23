@@ -25,7 +25,8 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .chip.sel { outline: 3px solid var(--accent); outline-offset: 1px; }
 .info { min-height: 36px; font-size: 12px; background: #222a3a; border-radius: 8px; padding: 8px 10px; color: var(--sub); }
 .info b { color: var(--text); }
-.actions { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.actions { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+#bAuto.on { background: #6be08a; color: #10151f; border-color: #3fa85c; }
 .btn { background: var(--panel2); color: var(--text); border: 2px solid var(--line); border-radius: 8px; min-height: 44px;
   font-size: 13px; font-weight: 700; padding: 0 4px; cursor: pointer; }
 .btn.sm { min-height: 32px; min-width: 40px; }
@@ -63,3 +64,8 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .chbtn b { font-size: 15px; }
 .chbtn span { font-size: 12px; color: var(--sub); }
 .chbtn:disabled { opacity: .45; cursor: default; }
+/* 팝업: 제목·본문만 스크롤, 버튼은 하단 고정 (긴 팝업에서도 바로 누를 수 있게) */
+.modal .mcard { display: flex; flex-direction: column; overflow: hidden; }
+.modal #mBody { overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; }
+.modal .mbtns { flex: 0 0 auto; padding-top: 10px; border-top: 1px solid var(--line); }
+.modal .mbtns .btn { min-height: 54px; font-size: 16px; touch-action: manipulation; }

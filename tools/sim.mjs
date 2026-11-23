@@ -1,11 +1,13 @@
-import { createGame, step, placeFromQueue, moveSlime, getCell, slimeCount, makeMega, skipPrep, PATH } from '../src/engine.js';
+import { createGame, step, placeFromQueue, moveSlime, getCell, slimeCount, makeMega, skipPrep, autoPlay, PATH } from '../src/engine.js';
 import { CFG } from '../src/data.js';
 
 // 단순 AI: 같은 원소에 겹치기 우선, 없으면 경로 앞쪽 칸부터 배치
-// 사용: node tools/sim.mjs <판수> [strong|weak] [챕터] [--speed=3] [--apm=30]
+// 사용: node tools/sim.mjs <판수> [strong|weak|auto] [챕터] [--speed=3] [--apm=30]
+//  auto: 게임의 자동 조합 모드를 켜고 방치 (조작 속도 제한 없음)
 //  게임 규칙은 틱 단위라 배속과 무관하다. 배속이 바꾸는 것은 '사람이 조작할 수 있는 실제 시간'이므로
 //  사람의 분당 행동 수(APM)를 실제 시간 기준으로 제한해 배속 효과를 재현한다. --apm=0 이면 제한 없음.
 const WEAK = process.argv[3]==='weak';
+const MODE = process.argv[3] || 'strong';
 const CHAPTER = +process.argv[4] || 1;
 const opt = (k, d) => { const a = process.argv.find(x => x.startsWith(`--${k}=`)); return a ? +a.split('=')[1] : d; };
 const SPEED = opt('speed', 3), APM = opt('apm', 30);
@@ -50,12 +52,12 @@ function ai(s, weak = WEAK) {
 }
 
 // 한 묶음 실행 (튜닝 스크립트에서도 사용)
-export function runBatch(n, chapter, weak) {
+export function runBatch(n, chapter, weak) { // weak: false|true|'auto'
   let wins = 0, stalls = 0; const reach = Array(11).fill(0); const hpLeft = [];
   for (let seed = 1; seed <= n; seed++) {
     const s = createGame(seed, { chapter });
     let t = 0;
-    while (s.phase !== 'over' && s.phase !== 'won' && t++ < 3000) { ai(s, weak); step(s); }
+    while (s.phase !== 'over' && s.phase !== 'won' && t++ < 3000) { if (weak === 'auto') autoPlay(s); else ai(s, weak); step(s); }
     if (s.phase === 'won') { wins++; hpLeft.push(s.baseHp); } else if (s.phase !== 'over') stalls++;
     reach[s.round]++;
   }
@@ -68,7 +70,7 @@ if (process.argv[1] && process.argv[1].endsWith('sim.mjs')) {
   for (let seed = 1; seed <= N; seed++) {
     const s = createGame(seed, { chapter: CHAPTER });
     let t = 0;
-    while (s.phase !== 'over' && s.phase !== 'won' && t++ < 3000) { ai(s); step(s); }
+    while (s.phase !== 'over' && s.phase !== 'won' && t++ < 3000) { if (MODE === 'auto') autoPlay(s); else ai(s); step(s); }
     if (s.phase === 'won') { wins++; hpLeft.push(s.baseHp); }
     else if (s.phase !== 'over') { stalls++; if (process.argv.includes('--debug')) {
       const g = s.goblins[0];
@@ -78,5 +80,5 @@ if (process.argv[1] && process.argv[1].endsWith('sim.mjs')) {
     } }
     reach[s.round]++;
   }
-  console.log(`[챕터 ${CHAPTER} x${SPEED} ${APM ? APM + 'APM' : '무제한'}] 승률 ${wins}/${N}, 도달 라운드 분포`, reach.slice(1).join(','), '평균 잔여HP', hpLeft.length ? (hpLeft.reduce((a, b) => a + b) / hpLeft.length).toFixed(1) : '-', stalls ? `시간초과 ${stalls}` : '');
+  console.log(`[챕터 ${CHAPTER} ${MODE === 'auto' ? '자동 모드' : `x${SPEED} ${APM ? APM + 'APM' : '무제한'}`}] 승률 ${wins}/${N}, 도달 라운드 분포`, reach.slice(1).join(','), '평균 잔여HP', hpLeft.length ? (hpLeft.reduce((a, b) => a + b) / hpLeft.length).toFixed(1) : '-', stalls ? `시간초과 ${stalls}` : '');
 }

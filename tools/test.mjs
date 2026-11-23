@@ -1,7 +1,7 @@
 // 핵심 규칙 단위 테스트: node tools/test.mjs
 import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS, JOKES } from '../src/data.js';
 import { existsSync } from 'node:fs';
-import { createGame, step, affinity, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
+import { createGame, step, affinity, autoPlay, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
 // 기존 규칙 테스트는 빈 필드를 전제로 하므로 자동 배치를 끄고 실행
 const cg = seed => createGame(seed, { autoField: false });
@@ -143,6 +143,28 @@ t('거점 0 → 패배', s.phase === 'over');
   t('전기밥솥: 옆 슬라임 회복', nb.hp > 1);
   const miss = JOKES.map(j => j.key).filter(k => !existsSync(new URL(`../assets/slime_${k}.png`, import.meta.url)));
   t(`비밀 족보 ${JOKES.length}종 전용 그림`, miss.length === 0);
+}
+// 자동 조합 모드
+{
+  const s5 = cg(51); s5.catalysts = 0; s5.queue = []; // 덱 비우기 (시작 카드가 먼저 처리되지 않게)
+  put(s5, 'C', PATH[0][0], PATH[0][1], 0); put(s5, 'C', PATH[10][0], PATH[10][1], 0);
+  const s5b = cg(55); s5b.catalysts = 0; s5b.queue = [];
+  put(s5b, 'C', PATH[0][0], PATH[0][1], 0); put(s5b, 'C', PATH[10][0], PATH[10][1], 0);
+  t('자동: 빈칸이 안 채워지는 조건에선 겹치지 않음 (Lv1 둘 > Lv2 하나)', autoPlay(s5b).length === 0);
+  s5.autoField = true; // 실제 게임처럼 빈칸이 다시 채워지는 조건에서만 겹치기가 이득
+  const d = autoPlay(s5);
+  t('자동: 같은 슬라임을 경로 앞쪽으로 겹침', d.length >= 1 && getCell(s5, PATH[0][0], PATH[0][1], 0).lv === 2 && !getCell(s5, PATH[10][0], PATH[10][1], 0));
+  const s6 = cg(52); s6.catalysts = 1; s6.queue = [];
+  put(s6, 'H', 0, 0, 0); put(s6, 'Cl', 1, 0, 0);
+  const d2 = autoPlay(s6);
+  t('자동: 촉매가 있으면 이득이 큰 조합 실행 (H+Cl=염산)', d2.some(x => /HCl/.test(x.msg)) && s6.catalysts === 0);
+  const s7 = cg(53); s7.catalysts = 1; s7.queue = [];
+  put(s7, 'He', 0, 0, 0); put(s7, 'He', 1, 0, 0); const d3 = autoPlay(s7);
+  t('자동: 비밀 족보 vs 겹치기 중 이득이 큰 쪽 선택 (He+He)', d3.some(x => x.joke === 'HEHE') || getCell(s7, 0, 0, 0)?.lv === 2);
+  // 자동 모드로 챕터 1 전체를 방치해도 오류 없이 끝남
+  const g = createGame(54, { chapter: 1 }); let n = 0;
+  while (g.phase !== 'over' && g.phase !== 'won' && n++ < 3000) { autoPlay(g); step(g); }
+  t('자동: 챕터 1 방치 플레이가 끝까지 진행', g.phase === 'won' || g.phase === 'over');
 }
 // 챕터: 경로 유효성, 라운드 수, 난이도 상승, 환경 효과
 for (const c of CHAPTERS) {

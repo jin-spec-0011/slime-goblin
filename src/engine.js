@@ -269,6 +269,101 @@ export function makeMega(s, list) {
   return ok('메가 슬라임 생성');
 }
 
+// =====================================================================
+// 자동 조합 (방치형): 필드·덱 전체에서 '가장 이득이 큰 행동'을 골라 실행
+//  - 슬라임 가치 = 공격력 x 지금 라운드 고블린 상성 평균 x 효과 보너스 + 체력·방어 보정
+//  - 경로 앞쪽 칸(먼저 부딪히는 자리)일수록 가중치가 높다
+//  - 후보 행동: 덱 카드 배치/겹치기, 필드 겹치기, 조합(비밀 족보·화학 족보·속성 합성), 메가
+// =====================================================================
+const pathIdxOf = (x, y) => PATH.findIndex(p => p[0] === x && p[1] === y);
+const posW = idx => 1.6 - (idx / Math.max(1, PATH.length - 1)) * 1.1;      // 앞 1.6 -> 뒤 0.5
+function roundFoes(s) {                                                     // 이번(또는 다음) 라운드 고블린 구성
+  const r = s.ch.rounds[Math.min(CFG.ROUNDS, s.round) - 1] || [];
+  return r.map(([type, n]) => ({ n, weak: GOBLINS[type].weak || [], resist: GOBLINS[type].resist || [] }));
+}
+function slimeValue(s, sl, foes) {
+  let aff = 1;
+  if (foes.length) { let w = 0, sum = 0; for (const f of foes) { sum += affinity(sl, f) * f.n; w += f.n; } aff = sum / w; }
+  const fx = 1 + 0.15 * sl.status.length + (sl.pierce ? 0.3 : 0) + (sl.healAura ? 0.4 : 0) - (sl.decay ? 0.15 : 0)
+    + sl.status.reduce((a, st) => a + (st.aoe ? 0.2 : 0) + (STATUS[st.name].kind === 'explode' ? 0.25 : 0), 0);
+  return sl.atk * aff * fx + sl.maxhp * 0.06 + sl.def * 0.6;
+}
+// 비어 있는 칸은 곧 랜덤 슬라임으로 채워지므로 그 기대 가치를 더해준다
+const refillValue = s => (s.autoField ? 3.2 : 0);
+
+function bestAutoAction(s) {
+  const foes = roundFoes(s), V = (sl, idx) => slimeValue(s, sl, foes) * posW(idx);
+  const cells = [];
+  for (const [i, [x, y]] of PATH.entries()) { const sl = s.cells[0][y][x]; cells.push({ x, y, z: 0, idx: i, sl }); }
+  const filled = cells.filter(c => c.sl), empty = cells.filter(c => !c.sl);
+  let best = null;
+  const offer = (gain, run, msg) => { if (gain > 0.5 && (!best || gain > best.gain)) best = { gain, run, msg }; };
+  const levelUp = (sl, add) => { const c = { ...sl, lv: sl.lv + add, maxhp: 0 }; recalc(c); return c; };
+
+  // 1) 덱 카드: 같은 슬라임 위에 겹치기(가장 앞쪽 우선) 또는 빈칸 중 가장 앞쪽에 배치
+  s.queue.forEach((q, qi) => {
+    for (const c of filled) if (c.sl.kind === 'element' && c.sl.key === q.sym && c.sl.lv < CFG.MAX_LV)
+      offer(V(levelUp(c.sl, 1), c.idx) - V(c.sl, c.idx) + 0.3, () => placeFromQueue(s, s.queue.findIndex(v => v.id === q.id), c.x, c.y, 0), `덱 ${q.sym} → 겹치기`);
+    if (empty.length && slimeCount(s) < CFG.CAP) { const c = empty[0]; const tmp = makeElement(s, q.sym);
+      offer(V(tmp, c.idx), () => placeFromQueue(s, s.queue.findIndex(v => v.id === q.id), c.x, c.y, 0), `덱 ${q.sym} 배치`); }
+  });
+  // 2) 필드 겹치기: 뒤쪽 슬라임을 앞쪽 같은 슬라임 위로
+  for (const a of filled) for (const b of filled) {
+    if (a === b || a.idx > b.idx || a.sl.key !== b.sl.key || a.sl.lv + b.sl.lv > CFG.MAX_LV) continue;
+    if (!['element', 'compound', 'fusion', 'joke'].includes(a.sl.kind)) continue;
+    offer(V(levelUp(a.sl, b.sl.lv), a.idx) - V(a.sl, a.idx) - V(b.sl, b.idx) + refillValue(s) * posW(b.idx),
+      () => moveSlime(s, b, a), `${a.sl.label} 겹치기 Lv${a.sl.lv + b.sl.lv}`);
+  }
+  // 3) 조합 (촉매 1개): 결과 가치 - 재료 가치 + 빈칸 재충전. 결과는 재료 중 가장 앞쪽 칸에 생긴다
+  if (s.catalysts > 0) {
+    const els = filled.filter(c => c.sl.kind === 'element');
+    const tryList = list => {
+      list.sort((p, q) => p.idx - q.idx);
+      const h = recipeHint(s, list); if (!['joke', 'match', 'fusion'].includes(h.state)) return;
+      const lv = Math.min(CFG.MAX_LV, Math.ceil(list.reduce((a, c) => a + c.sl.lv, 0) / list.length));
+      const res = h.state === 'joke' ? makeJoke(s, h.joke, lv) : h.state === 'match' ? makeCompound(s, h.recipe, lv) : makeFusion(s, h.fusion, lv);
+      let gain = V(res, list[0].idx) - list.reduce((a, c) => a + V(c.sl, c.idx), 0) + refillValue(s) * list.slice(1).reduce((a, c) => a + posW(c.idx), 0);
+      if (h.state === 'joke' && h.joke.onCreate) gain += (h.joke.onCreate.baseHp || 0) * 2 + (h.joke.onCreate.catalysts || 0) * 3;
+      const label = res.label;
+      offer(gain, () => combine(s, list.map(({ x, y, z }) => ({ x, y, z }))), `자동 조합: ${label}`);
+    };
+    // 3-1) 정해진 재료가 있는 족보(비밀·화학): 원소별로 레벨 높은 순 후보에서 필요 수만큼
+    for (const r of [...JOKES, ...RECIPES]) {
+      const pick = []; let okAll = true;
+      for (const [k, n] of Object.entries(r.need)) {
+        const cand = els.filter(c => c.sl.key === k && !pick.includes(c)).sort((p, q) => q.sl.lv - p.sl.lv || p.idx - q.idx);
+        if (cand.length < n) { okAll = false; break; } pick.push(...cand.slice(0, n));
+      }
+      if (okAll) tryList(pick);
+    }
+    // 3-2) 속성 합성: 서로 다른 속성 2마리의 모든 쌍
+    for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++)
+      if (els[i].sl.attrs[0] !== els[j].sl.attrs[0]) tryList([els[i], els[j]]);
+  }
+  // 4) 메가: Lv5 같은 원소 3개 (가장 앞쪽 3개)
+  if (s.round >= CFG.MEGA_ROUND) {
+    const by = {};
+    for (const c of filled) if (c.sl.kind === 'element' && c.sl.lv === CFG.MAX_LV) (by[c.sl.key] ||= []).push(c);
+    for (const k in by) if (by[k].length >= 3) {
+      const three = by[k].slice(0, 3);
+      offer(three.reduce((a, c) => a + V(c.sl, c.idx), 0) * 0.8 + refillValue(s) * 3, () => makeMega(s, three.map(({ x, y, z }) => ({ x, y, z }))), `메가 ${k}`);
+    }
+  }
+  return best;
+}
+
+// 한 번 호출에 최대 maxActions번, 이득이 있는 행동이 없을 때까지 실행. 실행한 행동 결과 목록 반환
+export function autoPlay(s, maxActions = 4) {
+  const done = [];
+  if (s.phase === 'over' || s.phase === 'won') return done;
+  for (let k = 0; k < maxActions; k++) {
+    const a = bestAutoAction(s); if (!a) break;
+    const r = a.run(); if (!r || !r.ok) break;
+    done.push({ msg: r.msg || a.msg, joke: r.joke || null });
+  }
+  return done;
+}
+
 export function skipPrep(s) {
   if (s.phase === 'prep') { s.prepLeft = 0; return ok('라운드 시작'); }
   return err('이미 진행 중입니다.');
