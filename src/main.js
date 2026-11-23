@@ -2,7 +2,11 @@
 import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS, ATTRS, FUSIONS, CHAPTERS, JOKES } from './data.js';
 import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames, walkFrameMs } from './sprites.js';
 import {
-  autoPlay, createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
+  loadProfile, saveProfile, modsOf, UPGRADES, upgradeCost, isMaxed, buyUpgrade, buyResearch, researchCost, RESEARCH_PER,
+  DECK_POOL, DECK_SIZE, toggleDeck, stoneGain, prestige, PRESTIGE_MIN_FLOOR, offlineReward, fmt,
+} from './meta.js';
+import {
+  autoPlay, setMods, createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
   getCell, slimeCount, PATH, lvMult,
 } from './engine.js';
 
@@ -11,8 +15,27 @@ const EL = Object.fromEntries(ELEMENTS.map(e => [e.sym, e]));
 const LS_BEST = 'esd.bestRound';
 const LS_UNLOCK = 'esd.unlockedChapter'; // 열린 최고 챕터 번호
 const lsBest = n => `esd.best.${n}`;     // 챕터별 최고 기록 (라운드 수, 11 = 클리어)
-const unlocked = () => Math.min(CHAPTERS.length, Math.max(1, +(lsGet(LS_UNLOCK) || 1)));
-export const APP_VERSION = 'v1.4.0'; // sw.js VERSION과 함께 올린다
+const unlocked = () => Math.min(CHAPTERS.length + 1, Math.max(1, +(lsGet(LS_UNLOCK) || 1))); // 6 = 무한의 탑 열림
+const TOWER_ID = CHAPTERS.length + 1;
+// ---------- 성장 프로필 (골드·결정·현자의 돌·강화·연구·덱) ----------
+const STORE = { getItem: k => lsGet(k), setItem: (k, v) => lsSet(k, v) };
+const PROF = loadProfile(STORE);
+let lastSave = 0;
+function saveProf(force = false) {
+  const now = performance.now();
+  if (!force && now - lastSave < 2000) return;
+  lastSave = now; PROF.lastSeen = Date.now(); saveProfile(STORE, PROF);
+}
+// 게임에서 번 골드·결정을 프로필에 반영 (변화분만), 분당 골드 기록 (오프라인 보상 계산용)
+function commitEarnings(realDt) {
+  const g = ui.g, dg = g.gold - ui.commitGold, dc = g.crystals - ui.commitCrys;
+  if (dg > 0) { PROF.gold += dg; PROF.totalGold += dg; ui.commitGold = g.gold; ui.sessionGold += dg; }
+  if (dc > 0) { PROF.crystals += dc; ui.commitCrys = g.crystals; }
+  if (realDt) ui.sessionSec += realDt / 1000;
+  if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
+  saveProf();
+}
+export const APP_VERSION = 'v2.0.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -129,7 +152,7 @@ function drawBoard() {
   ctx.fillStyle = '#28324a'; ctx.fillRect(0, 0, w, pad);
   // 입구가 맨 윗줄이면 그 칸 위에 진입 표시 (맨 아래 입구는 칸 안 '입구' 표시만)
   if (PATH[0][1] === 0) pixelText(ctx, '▼ 고블린 진입', Math.min(w - 50, Math.max(50, PATH[0][0] * cw + cw / 2)), pad - 6, 10, '#9fe08a');
-  pixelText(ctx, `${g.chapter}. ${g.ch.name}`, w - 6, 16, 12, '#ffd34d', 'right');
+  pixelText(ctx, g.tower ? `♾ 무한의 탑 ${g.round}층` : `${g.chapter}. ${g.ch.name}`, w - 6, 16, 12, '#ffd34d', 'right');
   ctx.save(); ctx.translate(0, pad); // 이하 좌표는 판(5x5) 기준
   // 칸 이동 보간: 틱마다 바뀐 경로 위치(idx)를 짧은 시간 동안 부드럽게 이동
   // 일반: 틱의 60% 동안 이동. 느린 고블린(spd<1, 초대형): 다음 이동까지 쉬지 않고 천천히 걷도록 1/spd 틱에 걸쳐 이동
@@ -336,7 +359,8 @@ function renderQueue() {
 
 function renderHud() {
   const g = ui.g;
-  $('hRound').textContent = `${g.chapter}-${g.round}`;
+  $('hRound').textContent = g.tower ? `탑${g.round}` : `${g.chapter}-${g.round}`;
+  $('mGold').textContent = fmt(PROF.gold); $('mCrys').textContent = fmt(PROF.crystals); $('mStone').textContent = fmt(PROF.stones);
   $('hBase').textContent = g.baseHp;
   $('hBase').style.color = g.baseHp <= 5 ? 'var(--danger)' : '';
   $('hCount').textContent = `${slimeCount(g)}/${CFG.CAP}`;
@@ -347,7 +371,7 @@ function renderHud() {
   $('bCombo').classList.toggle('on', ui.combo);
   $('bCombo').textContent = ui.megaMode ? '취소' : ui.combo ? '조합 실행' : '조합';
   $('bMega').classList.toggle('on', !!ui.megaMode);
-  $('bMega').disabled = g.round < CFG.MEGA_ROUND;
+  $('bMega').disabled = !g.tower && g.round < CFG.MEGA_ROUND;
   $('bSpeed').textContent = `×${ui.speed}`;
   $('bPause').textContent = ui.paused ? '재개' : '정지';
   $('bPause').classList.toggle('on', ui.paused);
@@ -507,6 +531,11 @@ function bindModalBtn(id, take) {
   $(id).addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') fire(e); });
   $(id).addEventListener('click', () => fire());
 }
+// 유령 클릭 방지: 팝업 버튼이 손 뗄 때 실행된 직후, 휴대폰이 같은 자리에 보내는 click이
+// 새로 열린 팝업의 다른 버튼(예: 챕터 선택)을 누르지 않도록 잠깐 모든 click을 막는다
+document.addEventListener('click', e => {
+  if (performance.now() - lastModalFire < 450) { e.stopPropagation(); e.preventDefault(); }
+}, true);
 bindModalBtn('mOk', () => { const f = modalOk; modalOk = null; return f; });
 bindModalBtn('mAlt', () => { const f = modalAlt; modalAlt = null; return f; });
 
@@ -520,6 +549,59 @@ function showModal(title, html, opts = {}) {
   $('modal').classList.remove('hidden');
 }
 
+// ---------- 강화 화면 (강화 / 연구 / 환생) ----------
+function showUpgrades(tab = 'up', after = null) {
+  const tabs = `<div class="tabs">${[['up', '⬆ 강화'], ['res', '💎 연구'], ['pre', '🔮 환생']].map(([k, l]) => `<button class="btn ${k === tab ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>`;
+  let body = '';
+  if (tab === 'up') {
+    body = `<p style="color:var(--sub)">💰 ${fmt(PROF.gold)} 보유 · 강화는 진행 중인 게임에도 바로 적용됩니다.</p>` + Object.entries(UPGRADES).map(([k, u]) => {
+      const lv = PROF.upgrades[k], max = isMaxed(k, lv), cost = upgradeCost(k, lv);
+      return `<div class="uprow"><span class="ic">${u.icon}</span><span class="tx"><b>${u.name} Lv${lv}${u.max !== undefined ? `/${u.max}` : ''}</b><span>현재 ${u.desc(lv)}${max ? '' : ` → ${u.desc(lv + 1)}`}</span></span>
+        <button class="btn ${max || PROF.gold < cost ? 'cant' : ''}" data-buy="${k}">${max ? '최대' : `💰 ${fmt(cost)}`}</button></div>`;
+    }).join('');
+  } else if (tab === 'res') {
+    body = `<p style="color:var(--sub)">💎 ${fmt(PROF.crystals)} 보유 · 속성 연구 1레벨당 그 속성 슬라임 공격 +${Math.round(RESEARCH_PER * 100)}%. 원소 결정은 챕터 클리어, 탑 5층마다, 비밀 족보 첫 발견으로 얻습니다.</p>` +
+      Object.entries(ATTRS).map(([a, at]) => {
+        const lv = PROF.research[a], cost = researchCost(lv);
+        return `<div class="uprow"><span class="ic">${at.icon}</span><span class="tx"><b>${at.label} 연구 Lv${lv}</b><span>공격 +${Math.round(lv * RESEARCH_PER * 100)}%</span></span>
+          <button class="btn ${PROF.crystals < cost ? 'cant' : ''}" data-res="${a}">💎 ${cost}</button></div>`;
+      }).join('');
+  } else {
+    const gain = stoneGain(PROF);
+    body = `<p>환생하면 <b>골드와 골드 강화가 초기화</b>되고, 대신 <b>현자의 돌</b>을 받습니다. 현자의 돌 1개당 골드 획득 +20%, 슬라임 공격 +5% (영구).</p>
+      <p>유지되는 것: 속성 연구, 원소 결정, 덱, 챕터 진행, 비밀 족보, 탑 최고 기록</p>
+      <p>현재 🔮 ${PROF.stones}개 (골드 x${(1 + 0.2 * PROF.stones).toFixed(1)}, 공격 x${(1 + 0.05 * PROF.stones).toFixed(2)}) · 탑 최고 ${PROF.towerBest}층 · 환생 ${PROF.prestiges}회</p>
+      <p style="font-size:16px">지금 환생하면: <b>🔮 +${gain}</b> ${gain ? '' : `<span style="color:var(--sub)">(${PROF.towerBest < PRESTIGE_MIN_FLOOR ? `탑 ${PRESTIGE_MIN_FLOOR}층 필요` : '탑 최고 기록을 더 올려야 함'})</span>`}</p>
+      <button class="btn ${gain ? '' : 'cant'}" id="doPrestige" style="width:100%;min-height:48px">🔮 환생하기</button>`;
+  }
+  showModal('성장', tabs + body, { okText: '닫기', onOk: after });
+  for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => { closeModal(); showUpgrades(b.dataset.tab, after); };
+  const reopen = (r, t2) => { ui.msg = r.msg; if (r.ok) { saveProf(true); setMods(ui.g, modsOf(PROF)); } closeModal(); showUpgrades(t2, after); };
+  for (const b of document.querySelectorAll('[data-buy]')) b.onclick = () => reopen(buyUpgrade(PROF, b.dataset.buy), 'up');
+  for (const b of document.querySelectorAll('[data-res]')) b.onclick = () => reopen(buyResearch(PROF, b.dataset.res), 'res');
+  const pb = document.getElementById('doPrestige');
+  if (pb) pb.onclick = () => {
+    const r = prestige(PROF); ui.msg = r.msg;
+    if (r.ok) { saveProf(true); closeModal(); showModal('🔮 환생 완료', `<p>현자의 돌 <b>+${r.gain}</b> (총 ${PROF.stones}개)</p><p>모든 골드 획득 x${(1 + 0.2 * PROF.stones).toFixed(1)}, 슬라임 공격 x${(1 + 0.05 * PROF.stones).toFixed(2)}</p>`, { okText: '새로 시작', onOk: () => { newGame(1); showChapterSelect(); } }); }
+  };
+}
+
+// ---------- 덱 편성 ----------
+function showDeck() {
+  const cards = DECK_POOL.map(sym => {
+    const e = ELEMENTS.find(x => x.sym === sym), on = PROF.deck.includes(sym);
+    return `<button class="deckcard ${on ? 'on' : ''}" data-sym="${sym}"><img src="assets/slime_${sym}.png" alt="">${e.label || e.name}<small>${ATTRS[e.attr].icon}${ATTRS[e.attr].label}</small></button>`;
+  }).join('');
+  showModal(`덱 편성 (${PROF.deck.length}/${DECK_SIZE})`, `<p style="color:var(--sub)">지급받을 슬라임을 최대 ${DECK_SIZE}종 고르세요. 종류가 적을수록 같은 슬라임이 자주 나와 겹치기·조합이 잘 됩니다. 도전할 챕터 고블린의 약점 속성을 노리세요.</p><div class="deckgrid">${cards}</div>`, { okText: '완료' });
+  for (const b of document.querySelectorAll('[data-sym]')) b.onclick = () => {
+    const r = toggleDeck(PROF, b.dataset.sym);
+    if (!r.ok) { ui.msg = r.msg; $('mTitle').textContent = r.msg; return; }
+    saveProf(true); ui.g.deck = PROF.deck.slice(); closeModal(); showDeck();
+  };
+}
+$('bUpg').onclick = () => showUpgrades('up');
+$('bDeck').onclick = () => showDeck();
+
 // 챕터 선택 화면
 function showChapterSelect(canClose = false) {
   const open = unlocked();
@@ -530,7 +612,10 @@ function showChapterSelect(canClose = false) {
     return `<button class="chbtn" data-ch="${c.id}" ${locked ? 'disabled' : ''} style="border-color:${c.color}">
       <b>${locked ? '🔒' : c.id}. ${c.name}</b><span>${c.pathLabel} · 환경 ${atl(c.boost)}</span><span>${locked ? `챕터 ${c.id - 1} 클리어 시 열림` : rec}</span></button>`;
   }).join('');
-  showModal('챕터 선택', `<div class="chlist">${rows}</div>`, canClose ? { okText: '닫기' } : { noOk: true });
+  const towerOpen = open > CHAPTERS.length;
+  const towerRow = `<button class="chbtn" data-ch="${TOWER_ID}" ${towerOpen ? '' : 'disabled'} style="border-color:#c27bff">
+      <b>${towerOpen ? '♾' : '🔒'} 무한의 탑</b><span>층마다 강해지는 끝없는 도전 · 골드 대량 획득</span><span>${towerOpen ? `최고 ${PROF.towerBest}층` : '챕터 5 클리어 시 열림'}</span></button>`;
+  showModal('챕터 선택', `<div class="chlist">${rows}${towerRow}</div>`, canClose ? { okText: '닫기' } : { noOk: true });
   for (const b of document.querySelectorAll('.chbtn')) b.onclick = () => { closeModal(); newGame(+b.dataset.ch); };
 }
 
@@ -540,6 +625,7 @@ const foundJokes = () => { try { return new Set(JSON.parse(lsGet(LS_JOKES) || '[
 function discoverJoke(key, quiet = false) {
   const found = foundJokes(), j = JOKES.find(x => x.key === key); if (!j) return;
   const isNew = !found.has(key); found.add(key); lsSet(LS_JOKES, JSON.stringify([...found]));
+  if (isNew) { PROF.crystals += quiet ? 1 : 2; saveProf(true); } // 첫 발견 보상: 직접 2, 자동 1
   if (!isNew) return;
   if (quiet) { ui.msg = `🎉 비밀 족보 발견! ${j.label} ${j.name} (${found.size}/${JOKES.length})`; return; }
   const fx = j.onCreate?.baseHp ? `<p>🛟 거점 체력 +${j.onCreate.baseHp}!</p>` : j.onCreate?.catalysts ? `<p>🎁 선물: 촉매 +${j.onCreate.catalysts}!</p>` : '';
@@ -574,6 +660,7 @@ function showHelp(after = null) {
     <table><tr><th>슬라임</th><th>속성</th><th>효과</th><th>해금</th></tr>${els}</table>
     <table><tr><th>화합물</th><th>족보</th><th>효과</th></tr>${rec}</table>
     <p><b>🤖 자동</b>: 켜 두면 끌 때까지 매초 필드·덱 전체를 분석해 가장 이득이 큰 행동(겹치기, 카드 배치, 비밀 족보·화학 족보·속성 합성, 메가)을 자동으로 합니다. 이번 라운드 고블린의 약점·내성과 경로 앞쪽 칸을 우선 고려합니다.</p>
+    <p><b>⬆ 성장</b>: 고블린을 잡으면 💰골드, 챕터 클리어·탑 5층마다 💎원소 결정을 얻습니다. 골드로 <b>강화</b>(공격·체력·지급 속도·촉매·거점·시작 슬라임), 결정으로 <b>속성 연구</b>를 하세요. <b>덱</b>에서 지급받을 슬라임 8종을 고릅니다. 챕터 5를 깨면 <b>무한의 탑</b>이 열리고, 탑 ${PRESTIGE_MIN_FLOOR}층부터 <b>환생</b>으로 🔮현자의 돌(영구 배율)을 받을 수 있습니다. 앱을 닫아 둔 시간만큼 <b>오프라인 보상</b>이 쌓입니다(최대 8시간). 보스 라운드를 자동 없이 직접 깨면 보상 1.5배.</p>
     <p><b>챕터</b>: 5개 챕터 × 10라운드. 챕터마다 경로 모양, 환경 효과(속성 강화·약화), 주력 고블린이 다릅니다. 챕터를 클리어하면 다음 챕터가 열립니다. 상단의 <b>챕터-라운드</b>를 누르면 챕터를 고를 수 있습니다.</p>
     <table><tr><th>고블린</th><th>약점</th><th>내성</th><th>거점</th></tr>${gbs}</table>`, { onOk: after });
 }
@@ -597,16 +684,25 @@ function checkEnd() {
   const g = ui.g; if (ui.endShown) return;
   if (g.phase === 'over' || g.phase === 'won') {
     ui.endShown = true;
+    commitEarnings(0); saveProf(true);
+    const earned = `<p>획득: 💰 ${fmt(g.gold)} · 💎 ${g.crystals}</p>`;
+    if (g.tower) {
+      const prev = PROF.towerBest; PROF.towerBest = Math.max(PROF.towerBest, g.round); saveProf(true);
+      showModal(`무한의 탑 ${g.round}층`, `<p>도달 <b>${g.round}층</b> · 최고 기록 <b>${PROF.towerBest}층</b>${g.round > prev ? ' (신기록!)' : ''}</p>${earned}
+        <p style="color:var(--sub)">강화로 더 높이 오르세요. ${PROF.towerBest >= PRESTIGE_MIN_FLOOR ? `환생하면 현자의 돌 ${stoneGain(PROF)}개를 받습니다.` : `${PRESTIGE_MIN_FLOOR}층부터 환생할 수 있습니다.`}</p>`,
+        { okText: '다시 도전', onOk: () => newGame(TOWER_ID), altText: '⬆ 강화', onAlt: () => showUpgrades('up', () => newGame(TOWER_ID)) });
+      return;
+    }
     const won = g.phase === 'won', n = g.chapter;
     const best = Math.max(+(lsGet(lsBest(n)) || 0), won ? CFG.ROUNDS + 1 : g.round);
     lsSet(lsBest(n), String(best));
-    const next = won && n < CHAPTERS.length ? n + 1 : 0;
+    const next = won ? n + 1 : 0; // 챕터 5 다음은 무한의 탑
     if (next && unlocked() < next) lsSet(LS_UNLOCK, String(next));
     const body = `<p>챕터 ${n} <b>${g.ch.name}</b> · 도달 라운드 <b>${g.round}</b> · 처치 <b>${g.kills}</b> · 남은 거점 <b>${g.baseHp}</b></p>
       <p>최고 기록: ${best > CFG.ROUNDS ? '클리어' : `라운드 ${best}`}</p>
-      ${next ? `<p>🔓 챕터 ${next} <b>${CHAPTERS[next - 1].name}</b>이(가) 열렸습니다!</p>` : won ? '<p>🏆 모든 챕터를 클리어했습니다!</p>' : ''}`;
-    if (won) showModal(`챕터 ${n} 클리어!`, body, { okText: next ? `챕터 ${next} 시작` : '챕터 선택', onOk: () => (next ? newGame(next) : showChapterSelect()), altText: '챕터 선택', onAlt: () => showChapterSelect() });
-    else showModal('거점 함락', body, { okText: '다시 하기', onOk: () => newGame(n), altText: '챕터 선택', onAlt: () => showChapterSelect() });
+      ${earned}${next > CHAPTERS.length ? '<p>🔓 <b>무한의 탑</b>이 열렸습니다!</p>' : next ? `<p>🔓 챕터 ${next} <b>${CHAPTERS[next - 1].name}</b>이(가) 열렸습니다!</p>` : ''}`;
+    if (won) showModal(`챕터 ${n} 클리어!`, body, { okText: next > CHAPTERS.length ? '무한의 탑 도전' : `챕터 ${next} 시작`, onOk: () => newGame(next), altText: '⬆ 강화', onAlt: () => showUpgrades('up', () => showChapterSelect()) });
+    else showModal('거점 함락', body + '<p style="color:var(--sub)">번 골드로 강화하고 다시 도전하세요.</p>', { okText: '다시 하기', onOk: () => newGame(n), altText: '⬆ 강화', onAlt: () => showUpgrades('up', () => newGame(n)) });
   }
 }
 
@@ -626,12 +722,15 @@ function frame(t) {
       ui.comboList = ui.comboList.filter(p => getCell(g, p.x, p.y, p.z));
     }
   }
+  commitEarnings(!ui.paused && !modalOpen && !document.hidden ? dt : 0);
   render(); checkEnd();
   requestAnimationFrame(frame);
 }
 
 function newGame(chapter = ui.g?.chapter || 1) {
-  ui.g = createGame((Date.now() ^ (Math.random() * 1e9)) >>> 0, { chapter });
+  const tower = chapter >= TOWER_ID;
+  ui.g = createGame((Date.now() ^ (Math.random() * 1e9)) >>> 0, { chapter: tower ? 1 : chapter, tower: tower ? 1 : 0, mods: modsOf(PROF), deck: PROF.deck.slice() });
+  ui.commitGold = 0; ui.commitCrys = 0;
   rebuildPathIdx(); ui.anim.clear(); ui.hpPrev.clear(); ui.hitUntil.clear(); ui.puffs = [];
   $('queue').dataset.ids = '';
   ui.sel = null; ui.combo = false; ui.megaMode = false; ui.comboList = []; ui.acc = 0; ui.endShown = false; ui.msg = ''; ui.floats = [];
@@ -644,8 +743,18 @@ window.__esd = { ui, lvMult };
 if (lsGet(LS_BEST) && !lsGet(lsBest(1))) lsSet(lsBest(1), lsGet(LS_BEST));
 newGame(Math.min(unlocked(), 1)); resize();
 loadAssets().then(() => { $('queue').dataset.ids = ''; render(); });
-if (!lsGet('esd.seenHelp')) { lsSet('esd.seenHelp', '1'); showHelp(() => showChapterSelect()); }
-else showChapterSelect();
+ui.sessionGold = 0; ui.sessionSec = 0;
+const off = offlineReward(PROF);
+const afterIntro = () => {
+  if (off.gold > 0) {
+    PROF.gold += off.gold; saveProf(true);
+    showModal('💤 오프라인 보상', `<p>자리를 비운 <b>${Math.floor(off.sec / 3600)}시간 ${Math.floor((off.sec % 3600) / 60)}분</b> 동안 슬라임들이 일했습니다.</p><p style="font-size:20px">💰 +${fmt(off.gold)}</p><p style="color:var(--sub)">최근 분당 골드의 50%, 최대 8시간</p>`, { okText: '받기', onOk: () => showChapterSelect() });
+  } else showChapterSelect();
+};
+if (!lsGet('esd.seenHelp')) { lsSet('esd.seenHelp', '1'); showHelp(afterIntro); }
+else afterIntro();
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveProf(true); });
+window.addEventListener('pagehide', () => saveProf(true));
 // HUD의 챕터-라운드를 누르면 챕터 선택 (진행 중이면 포기 확인)
 $('hRound').parentElement.style.cursor = 'pointer';
 $('hRound').parentElement.onclick = () => {

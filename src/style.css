@@ -69,3 +69,23 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .modal #mBody { overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; }
 .modal .mbtns { flex: 0 0 auto; padding-top: 10px; border-top: 1px solid var(--line); }
 .modal .mbtns .btn { min-height: 54px; font-size: 16px; touch-action: manipulation; }
+/* 성장(메타) */
+.metabar { display: flex; align-items: center; gap: 8px; background: #222a3a; border: 2px solid var(--line); border-radius: 10px; padding: 4px 8px; }
+.metabar .res { display: flex; align-items: center; gap: 3px; font-weight: 800; font-size: 14px; min-width: 0; }
+.metabar .res b { font-size: 13px; }
+.metabar .btn { margin-left: auto; min-height: 34px; padding: 0 10px; }
+.metabar .btn + .btn { margin-left: 0; }
+.tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.tabs .btn { flex: 1; min-height: 38px; }
+.uprow { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.uprow .ic { font-size: 22px; width: 30px; text-align: center; }
+.uprow .tx { flex: 1; min-width: 0; font-size: 13px; }
+.uprow .tx b { display: block; font-size: 14px; }
+.uprow .tx span { color: var(--sub); font-size: 12px; }
+.uprow .btn { min-height: 42px; min-width: 92px; font-size: 13px; }
+.uprow .btn.cant { opacity: .45; }
+.deckgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.deckcard { background: #263046; border: 2px solid var(--line); border-radius: 8px; padding: 4px; text-align: center; font-size: 12px; color: var(--text); font: inherit; cursor: pointer; }
+.deckcard img { width: 100%; image-rendering: pixelated; }
+.deckcard.on { border-color: #6be08a; box-shadow: 0 0 0 2px #6be08a inset; }
+.deckcard small { display: block; color: var(--sub); }

@@ -1,5 +1,5 @@
 // 헤드리스 게임 엔진 (DOM 의존 없음, Node에서 시뮬레이션 가능)
-import { CFG, STATUS, ELEMENTS, RECIPES, FUSIONS, JOKES, ATTRS, GOBLINS, CHAPTERS, buildPath } from './data.js';
+import { CFG, STATUS, ELEMENTS, RECIPES, FUSIONS, JOKES, ATTRS, GOBLINS, CHAPTERS, TOWER, buildPath } from './data.js';
 
 // 경로는 챕터마다 바뀐다. 다른 모듈이 같은 배열을 참조하므로 내용만 교체한다
 export const PATH = buildPath('rows');
@@ -18,17 +18,20 @@ function mulberry32(a) {
 }
 
 export function createGame(seed = Date.now(), opts = {}) {
-  const chapter = Math.min(CHAPTERS.length, Math.max(1, opts.chapter || 1));
-  const ch = CHAPTERS[chapter - 1];
+  const tower = opts.tower ? Math.max(1, opts.tower) : 0;   // 무한의 탑 시작 층 (0 = 일반 챕터)
+  const chapter = tower ? CHAPTERS.length + 1 : Math.min(CHAPTERS.length, Math.max(1, opts.chapter || 1));
+  const ch = tower ? TOWER : CHAPTERS[chapter - 1];
   setPath(ch.path);
+  const mods = { ...DEFAULT_MODS, ...(opts.mods || {}) };
   const s = {
-    seed, rng: mulberry32(seed), tick: 0, round: 1, phase: 'prep', prepLeft: CFG.FIRST_PREP,
-    baseHp: CFG.BASE_HP, catalysts: CFG.CATALYST_START,
+    seed, rng: mulberry32(seed), tick: 0, round: tower || 1, phase: 'prep', prepLeft: CFG.FIRST_PREP,
+    baseHp: mods.baseHp, catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
+    gold: 0, crystals: 0, dropAcc: 0, autoRounds: new Set(),
     cells: Array.from({ length: CFG.D }, () => Array.from({ length: CFG.H }, () => Array(CFG.W).fill(null))),
     queue: [], goblins: [], spawnList: [], megas: [], nextId: 1, kills: 0, lost: 0,
     log: [], fx: [], counts: {}, autoField: opts.autoField ?? CFG.AUTO_FIELD, chapter, ch,
   };
-  for (let i = 0; i < CFG.START_SLIMES; i++) addQueue(s);
+  for (let i = 0; i < mods.startSlimes; i++) addQueue(s);
   say(s, s.autoField ? '준비 단계: 슬라임이 필드에 랜덤 배치됩니다. 끌어서 겹치거나 옮기세요.' : '준비 단계: 슬라임을 배치하세요.');
   return s;
 }
@@ -38,10 +41,11 @@ const err = msg => ({ ok: false, msg });
 const ok = (msg = '') => ({ ok: true, msg });
 
 // ---------- 슬라임 생성/능력치 ----------
+// 슬라임 능력치 (s = 슬라임). modAtk·modHp = 강화·연구 보정
 function recalc(s) {
   const m = lvMult(s.lv);
-  s.maxhp = Math.max(1, Math.round(s.base.hp * m * s.kindMul));
-  s.atk = s.base.atk * m * s.kindMul;
+  s.maxhp = Math.max(1, Math.round(s.base.hp * m * s.kindMul * (s.modHp || 1)));
+  s.atk = s.base.atk * m * s.kindMul * (s.modAtk || 1);
   s.def = s.base.def * (1 + 0.25 * (s.lv - 1));
   s.hp = s.maxhp;
 }
@@ -53,7 +57,7 @@ function makeElement(s, sym, lv = 1) {
     base: { hp: e.hp, atk: e.atk, def: e.def }, status: [e.st], kindMul: 1,
     color: e.color, color2: null, cd: 0, sealed: 0,
   };
-  recalc(sl); return sl;
+  applySlimeMods(s, sl); recalc(sl); return sl;
 }
 
 function makeCompound(s, rec, lv) {
@@ -63,7 +67,7 @@ function makeCompound(s, rec, lv) {
     base: { hp: rec.hp, atk: rec.atk, def: rec.def }, status: [rec.st], kindMul: CFG.COMPOUND_MUL,
     color: rec.color, color2: null, cd: 0, sealed: 0,
   };
-  recalc(sl); return sl;
+  applySlimeMods(s, sl); recalc(sl); return sl;
 }
 
 function makeMixture(s, counts, lv) {
@@ -81,7 +85,7 @@ function makeMixture(s, counts, lv) {
     base, status: top.map(t => EL[t].st), kindMul: CFG.MIXTURE_MUL,
     color: EL[top[0]].color, color2: EL[top[top.length - 1]].color, cd: 0, sealed: 0,
   };
-  recalc(sl); return sl;
+  applySlimeMods(s, sl); recalc(sl); return sl;
 }
 
 function makeFusion(s, fu, lv) {
@@ -90,7 +94,7 @@ function makeFusion(s, fu, lv) {
     base: { hp: fu.hp, atk: fu.atk, def: fu.def }, status: fu.st, kindMul: CFG.FUSION_MUL,
     pierce: !!fu.pierce, decay: !!fu.decay, color: fu.color, color2: ATTRS[fu.pair[1]].color, cd: 0, sealed: 0,
   };
-  recalc(sl); return sl;
+  applySlimeMods(s, sl); recalc(sl); return sl;
 }
 function makeJoke(s, j, lv) {
   const syms = Object.keys(j.need);
@@ -100,16 +104,31 @@ function makeJoke(s, j, lv) {
     base: { hp: j.hp, atk: j.atk, def: j.def }, status: j.st, kindMul: CFG.JOKE_MUL,
     healAura: j.healAura || 0, color: j.color, color2: null, cd: 0, sealed: 0,
   };
-  recalc(sl); return sl;
+  applySlimeMods(s, sl); recalc(sl); return sl;
 }
 const sameCounts = (a, b) => { const k = new Set([...Object.keys(a), ...Object.keys(b)]); for (const x of k) if ((a[x] || 0) !== (b[x] || 0)) return false; return true; };
 
 const fusionOf = (a, b) => FUSIONS.find(f => (f.pair[0] === a && f.pair[1] === b) || (f.pair[0] === b && f.pair[1] === a)) || null;
 
+// 강화(공격·체력) + 속성 연구(슬라임 속성들의 평균 배율)
+export const DEFAULT_MODS = { atk: 1, hp: 1, attrAtk: {}, dropEvery: CFG.DROP_EVERY, catPerRound: 1, baseHp: CFG.BASE_HP, startSlimes: CFG.START_SLIMES, goldMul: 1 };
+function applySlimeMods(s, sl) {
+  const at = sl.attrs.length ? sl.attrs.reduce((a, k) => a + (s.mods.attrAtk[k] || 1), 0) / sl.attrs.length : 1;
+  sl.modAtk = s.mods.atk * at; sl.modHp = s.mods.hp;
+}
+// 게임 중 강화를 사면 즉시 반영 (필드 슬라임 재계산·회복, 거점 체력 증가분 추가)
+export function setMods(s, mods) {
+  const prevBase = s.mods.baseHp;
+  s.mods = { ...DEFAULT_MODS, ...mods };
+  for (const sl of s.cells.flat(2)) if (sl) { applySlimeMods(s, sl); recalc(sl); }
+  if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += s.mods.baseHp - prevBase;
+}
+
 // ---------- 지급 큐 ----------
 // 슬라임 지급: 필드에 빈칸이 있으면 빈칸에 랜덤 배치, 필드가 가득 차면 덱(큐)에 쌓는다
 function addQueue(s) {
-  const pool = ELEMENTS.filter(e => s.ch.unlockAll || e.unlock <= s.round);
+  let pool = ELEMENTS.filter(e => s.ch.unlockAll || e.unlock <= s.round);
+  if (s.deck && s.deck.length) { const d = pool.filter(e => s.deck.includes(e.sym)); if (d.length) pool = d; } // 덱 편성
   const e = pool[Math.floor(s.rng() * pool.length)];
   if (s.autoField) {
     const empty = [];
@@ -250,7 +269,7 @@ export function combine(s, list) {
 }
 
 export function makeMega(s, list) {
-  if (s.round < CFG.MEGA_ROUND) return err(`메가 슬라임은 ${CFG.MEGA_ROUND}라운드부터 사용 가능합니다.`);
+  if (s.round < CFG.MEGA_ROUND && !s.tower) return err(`메가 슬라임은 ${CFG.MEGA_ROUND}라운드부터 사용 가능합니다.`);
   if (list.length !== 3) return err('Lv5 동일 원소 슬라임 3개를 선택하세요.');
   const sl = list.map(p => getCell(s, p.x, p.y, p.z));
   if (sl.some(c => !c || c.kind !== 'element' || c.lv < CFG.MAX_LV)) return err('Lv5 원소 슬라임만 가능합니다.');
@@ -259,7 +278,7 @@ export function makeMega(s, list) {
   const zx = Math.min(Math.max(list[0].x - 1, 0), CFG.W - 3), zy = Math.min(Math.max(list[0].y - 1, 0), CFG.H - 3);
   const mega = {
     id: s.nextId++, kind: 'mega', key: sl[0].key + 'M', label: e.label || sl[0].key, name: `메가 ${e.name}`, els: [sl[0].key], attrs: [e.attr], lv: 6,
-    maxhp: Math.round(3 * e.hp * m * CFG.MEGA_MUL * 2), atk: e.atk * m * CFG.MEGA_ATK,
+    maxhp: Math.round(3 * e.hp * m * CFG.MEGA_MUL * 2 * s.mods.hp), atk: e.atk * m * CFG.MEGA_ATK * s.mods.atk * (s.mods.attrAtk[e.attr] || 1),
     def: e.def * (1 + 0.25 * (CFG.MAX_LV - 1)) * 1.5, status: [e.st], color: e.color, zx, zy, cd: 0, sealed: 0,
   };
   mega.hp = mega.maxhp;
@@ -341,7 +360,7 @@ function bestAutoAction(s) {
       if (els[i].sl.attrs[0] !== els[j].sl.attrs[0]) tryList([els[i], els[j]]);
   }
   // 4) 메가: Lv5 같은 원소 3개 (가장 앞쪽 3개)
-  if (s.round >= CFG.MEGA_ROUND) {
+  if (s.round >= CFG.MEGA_ROUND || s.tower) {
     const by = {};
     for (const c of filled) if (c.sl.kind === 'element' && c.sl.lv === CFG.MAX_LV) (by[c.sl.key] ||= []).push(c);
     for (const k in by) if (by[k].length >= 3) {
@@ -360,6 +379,7 @@ export function autoPlay(s, maxActions = 4) {
     const a = bestAutoAction(s); if (!a) break;
     const r = a.run(); if (!r || !r.ok) break;
     done.push({ msg: r.msg || a.msg, joke: r.joke || null });
+    s.autoRounds.add(s.round);
   }
   return done;
 }
@@ -369,19 +389,36 @@ export function skipPrep(s) {
   return err('이미 진행 중입니다.');
 }
 
+// 골드: 기준값 x 라운드(층) 성장 x 챕터 배율 x 현자의 돌
+function goldFor(s, base) {
+  const prog = s.tower ? 1 + 0.2 * (CFG.ROUNDS - 1) : 1 + 0.2 * (s.round - 1);
+  const chMul = s.tower ? s.ch.goldMul * Math.pow(CFG.TOWER_GOLD_GROWTH, s.round - 1) : s.ch.goldMul;
+  return Math.round(base * prog * chMul * s.mods.goldMul * CFG.GOLD_SCALE);
+}
+// 무한의 탑 층별 편성: 모든 종류 섞임, 층이 오를수록 수·오우거 증가
+export function towerRound(floor) {
+  const total = Math.min(60, 34 + floor), giants = Math.min(10, 2 + Math.floor(floor / 3));
+  const types = Object.keys(GOBLINS).filter(k => k !== 'giant'), each = Math.floor((total - giants) / types.length);
+  const row = types.map(k => [k, each]); row[0][1] += total - giants - each * types.length;
+  row.push(['giant', giants]);
+  return row;
+}
+
 // ---------- 고블린 ----------
 function buildSpawn(s, round) {
-  const groups = s.ch.rounds[round - 1].map(([t, n]) => Array(n).fill(t));
+  const table = s.tower ? towerRound(round) : s.ch.rounds[round - 1];
+  const groups = table.map(([t, n]) => Array(n).fill(t));
   const out = []; let more = true;
   while (more) { more = false; for (const g of groups) if (g.length) { out.push(g.shift()); more = true; } }
   return out;
 }
 
 function makeGoblin(s, type) {
-  const d = GOBLINS[type], r = s.round - 1;
+  const d = GOBLINS[type], r = s.tower ? CFG.ROUNDS - 1 : s.round - 1;
   // 챕터 배율은 라운드가 갈수록 커진다: 1라운드 30% 적용 -> 10라운드 100% (초반 붕괴 방지)
   const ramp = 0.3 + 0.7 * (r / (CFG.ROUNDS - 1));
-  const hpMul = 1 + (s.ch.hpMul - 1) * ramp, atkMul = 1 + (s.ch.atkMul - 1) * ramp;
+  const towerMul = s.tower ? Math.pow(CFG.TOWER_GROWTH, s.round - 1) : 1; // 무한의 탑: 층마다 성장
+  const hpMul = (1 + (s.ch.hpMul - 1) * ramp) * towerMul, atkMul = (1 + (s.ch.atkMul - 1) * ramp) * Math.sqrt(towerMul);
   const hp = Math.round(d.hp * Math.pow(CFG.HP_GROWTH, r) * hpMul);
   return {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
@@ -431,6 +468,7 @@ function hurt(s, g, dmg, aff = 1) {
   g.hp -= dmg; s.fx.push({ k: 'dmg', idx: g.idx, v: Math.round(dmg), who: 'g', aff });
   if (g.hp <= 0) {
     g.dead = true; s.kills++; s.fx.push({ k: 'kill', idx: g.idx, type: g.type });
+    s.gold += goldFor(s, (g.leak + 1));
     if (g.feast) { // 요리사: 쓰러지면서 앞뒤 2칸 고블린에게 음식 -> 회복 + 공격 +20%
       for (const o of s.goblins) if (!o.dead && Math.abs(o.idx - g.idx) <= 2) {
         o.hp = Math.min(o.maxhp, o.hp + o.maxhp * g.feast); o.atkBuff = 1.2;
@@ -581,7 +619,8 @@ function actMega(s, m) {
 export function step(s) {
   if (s.phase === 'over' || s.phase === 'won') return;
   s.fx = []; s.tick++;
-  if (s.tick % CFG.DROP_EVERY === 0 && !addQueue(s)) say(s, '덱이 가득 차 카드 1장이 버려졌습니다.');
+  s.dropAcc += 1; // 지급 속도 강화: 간격이 소수(2.5초 등)여도 누적으로 처리
+  while (s.dropAcc >= s.mods.dropEvery) { s.dropAcc -= s.mods.dropEvery; if (!addQueue(s)) say(s, '덱이 가득 차 카드 1장이 버려졌습니다.'); }
   if (s.phase === 'prep') {
     s.prepLeft--; if (s.prepLeft <= 0) startRound(s);
     return;
@@ -617,9 +656,19 @@ export function step(s) {
 
   if (s.baseHp <= 0) { s.baseHp = 0; s.phase = 'over'; say(s, '거점이 함락되었습니다…'); return; }
   if (!s.spawnList.length && !s.goblins.length) {
-    if (s.round >= CFG.ROUNDS) { s.phase = 'won'; say(s, `챕터 ${s.chapter} ${s.ch.name} 클리어!`); return; }
-    s.round++; s.phase = 'prep'; s.prepLeft = CFG.PREP_TICKS; s.catalysts++;
+    // 라운드 보상: 골드, 보스(10라운드)를 자동 없이 직접 깨면 1.5배
+    const boss = !s.tower && s.round >= CFG.ROUNDS, manual = boss && !s.autoRounds.has(s.round);
+    const g0 = Math.round(goldFor(s, 6 * s.round) * (manual ? 1.5 : 1));
+    s.gold += g0;
+    if (s.tower) {
+      if (s.round % 5 === 0) { s.crystals += 1; say(s, `탑 ${s.round}층 돌파! 원소 결정 +1`); }
+    } else if (boss) {
+      const c = s.chapter * (manual ? 1.5 : 1);
+      s.crystals += Math.round(c);
+      s.phase = 'won'; say(s, `챕터 ${s.chapter} ${s.ch.name} 클리어! 골드 +${g0}, 원소 결정 +${Math.round(c)}${manual ? ' (직접 지휘 1.5배)' : ''}`); return;
+    }
+    s.round++; s.phase = 'prep'; s.prepLeft = s.tower ? CFG.TOWER_PREP : CFG.PREP_TICKS; s.catalysts += s.mods.catPerRound;
     for (let i = 0; i < CFG.ROUND_BONUS_SLIMES; i++) addQueue(s);
-    say(s, `라운드 ${s.round - 1} 클리어! 보너스 슬라임 +${CFG.ROUND_BONUS_SLIMES}, 촉매 +1`);
+    say(s, `${s.tower ? `탑 ${s.round - 1}층` : `라운드 ${s.round - 1}`} 클리어! 골드 +${g0}, 촉매 +${s.mods.catPerRound}`);
   }
 }

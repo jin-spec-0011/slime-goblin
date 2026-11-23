@@ -1,6 +1,8 @@
 // 핵심 규칙 단위 테스트: node tools/test.mjs
 import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS, JOKES } from '../src/data.js';
 import { existsSync } from 'node:fs';
+import * as META from '../src/meta.js';
+import { setMods } from '../src/engine.js';
 import { createGame, step, affinity, autoPlay, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
 // 기존 규칙 테스트는 빈 필드를 전제로 하므로 자동 배치를 끄고 실행
@@ -165,6 +167,37 @@ t('거점 0 → 패배', s.phase === 'over');
   const g = createGame(54, { chapter: 1 }); let n = 0;
   while (g.phase !== 'over' && g.phase !== 'won' && n++ < 3000) { autoPlay(g); step(g); }
   t('자동: 챕터 1 방치 플레이가 끝까지 진행', g.phase === 'won' || g.phase === 'over');
+}
+// 성장(메타) 시스템
+{
+  const p = META.newProfile(); p.gold = 1000;
+  const c0 = META.upgradeCost('atk', 0);
+  t('강화 구매: 골드 차감 + 레벨업', META.buyUpgrade(p, 'atk').ok && p.upgrades.atk === 1 && p.gold === 1000 - c0);
+  t('강화 비용은 레벨마다 증가', META.upgradeCost('atk', 5) > META.upgradeCost('atk', 4));
+  p.upgrades.drop = 4; t('최대 레벨 강화는 구매 불가', !META.buyUpgrade(p, 'drop').ok);
+  const g1 = createGame(61, { chapter: 1, autoField: false });
+  const g2 = createGame(61, { chapter: 1, autoField: false, mods: META.modsOf({ ...META.newProfile(), upgrades: { ...META.newProfile().upgrades, atk: 10 } }) });
+  put(g1, 'FIRE', 0, 0, 0); put(g2, 'FIRE', 0, 0, 0);
+  t('공격력 강화 10레벨 = 슬라임 공격 2배', Math.abs(getCell(g2, 0, 0, 0).atk / getCell(g1, 0, 0, 0).atk - 2) < 0.01);
+  const prof = META.newProfile(); prof.upgrades.hp = 5; setMods(g1, META.modsOf(prof));
+  t('게임 중 강화 즉시 반영 (체력 +50%)', Math.abs(getCell(g1, 0, 0, 0).maxhp / getCell(g2, 0, 0, 0).maxhp - 1.5) < 0.05);
+  const d = createGame(62, { chapter: 2, deck: ['FIRE', 'WATER', 'ELEC', 'N'] });
+  for (let i = 0; i < 60; i++) step(d);
+  t('덱 편성: 덱에 있는 슬라임만 지급', d.cells.flat(2).filter(Boolean).every(sl => ['FIRE', 'WATER', 'ELEC', 'N'].includes(sl.key) || sl.kind !== 'element') && d.queue.every(q => ['FIRE', 'WATER', 'ELEC', 'N'].includes(q.sym)));
+  const tw = createGame(63, { tower: 1, autoField: false }); tw.prepLeft = 1; step(tw); tw.spawnList = []; tw.goblins = []; step(tw);
+  t('무한의 탑: 층을 깨면 다음 층으로 (끝나지 않음)', tw.tower && tw.round === 2 && tw.phase === 'prep');
+  const w1 = createGame(64, { tower: 1 }), w9 = createGame(64, { tower: 9 });
+  for (const w of [w1, w9]) { w.prepLeft = 1; step(w); w.spawnList = ['fighter']; step(w); }
+  t('무한의 탑: 높은 층 고블린이 더 강함', w9.goblins[0].maxhp > w1.goblins[0].maxhp * 2);
+  const pr = META.newProfile(); pr.towerBest = 20; pr.gold = 999; pr.upgrades.atk = 7; pr.research.fire = 2;
+  const r = META.prestige(pr);
+  t('환생: 현자의 돌 획득, 골드·강화 초기화, 연구 유지', r.ok && pr.stones === 8 && pr.gold === 0 && pr.upgrades.atk === 0 && pr.research.fire === 2);
+  t('환생: 같은 기록으로 반복 환생 불가', !META.prestige(pr).ok);
+  const of = META.newProfile(); of.goldRate = 120; of.lastSeen = Date.now() - 3600 * 1000;
+  t('오프라인 보상: 1시간 x 분당 120 x 50% = 3600', META.offlineReward(of).gold === 3600);
+  t('숫자 줄임 표시', META.fmt(1234) === '1.2K' && META.fmt(2500000) === '2.5M' && META.fmt(999) === '999');
+  const gg = createGame(65, { chapter: 1 }); let n2 = 0; while (gg.phase !== 'over' && gg.phase !== 'won' && n2++ < 3000) { autoPlay(gg); step(gg); }
+  t('챕터 플레이로 골드 획득', gg.gold > 0);
 }
 // 챕터: 경로 유효성, 라운드 수, 난이도 상승, 환경 효과
 for (const c of CHAPTERS) {

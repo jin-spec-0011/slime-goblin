@@ -1,8 +1,9 @@
 import { createGame, step, placeFromQueue, moveSlime, getCell, slimeCount, makeMega, skipPrep, autoPlay, PATH } from '../src/engine.js';
 import { CFG } from '../src/data.js';
+import { newProfile, modsOf, UPGRADES } from '../src/meta.js';
 
 // 단순 AI: 같은 원소에 겹치기 우선, 없으면 경로 앞쪽 칸부터 배치
-// 사용: node tools/sim.mjs <판수> [strong|weak|auto] [챕터] [--speed=3] [--apm=30]
+// 사용: node tools/sim.mjs <판수> [strong|weak|auto] [챕터] [--speed=3] [--apm=30] [--up=N] [--res=N] [--tower=1]
 //  auto: 게임의 자동 조합 모드를 켜고 방치 (조작 속도 제한 없음)
 //  게임 규칙은 틱 단위라 배속과 무관하다. 배속이 바꾸는 것은 '사람이 조작할 수 있는 실제 시간'이므로
 //  사람의 분당 행동 수(APM)를 실제 시간 기준으로 제한해 배속 효과를 재현한다. --apm=0 이면 제한 없음.
@@ -11,6 +12,20 @@ const MODE = process.argv[3] || 'strong';
 const CHAPTER = +process.argv[4] || 1;
 const opt = (k, d) => { const a = process.argv.find(x => x.startsWith(`--${k}=`)); return a ? +a.split('=')[1] : d; };
 const SPEED = opt('speed', 3), APM = opt('apm', 30);
+// 성장 검증: --up=N 골드 강화 전부 N레벨(최대치 제한), --res=N 속성 연구 전부 N레벨, --tower=1 무한의 탑
+const UP = opt('up', 0), RES = opt('res', 0), TOWER = opt('tower', 0);
+export function modsAt(up, res) {
+  const p = newProfile();
+  for (const k of Object.keys(p.upgrades)) p.upgrades[k] = UPGRADES[k].max !== undefined ? Math.min(UPGRADES[k].max, up) : up;
+  for (const k of Object.keys(p.research)) p.research[k] = res;
+  return modsOf(p);
+}
+function profileMods() {
+  const p = newProfile();
+  for (const k of Object.keys(p.upgrades)) p.upgrades[k] = UPGRADES[k].max !== undefined ? Math.min(UPGRADES[k].max, UP) : UP;
+  for (const k of Object.keys(p.research)) p.research[k] = RES;
+  return modsOf(p);
+}
 // 틱(게임 1초)당 행동 가능 횟수 = (APM/60) x 틱의 실제 시간(1초/배속)
 const PER_TICK = APM > 0 ? (APM / 60) * (CFG.TICK_MS / 1000) / SPEED : Infinity;
 const BANK_MAX = 3; // 쌓아둘 수 있는 행동 수 (사람은 행동을 무한히 모아두지 못함)
@@ -52,10 +67,10 @@ function ai(s, weak = WEAK) {
 }
 
 // 한 묶음 실행 (튜닝 스크립트에서도 사용)
-export function runBatch(n, chapter, weak) { // weak: false|true|'auto'
+export function runBatch(n, chapter, weak, modsOverride = null) { // weak: false|true|'auto'
   let wins = 0, stalls = 0; const reach = Array(11).fill(0); const hpLeft = [];
   for (let seed = 1; seed <= n; seed++) {
-    const s = createGame(seed, { chapter });
+    const s = createGame(seed, { chapter, mods: modsOverride || profileMods(), deck: newProfile().deck }); // 기본 덱 8종
     let t = 0;
     while (s.phase !== 'over' && s.phase !== 'won' && t++ < 3000) { if (weak === 'auto') autoPlay(s); else ai(s, weak); step(s); }
     if (s.phase === 'won') { wins++; hpLeft.push(s.baseHp); } else if (s.phase !== 'over') stalls++;
@@ -66,11 +81,12 @@ export function runBatch(n, chapter, weak) { // weak: false|true|'auto'
 
 if (process.argv[1] && process.argv[1].endsWith('sim.mjs')) {
   const N = +process.argv[2] || 30;
-  let wins = 0, stalls = 0; const reach = Array(11).fill(0); const hpLeft = [];
+  let wins = 0, stalls = 0; const reach = Array(11).fill(0); const hpLeft = [], golds = [], crys = [], floors = [];
   for (let seed = 1; seed <= N; seed++) {
-    const s = createGame(seed, { chapter: CHAPTER });
+    const s = createGame(seed, { chapter: CHAPTER, mods: profileMods(), tower: TOWER });
     let t = 0;
-    while (s.phase !== 'over' && s.phase !== 'won' && t++ < 3000) { if (MODE === 'auto') autoPlay(s); else ai(s); step(s); }
+    while (s.phase !== 'over' && s.phase !== 'won' && t++ < (TOWER ? 20000 : 3000)) { if (MODE === 'auto') autoPlay(s); else ai(s); step(s); }
+    golds.push(s.gold); crys.push(s.crystals); floors.push(s.round);
     if (s.phase === 'won') { wins++; hpLeft.push(s.baseHp); }
     else if (s.phase !== 'over') { stalls++; if (process.argv.includes('--debug')) {
       const g = s.goblins[0];
@@ -78,7 +94,9 @@ if (process.argv[1] && process.argv[1].endsWith('sim.mjs')) {
         s.goblins.slice(0, 4).map(o => `${o.type}@${o.idx}${o.pit ? '갇힘' : ''} hp${Math.round(o.hp)} atk${o.atk.toFixed(1)}`).join(' | '),
         g ? (() => { const [x, y] = PATH[g.idx]; const c = s.cells[0][y][x]; return '| 칸: ' + (c ? `${c.key}Lv${c.lv} hp${Math.round(c.hp)} atk${c.atk.toFixed(1)} 봉인${c.sealed}` : '없음') + ` 메가${s.megas.length}`; })() : '');
     } }
-    reach[s.round]++;
+    if (!TOWER) reach[s.round]++;
   }
-  console.log(`[챕터 ${CHAPTER} ${MODE === 'auto' ? '자동 모드' : `x${SPEED} ${APM ? APM + 'APM' : '무제한'}`}] 승률 ${wins}/${N}, 도달 라운드 분포`, reach.slice(1).join(','), '평균 잔여HP', hpLeft.length ? (hpLeft.reduce((a, b) => a + b) / hpLeft.length).toFixed(1) : '-', stalls ? `시간초과 ${stalls}` : '');
+  const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  if (TOWER) { console.log(`[무한의 탑 ${MODE} 강화${UP} 연구${RES}] 도달 층 평균 ${avg(floors).toFixed(1)} (최소 ${Math.min(...floors)}, 최대 ${Math.max(...floors)}) 골드 평균 ${Math.round(avg(golds))} 결정 ${avg(crys).toFixed(1)}`); process.exit(0); }
+  console.log(`[챕터 ${CHAPTER} ${MODE === 'auto' ? '자동 모드' : `x${SPEED} ${APM ? APM + 'APM' : '무제한'}`}] 승률 ${wins}/${N}, 도달 라운드 분포`, reach.slice(1).join(','), '평균 잔여HP', hpLeft.length ? (hpLeft.reduce((a, b) => a + b) / hpLeft.length).toFixed(1) : '-', stalls ? `시간초과 ${stalls}` : '', `| 강화${UP} 연구${RES} 골드 평균 ${Math.round(avg(golds))} 결정 ${avg(crys).toFixed(1)}`);
 }
