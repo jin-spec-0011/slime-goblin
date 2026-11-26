@@ -42,9 +42,6 @@ BOXES = {
     'goblin_armored': ('6.webp', 1065, 450, 1255, 670, False, 'checker'),# Armored Goblin
     'goblin_shaman':  ('6.webp', 1325, 45, 1640, 335, False, 'checker'), # Shaman Goblin
     'goblin_cook':    ('6.webp', 1715, 405, 1985, 672, False, 'checker'),# Cook Goblin
-    # 고블린 (구버전 단일 이미지, 로스터 로드 실패 시 대체)
-    'goblin':        ('1.webp', 1062, 1640, 1208, 1792, True, 18),
-    'goblin_frozen': ('1.webp', 730, 1655, 880, 1790, True, 40),
 }
 
 def similar(a, b, tol):

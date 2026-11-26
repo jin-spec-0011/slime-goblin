@@ -199,6 +199,15 @@ t('거점 0 → 패배', s.phase === 'over');
   const gg = createGame(65, { chapter: 1 }); let n2 = 0; while (gg.phase !== 'over' && gg.phase !== 'won' && n2++ < 3000) { autoPlay(gg); step(gg); }
   t('챕터 플레이로 골드 획득', gg.gold > 0);
 }
+// 그림 목록: 모든 고블린·슬라임 그림이 게임 로드 목록에 있고 파일도 존재
+{
+  const { ASSET_NAMES } = await import('../src/sprites.js');
+  const need = [...Object.keys(GOBLINS).map(k => 'goblin_' + k), ...FUSIONS.map(f => 'slime_' + f.key), ...RECIPES.map(r => 'slime_' + r.key), ...JOKES.map(j => 'slime_' + j.key)];
+  const notListed = need.filter(n => !ASSET_NAMES.includes(n));
+  t(`게임 그림 목록에 고블린 ${Object.keys(GOBLINS).length}종·조합 슬라임 전부 포함${notListed.length ? ' (빠짐: ' + notListed.join(',') + ')' : ''}`, notListed.length === 0);
+  const noFile = ASSET_NAMES.filter(n => !existsSync(new URL(`../assets/${n}.png`, import.meta.url)));
+  t(`그림 목록의 파일이 모두 존재${noFile.length ? ' (없음: ' + noFile.join(',') + ')' : ''}`, noFile.length === 0);
+}
 // 챕터: 경로 유효성, 라운드 수, 난이도 상승, 환경 효과
 for (const c of CHAPTERS) {
   const g = createGame(1, { chapter: c.id, autoField: false });

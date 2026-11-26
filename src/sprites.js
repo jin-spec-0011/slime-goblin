@@ -1,5 +1,5 @@
 // 도트(픽셀아트) 스프라이트: 문자 격자 → 오프스크린 캔버스 캐시 → 정수배 확대(스무딩 OFF)
-import { ELEMENTS, FUSIONS, RECIPES, JOKES } from './data.js';
+import { ELEMENTS, FUSIONS, RECIPES, JOKES, GOBLINS } from './data.js';
 const SLIME = [
   '......oooo......',
   '....oohbbboo....',
@@ -155,9 +155,10 @@ const IMG = {};
 // 슬라임은 tools/gen_slimes.py가 생성(글자 없음, 원소 기호는 게임이 덧그림)
 // 슬라임 그림 목록은 게임 데이터에서 자동으로 만든다 (조합을 추가하면 그림도 자동으로 불러옴)
 const SLIME_KEYS = [...ELEMENTS.map(e => e.sym), ...FUSIONS.map(f => f.key), ...RECIPES.map(r => r.key), ...JOKES.map(j => j.key), 'mix', 'mega'];
+// 고블린 그림 목록도 데이터(GOBLINS)에서 자동 생성 -> 종류를 추가해도 그림이 빠지지 않음
+// (예전에는 손으로 쓴 목록에 개편 4종이 빠져 게임에서 옛 기본 고블린으로 그려졌음)
 export const ASSET_NAMES = [
-  'goblin', 'goblin_frozen', 'goblin_normal', 'goblin_fighter', 'goblin_mage', 'goblin_rider',
-  'goblin_archer', 'goblin_captain', 'goblin_giant', 'goblin_smart', 'goblin_giant_walk',
+  ...Object.keys(GOBLINS).map(k => 'goblin_' + k), 'goblin_giant_walk',
   ...SLIME_KEYS.map(k => 'slime_' + k),
 ];
 export function loadAssets(base = 'assets/') {
@@ -239,7 +240,7 @@ function hitOf(img, key) {
 export function drawGoblinArt(ctx, type, frozen, cx, bottom, size, opts = {}) {
   let base = walkFrames(type) ? walkFrame(type, opts.frame ?? 0) : null;
   const key = base ? `${type}|f${(opts.frame ?? 0) % walkFrames(type)}` : type;
-  if (!base) base = IMG['goblin_' + type] || IMG.goblin;
+  if (!base) base = IMG['goblin_' + type] || IMG.goblin_normal;
   if (!base) return drawSprite(ctx, goblinSprite(type, frozen), cx, bottom, size, size);
   const img = frozen ? frozenOf(base, key) : opts.hit ? hitOf(base, key) : base;
   const bob = opts.bob || 0, sq = opts.squash || 0;
