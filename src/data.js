@@ -3,7 +3,7 @@ export const CFG = {
   W: 5, H: 5, D: 1,            // 판 가로·세로, 층 수(판 통합으로 1층)
   CAP: 25,                      // 배치 상한 (판 칸 수)
   TICK_MS: 1000,                // 1틱 = 1초: 고블린 1칸 이동 / 1마리 출발
-  DROP_EVERY: 3,                // 슬라임 카드 지급 주기(틱) = 3초
+  DROP_EVERY: 4,                // 슬라임 카드 지급 주기(틱) = 4초 (지급 속도 강화로 최대 2초)
   QUEUE_MAX: 10,                // 덱(손패) 최대 장수
   BASE_HP: 20,
   MAX_LV: 5,
@@ -186,7 +186,7 @@ export const GOBLINS = {
   rider:   { name: '기마', desc: '2칸씩 이동',   ch: '기', hp: 22,  atk: 4,  def: 1, spd: 2, leak: 2,  color: '#d6b13c', weak: ['water', 'ice'], resist: ['wind'] },
   archer:  { name: '궁수', desc: '앞 2칸 슬라임 저격',   ch: '궁', hp: 18,  atk: 4,  def: 0, spd: 1, leak: 2,  range: 2, color: '#4fb39a', weak: ['wind'], resist: ['water'] },
   captain: { name: '대장', desc: '주변 고블린 공격·방어 강화',   ch: '대', hp: 40,  atk: 5,  def: 2, spd: 1, leak: 3,  aura: true, color: '#d64a4a', weak: ['poison'], resist: ['elec'] },
-  giant:   { name: '초대형', desc: '2칸 크기, 슬라임 2마리 동시 공격, 느림', ch: '초', hp: 200, atk: 10, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, color: '#7a5a3a', weak: ['rad', 'elec'], resist: ['ice'] }, // 2틱에 1칸, 2칸 크기
+  giant:   { name: '초대형', desc: '2칸 크기, 슬라임 2마리 동시 공격, 빙결·기절 면역, 느림', ch: '초', hp: 400, atk: 20, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, fatigue: 0.2, immune: ['freeze', 'stun'], color: '#7a5a3a', weak: ['rad', 'elec'], resist: ['ice'] }, // 2틱에 1칸, 2칸 크기
   smart:   { name: '지능형', desc: '함정 1회 회피, 상태이상 정화', ch: '지', hp: 30,  atk: 4,  def: 1, spd: 1, leak: 3,  evade: 1, cleanse: true, color: '#3ab0d6', weak: ['water'], resist: ['poison'] },
   // ---- 개편 추가 4종 ----
   gasmask: { name: '방독', desc: '독·질식 면역', ch: '독', hp: 34,  atk: 4,  def: 1, spd: 1, leak: 2,  immune: ['poison', 'suffocate'], color: '#5f7a4a', weak: ['fire'], resist: ['poison', 'wind'] }, // 독·질식 면역
@@ -198,17 +198,21 @@ export const GOBLINS = {
 // 라운드별 편성 [종류, 마릿수]. 목록을 번갈아 섞어 1초에 1마리씩 출발한다.
 // 1~4라운드: 경로 한 바퀴(25칸 = 25초) 안에 전원 출발 (최대 25마리)
 // 5~10라운드: 두 바퀴(50초) 동안 계속 출발 (26~50마리)
+// 초대형(오우거): 5라운드부터 매 라운드 등장, 챕터 N이면 N마리 (최대 GIANT_MAX)
+export const GIANT_FROM = 5, GIANT_MAX = 5;
+export const giantsFor = (chapter, round) => (round >= GIANT_FROM ? Math.min(GIANT_MAX, chapter) : 0);
+
 export const ROUND_TABLE = [
   [['normal', 10]],                                                                                      // 10
   [['normal', 12], ['gasmask', 2]],                                                                      // 14
   [['normal', 10], ['fighter', 6], ['gasmask', 2]],                                                      // 18
   [['normal', 10], ['fighter', 8], ['armored', 2], ['cook', 2]],                                         // 22
-  [['normal', 12], ['fighter', 6], ['rider', 8], ['shaman', 2], ['armored', 2]],                         // 30 (두 바퀴 시작)
-  [['normal', 10], ['fighter', 8], ['archer', 8], ['rider', 4], ['cook', 3], ['gasmask', 3]],            // 36
-  [['fighter', 10], ['mage', 8], ['archer', 6], ['rider', 6], ['shaman', 4], ['armored', 6]],            // 40
-  [['normal', 8], ['fighter', 10], ['archer', 6], ['mage', 6], ['captain', 4], ['cook', 4], ['armored', 6]], // 44
-  [['fighter', 10], ['rider', 8], ['mage', 6], ['captain', 4], ['smart', 8], ['shaman', 6], ['gasmask', 6]], // 48
-  [['normal', 12], ['fighter', 10], ['armored', 6], ['captain', 4], ['smart', 8], ['shaman', 4], ['cook', 2], ['giant', 4]], // 50
+  [['normal', 11], ['fighter', 6], ['rider', 8], ['shaman', 2], ['armored', 2], ['giant', 1]],           // 30 (두 바퀴 시작 · 오우거 등장)
+  [['normal', 9], ['fighter', 8], ['archer', 8], ['rider', 4], ['cook', 3], ['gasmask', 3], ['giant', 1]], // 36
+  [['fighter', 9], ['mage', 8], ['archer', 6], ['rider', 6], ['shaman', 4], ['armored', 6], ['giant', 1]], // 40
+  [['normal', 7], ['fighter', 10], ['archer', 6], ['mage', 6], ['captain', 4], ['cook', 4], ['armored', 6], ['giant', 1]], // 44
+  [['fighter', 9], ['rider', 8], ['mage', 6], ['captain', 4], ['smart', 8], ['shaman', 6], ['gasmask', 6], ['giant', 1]], // 48
+  [['normal', 15], ['fighter', 10], ['armored', 6], ['captain', 4], ['smart', 8], ['shaman', 4], ['cook', 2], ['giant', 1]], // 50
 ];
 
 // ---------- 챕터 (5개 x 10라운드) ----------
@@ -217,10 +221,10 @@ const ROUND_COUNTS = [10, 14, 18, 22, 30, 36, 40, 44, 48, 50];
 const FIRST_ROUND = { normal: 1, gasmask: 2, fighter: 3, armored: 4, cook: 4, rider: 5, shaman: 5, archer: 6, mage: 7, captain: 8, smart: 9 };
 
 // 주력(focus) 고블린은 가중치 3, 일반 고블린은 초반에만 많이. 큰 나머지 방식으로 정확히 ROUND_COUNTS를 맞춘다
-function genRounds({ focus = [], giants = 4, unlockShift = 0 }) {
+function genRounds({ focus = [], chapter, unlockShift = 0 }) {
   return ROUND_COUNTS.map((total, i) => {
     const r = i + 1;
-    const giantN = r === 10 ? giants : r >= 8 && unlockShift >= 3 ? 1 : 0;
+    const giantN = giantsFor(chapter, r);
     const types = Object.keys(FIRST_ROUND).filter(k => Math.max(1, FIRST_ROUND[k] - unlockShift) <= r);
     const w = types.map(k => (focus.includes(k) ? 3 : k === 'normal' ? Math.max(0.3, 2 - r * 0.25) : 1));
     const sum = w.reduce((a, b) => a + b, 0), n = total - giantN;
@@ -234,11 +238,11 @@ function genRounds({ focus = [], giants = 4, unlockShift = 0 }) {
 }
 
 export const CHAPTERS = [
-  { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 1.0, atkMul: 1.0, boost: {},                         goldMul: 1.0, unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
-  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 27.8, atkMul: 2.68, boost: { fire: 1.25, ice: 0.75 },    goldMul: 1.5, unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], giants: 4, unlockShift: 1 }) },
-  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 19.5, atkMul: 2.5, boost: { ice: 1.25, fire: 0.75 },     goldMul: 2.2, unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], giants: 5, unlockShift: 2 }) },
-  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 58.4, atkMul: 3.05, boost: { poison: 1.25, water: 0.85 }, goldMul: 3.2, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], giants: 5, unlockShift: 3 }) },
-  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 81.0, atkMul: 3.22, boost: { elec: 1.15, rad: 1.15 },     goldMul: 4.5, unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], giants: 8, unlockShift: 4 }) },
+  { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 1.77, atkMul: 1.29, boost: {},                         goldMul: 1.0, unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
+  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 1.53, atkMul: 1.21, boost: { fire: 1.25, ice: 0.75 },    goldMul: 1.5, unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], chapter: 2, unlockShift: 1 }) },
+  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 2.88, atkMul: 1.53, boost: { ice: 1.25, fire: 0.75 },     goldMul: 2.2, unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], chapter: 3, unlockShift: 2 }) },
+  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 3.27, atkMul: 1.6, boost: { poison: 1.25, water: 0.85 }, goldMul: 3.2, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], chapter: 4, unlockShift: 3 }) },
+  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 4.83, atkMul: 1.8, boost: { elec: 1.15, rad: 1.15 },     goldMul: 4.5, unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], chapter: 5, unlockShift: 4 }) },
 ];
 
 // 무한의 탑: 챕터 5 클리어 후 열림. 층마다 고블린이 강해지고 끝이 없다 (편성은 engine.towerRound)

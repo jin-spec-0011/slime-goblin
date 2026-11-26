@@ -3,7 +3,7 @@ import { CFG, STATUS, RECIPES, ELEMENTS, GOBLINS, ATTRS, FUSIONS, CHAPTERS, JOKE
 import { drawSlimeArt, drawGoblinArt, loadAssets, walkFrames, walkFrameMs } from './sprites.js';
 import {
   loadProfile, saveProfile, modsOf, UPGRADES, upgradeCost, isMaxed, buyUpgrade, buyResearch, researchCost, RESEARCH_PER,
-  DECK_POOL, DECK_SIZE, toggleDeck, stoneGain, prestige, PRESTIGE_MIN_FLOOR, offlineReward, fmt,
+  DECK_POOL, DECK_SIZE, toggleDeck, stoneGain, prestige, PRESTIGE_MIN_FLOOR, offlineReward, fmt, dropEvery, OFFLINE_RATE, OFFLINE_MAX_SEC,
 } from './meta.js';
 import {
   autoPlay, setMods, createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
@@ -35,7 +35,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.0.1'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.1.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -366,7 +366,7 @@ function renderHud() {
   $('hCount').textContent = `${slimeCount(g)}/${CFG.CAP}`;
   $('hCat').textContent = g.catalysts;
   $('hPhase').textContent = g.phase === 'prep' ? `준비 ${g.prepLeft}` : g.phase === 'run' ? `전투 ${g.spawnList.length + g.goblins.length}` : '종료';
-  $('hTick').style.width = `${Math.min(100, (((g.tick % CFG.DROP_EVERY) + ui.acc / CFG.TICK_MS) / CFG.DROP_EVERY) * 100)}%`;
+  { const de = g.mods?.dropEvery || CFG.DROP_EVERY; $('hTick').style.width = `${Math.min(100, (((g.dropAcc || 0) + ui.acc / CFG.TICK_MS) / de) * 100)}%`; }
   $('bStart').disabled = g.phase !== 'prep';
   $('bCombo').classList.toggle('on', ui.combo);
   $('bCombo').textContent = ui.megaMode ? '취소' : ui.combo ? '조합 실행' : '조합';
@@ -649,7 +649,7 @@ function showHelp(after = null) {
   const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}<br><small>${d.desc || ''}</small></td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
   showModal(`게임 방법 · ${APP_VERSION}`, `
     <p>고블린은 전장의 <b>점선 경로</b>를 따라 이동합니다(챕터마다 모양이 다름). 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
-    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임은 <b>3초마다 1마리</b> 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 그때부터 덱에 쌓입니다(최대 ${CFG.QUEUE_MAX}장). 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
+    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임은 <b>${CFG.DROP_EVERY}초마다 1마리</b>(지급 속도 강화 시 최대 ${dropEvery(UPGRADES.drop.max)}초) 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 그때부터 덱에 쌓입니다(최대 ${CFG.QUEUE_MAX}장). 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
     <p><b>속성</b>: 모든 슬라임은 8속성 중 하나입니다(🔥불 💧물 ⚡전기 ❄얼음 🌪바람 ⛰대지 ☠독 ☢방사). 고블린마다 <b>약점 속성(피해 ×${CFG.WEAK_MUL}, 주황 숫자)</b>과 <b>내성 속성(×${CFG.RESIST_MUL}, 회색 숫자)</b>이 있습니다.</p>
     <p><b>조합</b>(촉매 1개): ① 화학 족보 정확히 일치 → 화합물 150% ② <b>서로 다른 속성 2마리 → 속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%</b> ③ 그 외 → 혼합물 70%.</p>
     <p><b>메가</b>: ${CFG.MEGA_ROUND}라운드부터 사용 가능. Lv5 같은 원소 3개 → 3×3 구역, 최대 5마리 동시 공격.</p>
@@ -660,7 +660,7 @@ function showHelp(after = null) {
     <table><tr><th>슬라임</th><th>속성</th><th>효과</th><th>해금</th></tr>${els}</table>
     <table><tr><th>화합물</th><th>족보</th><th>효과</th></tr>${rec}</table>
     <p><b>🤖 자동</b>: 켜 두면 끌 때까지 매초 필드·덱 전체를 분석해 가장 이득이 큰 행동(겹치기, 카드 배치, 비밀 족보·화학 족보·속성 합성, 메가)을 자동으로 합니다. 이번 라운드 고블린의 약점·내성과 경로 앞쪽 칸을 우선 고려합니다.</p>
-    <p><b>⬆ 성장</b>: 고블린을 잡으면 💰골드, 챕터 클리어·탑 5층마다 💎원소 결정을 얻습니다. 골드로 <b>강화</b>(공격·체력·지급 속도·촉매·거점·시작 슬라임), 결정으로 <b>속성 연구</b>를 하세요. <b>덱</b>에서 지급받을 슬라임 8종을 고릅니다. 챕터 5를 깨면 <b>무한의 탑</b>이 열리고, 탑 ${PRESTIGE_MIN_FLOOR}층부터 <b>환생</b>으로 🔮현자의 돌(영구 배율)을 받을 수 있습니다. 앱을 닫아 둔 시간만큼 <b>오프라인 보상</b>이 쌓입니다(최대 8시간). 보스 라운드를 자동 없이 직접 깨면 보상 1.5배.</p>
+    <p><b>⬆ 성장</b>: 고블린을 잡으면 💰골드, 챕터 클리어·탑 5층마다 💎원소 결정을 얻습니다. 골드로 <b>강화</b>(공격·체력·지급 속도·촉매·거점·시작 슬라임), 결정으로 <b>속성 연구</b>를 하세요. <b>덱</b>에서 지급받을 슬라임 8종을 고릅니다. 챕터 5를 깨면 <b>무한의 탑</b>이 열리고, 탑 ${PRESTIGE_MIN_FLOOR}층부터 <b>환생</b>으로 🔮현자의 돌(영구 배율)을 받을 수 있습니다. 앱을 닫아 둔 시간만큼 <b>오프라인 보상</b>이 쌓입니다(최근 분당 골드의 ${Math.round(OFFLINE_RATE * 100)}%, 최대 ${OFFLINE_MAX_SEC / 3600}시간). 보스 라운드를 자동 없이 직접 깨면 보상 1.5배.</p>
     <p><b>챕터</b>: 5개 챕터 × 10라운드. 챕터마다 경로 모양, 환경 효과(속성 강화·약화), 주력 고블린이 다릅니다. 챕터를 클리어하면 다음 챕터가 열립니다. 상단의 <b>챕터-라운드</b>를 누르면 챕터를 고를 수 있습니다.</p>
     <table><tr><th>고블린</th><th>약점</th><th>내성</th><th>거점</th></tr>${gbs}</table>`, { onOk: after });
 }
@@ -748,7 +748,7 @@ const off = offlineReward(PROF);
 const afterIntro = () => {
   if (off.gold > 0) {
     PROF.gold += off.gold; saveProf(true);
-    showModal('💤 오프라인 보상', `<p>자리를 비운 <b>${Math.floor(off.sec / 3600)}시간 ${Math.floor((off.sec % 3600) / 60)}분</b> 동안 슬라임들이 일했습니다.</p><p style="font-size:20px">💰 +${fmt(off.gold)}</p><p style="color:var(--sub)">최근 분당 골드의 50%, 최대 8시간</p>`, { okText: '받기', onOk: () => showChapterSelect() });
+    showModal('💤 오프라인 보상', `<p>자리를 비운 <b>${Math.floor(off.sec / 3600)}시간 ${Math.floor((off.sec % 3600) / 60)}분</b> 동안 슬라임들이 일했습니다.</p><p style="font-size:20px">💰 +${fmt(off.gold)}</p><p style="color:var(--sub)">최근 분당 골드의 ${Math.round(OFFLINE_RATE * 100)}%, 최대 ${OFFLINE_MAX_SEC / 3600}시간</p>`, { okText: '받기', onOk: () => showChapterSelect() });
   } else showChapterSelect();
 };
 if (!lsGet('esd.seenHelp')) { lsSet('esd.seenHelp', '1'); showHelp(afterIntro); }

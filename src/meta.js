@@ -4,8 +4,8 @@ import { CFG, ELEMENTS, ATTRS } from './data.js';
 
 export const PROFILE_KEY = 'esd.profile.v1';
 export const DECK_SIZE = 8;                 // 덱 편성 장수
-export const OFFLINE_MAX_SEC = 8 * 3600;    // 오프라인 보상 최대 8시간
-export const OFFLINE_RATE = 0.5;            // 오프라인 보상 = 최근 분당 골드의 50%
+export const OFFLINE_MAX_SEC = 4 * 3600;    // 오프라인 보상 최대 4시간
+export const OFFLINE_RATE = 0.2;            // 오프라인 보상 = 최근 분당 골드의 20%
 export const PRESTIGE_MIN_FLOOR = 10;       // 환생 가능 최소 탑 층
 
 // 골드 강화: cost = base x growth^lv, max 없으면 무제한
@@ -17,7 +17,7 @@ export const UPGRADES = {
   base:  { name: '거점 체력',     icon: '🏰', base: 40,  growth: 1.55, desc: lv => `${CFG.BASE_HP + lv * 5}` },
   start: { name: '시작 슬라임',   icon: '🫧', base: 250, growth: 2.4,  max: 5, desc: lv => `${CFG.START_SLIMES + lv * 2}마리` },
 };
-export const dropEvery = lv => Math.max(1, CFG.DROP_EVERY - 0.5 * lv);
+export const dropEvery = lv => Math.max(1, CFG.DROP_EVERY - 0.5 * lv); // 4초 -> 최대 강화 시 2초
 
 // 속성 연구 (원소 결정): 레벨당 해당 속성 슬라임 공격 +10%
 export const RESEARCH_PER = 0.1;
@@ -94,7 +94,7 @@ export function modsOf(p) {
   };
 }
 
-// 오프라인 보상: 마지막 접속 이후 시간 x 최근 분당 골드 x 50% (최대 8시간)
+// 오프라인 보상: 마지막 접속 이후 시간 x 최근 분당 골드 x OFFLINE_RATE (최대 OFFLINE_MAX_SEC)
 export function offlineReward(p, now = Date.now()) {
   const sec = Math.min(OFFLINE_MAX_SEC, Math.max(0, (now - (p.lastSeen || now)) / 1000));
   if (sec < 60 || !p.goldRate) return { sec, gold: 0 };

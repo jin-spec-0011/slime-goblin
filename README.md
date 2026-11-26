@@ -19,6 +19,7 @@ ES Module과 Service Worker 때문에 `file://`로는 실행되지 않습니다.
 | `tools/test.mjs` | 규칙 단위 테스트 |
 | `tools/sim.mjs` | 밸런스 시뮬레이터. 기본값 = **x3 배속, 사람 30APM** (`node tools/sim.mjs 30 [strong\|weak] [챕터] [--speed=3] [--apm=30]`, `--apm=0` 무제한, `--debug` 시간초과 판 출력) |
 | `tools/tune.mjs` | 챕터별 목표 승률에 맞는 체력 배율 자동 탐색 |
+| `tools/ogre_check.mjs` | 오우거 세기 측정: Lv5 슬라임 N마리 대비 처치율·부순 슬라임 수 |
 | `tools/tune_prog.mjs` | 성장형 튜닝: '챕터 N은 강화 L레벨에서 승률 50%'가 되도록 배율 탐색 |
 | `tools/progress.mjs` | 성장 시뮬레이터: 자동 모드로 판을 돌리며 강화·연구하는 방치형 플레이어 (`node tools/progress.mjs 30`) |
 | `tools/gen_slimes.py` | 슬라임 픽셀아트 생성기 (원소·조합·비밀 족보) |

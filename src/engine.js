@@ -1,5 +1,5 @@
 // 헤드리스 게임 엔진 (DOM 의존 없음, Node에서 시뮬레이션 가능)
-import { CFG, STATUS, ELEMENTS, RECIPES, FUSIONS, JOKES, ATTRS, GOBLINS, CHAPTERS, TOWER, buildPath } from './data.js';
+import { CFG, STATUS, ELEMENTS, RECIPES, FUSIONS, JOKES, ATTRS, GOBLINS, CHAPTERS, TOWER, GIANT_MAX, buildPath } from './data.js';
 
 // 경로는 챕터마다 바뀐다. 다른 모듈이 같은 배열을 참조하므로 내용만 교체한다
 export const PATH = buildPath('rows');
@@ -397,7 +397,7 @@ function goldFor(s, base) {
 }
 // 무한의 탑 층별 편성: 모든 종류 섞임, 층이 오를수록 수·오우거 증가
 export function towerRound(floor) {
-  const total = Math.min(60, 34 + floor), giants = Math.min(10, 2 + Math.floor(floor / 3));
+  const total = Math.min(60, 34 + floor), giants = GIANT_MAX;
   const types = Object.keys(GOBLINS).filter(k => k !== 'giant'), each = Math.floor((total - giants) / types.length);
   const row = types.map(k => [k, each]); row[0][1] += total - giants - each * types.length;
   row.push(['giant', giants]);
@@ -540,8 +540,9 @@ function fight(s, g, x, y) {
   // 포획 피로: 갇힌 지 TRAP_FATIGUE_AFTER초가 지나면 매초 최대 체력의 1%, 2%, 3%...씩 고정 피해
   // (회복·내성·빙결이 겹쳐 아무도 죽지 않는 교착 상태 방지)
   g.trapT = (g.trapT || 0) + 1;
+  // 초대형은 피로 내성(fatigue 배율)이 있어 슬라임 화력으로 직접 잡아야 한다
   if (g.trapT > CFG.TRAP_FATIGUE_AFTER) {
-    hurt(s, g, g.maxhp * CFG.TRAP_FATIGUE_STEP * (g.trapT - CFG.TRAP_FATIGUE_AFTER));
+    hurt(s, g, g.maxhp * CFG.TRAP_FATIGUE_STEP * (g.trapT - CFG.TRAP_FATIGUE_AFTER) * (GOBLINS[g.type].fatigue ?? 1));
     if (g.dead) { computeCounts(s); return; }
   }
   const top = col[0] || null;

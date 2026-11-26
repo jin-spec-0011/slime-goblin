@@ -2,7 +2,7 @@
 import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS, JOKES } from '../src/data.js';
 import { existsSync } from 'node:fs';
 import * as META from '../src/meta.js';
-import { setMods } from '../src/engine.js';
+import { setMods, towerRound } from '../src/engine.js';
 import { createGame, step, affinity, autoPlay, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
 // 기존 규칙 테스트는 빈 필드를 전제로 하므로 자동 배치를 끄고 실행
@@ -100,7 +100,17 @@ t('거점 0 → 패배', s.phase === 'over');
   t('지급 슬라임은 필드 빈칸부터 채움 (덱 비어 있음)', a.cells.flat(2).filter(Boolean).length === CFG.W * CFG.H && a.queue.length === 0);
   a.goblins = []; a.spawnList = ['normal']; // 슬라임이 쓰러지지 않게 고블린 제거
   for (let i = 0; i < CFG.DROP_EVERY; i++) step(a);
-  t('필드가 가득 차면 덱에 쌓임', a.queue.length === 1);
+  t('필드가 가득 차면 덱에 쌓임', a.queue.length >= 1 && a.cells.flat(2).filter(Boolean).length === CFG.W * CFG.H);
+}
+// 오우거: 5라운드부터 챕터 번호만큼(최대 5) 매 라운드 등장, 빙결·기절 면역
+{
+  const ok = CHAPTERS.every(c => c.rounds.every((r, i) => {
+    const g = (r.find(([k]) => k === 'giant') || [0, 0])[1];
+    return g === (i + 1 >= 5 ? Math.min(5, c.id) : 0);
+  }));
+  t('오우거 편성: 1-5부터 매 라운드, 챕터 N은 N마리', ok);
+  t('탑 오우거 최대 5마리', towerRound(30).find(([k]) => k === 'giant')[1] === 5);
+  t('오우거 빙결·기절 면역', GOBLINS.giant.immune.includes('freeze') && GOBLINS.giant.immune.includes('stun'));
 }
 // 교착 방지: 얼음 내성 주술사 2마리가 질소(빙결) 슬라임에 갇혀 서로 회복해도 결국 쓰러짐
 {
@@ -194,7 +204,9 @@ t('거점 0 → 패배', s.phase === 'over');
   t('환생: 현자의 돌 획득, 골드·강화 초기화, 연구 유지', r.ok && pr.stones === 8 && pr.gold === 0 && pr.upgrades.atk === 0 && pr.research.fire === 2);
   t('환생: 같은 기록으로 반복 환생 불가', !META.prestige(pr).ok);
   const of = META.newProfile(); of.goldRate = 120; of.lastSeen = Date.now() - 3600 * 1000;
-  t('오프라인 보상: 1시간 x 분당 120 x 50% = 3600', META.offlineReward(of).gold === 3600);
+  t('오프라인 보상: 1시간 x 분당 120 x 20% = 1440', META.offlineReward(of).gold === 1440);
+  of.lastSeen = Date.now() - 10 * 3600 * 1000;
+  t('오프라인 보상: 최대 4시간에서 잘림', META.offlineReward(of).gold === 120 * 4 * 60 * 0.2);
   t('숫자 줄임 표시', META.fmt(1234) === '1.2K' && META.fmt(2500000) === '2.5M' && META.fmt(999) === '999');
   const gg = createGame(65, { chapter: 1 }); let n2 = 0; while (gg.phase !== 'over' && gg.phase !== 'won' && n2++ < 3000) { autoPlay(gg); step(gg); }
   t('챕터 플레이로 골드 획득', gg.gold > 0);
