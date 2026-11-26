@@ -60,7 +60,7 @@ root.append(h, s);
 // 슬라임
 const pure = ELEMENTS.filter(e => e.label), els = ELEMENTS.filter(e => !e.label);
 const elCard = e => card(`slime_${e.sym}`, e.label || e.name, e.label ? '순수 속성' : e.sym,
-  [`${at(e.attr)} · ${STATUS[e.st.name].label}`, `HP ${e.hp} · 공격 ${e.atk} · 방어 ${e.def} · R${e.unlock}부터`]);
+  [`${at(e.attr)} · ${STATUS[e.st.name].label}`, `HP ${e.hp} · 공격 ${e.atk} · 방어 ${e.def} · ${e.noDrop ? 'H₂O로만 획득' : `R${e.unlock}부터`}`]);
 section(`순수 속성 슬라임 ${pure.length}종`, '원소가 아닌 속성 자체', pure.map(elCard));
 section(`원소 슬라임 ${els.length}종`, '각 원소는 속성 하나에 소속', els.map(elCard));
 section(`속성 합성 ${FUSIONS.length}종`, `촉매 + 서로 다른 속성 2마리 · 능력치 ×${CFG.FUSION_MUL}`,

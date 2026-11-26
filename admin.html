@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#2b3447">
+<title>쿠폰 관리 · Element Slime Defense</title>
+<style>
+  :root { --bg: #2b3447; --panel: #3a4660; --panel2: #46536f; --line: #5b6a8a; --text: #eef2fa; --sub: #a9b6d0; --accent: #ffd34d; --danger: #ff6b6b; --ok: #6be08a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left)); }
+  h1 { font-size: 22px; margin: 6px 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .sub { color: var(--sub); font-size: 13px; margin: 0 0 14px; }
+  .card { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 700; min-width: 0; }
+  label small { color: var(--sub); font-weight: 400; }
+  input, select { font: inherit; font-size: 16px; padding: 9px 10px; border-radius: 9px; border: 2px solid var(--line); background: #1f2738; color: var(--text); width: 100%; min-width: 0; }
+  input:focus { outline: none; border-color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .grid .wide { grid-column: span 2; }
+  @media (max-width: 600px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid .wide { grid-column: span 2; } }
+  .row { display: flex; gap: 8px; align-items: end; }
+  .row > label { flex: 1; }
+  button { font: inherit; font-weight: 700; border-radius: 9px; border: 2px solid var(--line); background: var(--panel2); color: var(--text); padding: 9px 14px; cursor: pointer; min-height: 42px; }
+  button.go { background: #3f7a44; border-color: var(--ok); }
+  button.warn { border-color: var(--danger); color: #ffb3b3; }
+  button.sm { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+  button:disabled { opacity: .55; cursor: default; }
+  .msg { min-height: 20px; margin: 8px 0 0; font-size: 13px; color: var(--danger); }
+  .msg.ok { color: var(--ok); }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .who { font-size: 13px; color: var(--sub); }
+  .who b { color: var(--accent); }
+  code { background: #1f2738; padding: 2px 6px; border-radius: 6px; font-size: 13px; overflow-wrap: anywhere; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--sub); font-size: 12px; font-weight: 700; }
+  td.c { font-weight: 800; color: var(--accent); letter-spacing: .02em; white-space: nowrap; }
+  td .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; white-space: nowrap; }
+  .pill.on { background: #2e5b37; color: var(--ok); } .pill.off { background: #5b2e2e; color: #ffb3b3; } .pill.exp { background: #4b4b2e; color: #ffe08a; }
+  .bar { height: 6px; background: #1f2738; border-radius: 4px; overflow: hidden; margin-top: 4px; min-width: 70px; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .empty { color: var(--sub); text-align: center; padding: 18px; }
+  .hidden { display: none !important; }
+  @media (max-width: 600px) {
+    table.stack thead { display: none; }
+    table.stack tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    table.stack td { border: 0; padding: 2px 0; }
+    table.stack td.rw, table.stack td.memo { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div><h1>🎁 쿠폰 관리</h1><p class="sub">Element Slime Defense 관리자 전용 · 이 주소는 게임 안에 링크되어 있지 않습니다.</p></div>
+    <div class="who hidden" id="who"></div>
+  </div>
+
+  <section class="card" id="loginCard">
+    <h2>관리자 로그인</h2>
+    <p class="sub">게임에서 가입한 닉네임·비밀번호로 로그인합니다. 관리자로 지정된 계정만 쿠폰을 만들 수 있습니다.</p>
+    <form id="loginForm">
+      <div class="grid">
+        <label>닉네임<input id="lNick" autocomplete="username" required></label>
+        <label>비밀번호<input id="lPw" type="password" autocomplete="current-password" required></label>
+        <div class="row"><button class="go" type="submit" id="lBtn" style="width:100%">로그인</button></div>
+      </div>
+      <p class="msg" id="lMsg"></p>
+    </form>
+  </section>
+
+  <section class="card hidden" id="notAdmin">
+    <h2>관리자 권한이 없습니다</h2>
+    <p>이 계정을 관리자로 지정하려면 Firebase 콘솔 → Realtime Database → 데이터 탭에서 아래 항목을 추가하세요.</p>
+    <p>경로 <code>admins</code> 아래에 키 <code id="myUid"></code>, 값 <code>true</code> (불리언)</p>
+    <p class="sub">추가한 뒤 이 페이지를 새로고침하세요.</p>
+    <button class="sm" id="copyUid" type="button">uid 복사</button> <button class="sm" id="out1" type="button">로그아웃</button>
+  </section>
+
+  <section class="card hidden" id="createCard">
+    <h2>새 쿠폰 만들기</h2>
+    <form id="codeForm">
+      <div class="grid">
+        <label class="wide">코드 <small>영문·숫자 4~20자 · 대소문자 구분 없음</small>
+          <div class="row"><input id="fCode" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" required><button class="sm" type="button" id="genBtn">무작위</button></div></label>
+        <label>활성<select id="fActive"><option value="1">사용 가능</option><option value="0">중지</option></select></label>
+        <label>💰 골드<input id="fGold" type="number" min="0" step="1" value="1000" inputmode="numeric"></label>
+        <label>💎 원소 결정<input id="fCrys" type="number" min="0" step="1" value="0" inputmode="numeric"></label>
+        <label>🔮 현자의 돌<input id="fStone" type="number" min="0" step="1" value="0" inputmode="numeric"></label>
+        <label>사용 가능 횟수 <small>0 = 무제한 (계정당 1회는 항상)</small><input id="fMax" type="number" min="0" step="1" value="0" inputmode="numeric"></label>
+        <label>만료일 <small>비우면 기한 없음 · 해당 날짜 23:59까지</small><input id="fExp" type="date"></label>
+        <label>메모 <small>관리용 (플레이어에게 안 보임)</small><input id="fMemo" maxlength="60" placeholder="예: 오픈 기념"></label>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="go" type="submit" id="fBtn">쿠폰 만들기</button></div>
+      <p class="msg" id="fMsg"></p>
+    </form>
+  </section>
+
+  <section class="card hidden" id="listCard">
+    <div class="top"><h2>쿠폰 목록</h2><button class="sm" id="reload" type="button">↻ 새로고침</button></div>
+    <div class="scroll"><table class="stack">
+      <thead><tr><th>코드</th><th>보상</th><th>사용</th><th>상태</th><th>메모</th><th></th></tr></thead>
+      <tbody id="list"><tr><td colspan="6" class="empty">불러오는 중…</td></tr></tbody>
+    </table></div>
+    <p class="msg" id="listMsg"></p>
+  </section>
+</main>
+
+<script type="module">
+import { signIn, isAdmin, listCodes, saveCode, deleteCode, randomCode, validCode, rewardText, rewardOf, ACCOUNT_KEY } from './src/online.js';
+
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// 게임 로그인과 섞이지 않도록 관리자 세션은 별도 키에 저장
+const ADMIN_KEY = 'esd.adminAccount';
+const store = { getItem: k => { try { return localStorage.getItem(k === ACCOUNT_KEY ? ADMIN_KEY : k); } catch { return null; } },
+                setItem: (k, v) => { try { localStorage.setItem(k === ACCOUNT_KEY ? ADMIN_KEY : k, v); } catch { /* 무시 */ } } };
+let acc = null; try { acc = JSON.parse(store.getItem(ACCOUNT_KEY) || 'null'); } catch { acc = null; }
+const keep = a => { if (a) { acc = a; store.setItem(ACCOUNT_KEY, JSON.stringify(a)); } };
+const msg = (id, t, ok = false) => { $(id).textContent = t || ''; $(id).classList.toggle('ok', ok); };
+const show = (id, on) => $(id).classList.toggle('hidden', !on);
+const fmtDate = ms => { if (!ms) return '기한 없음'; const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+function logout() { acc = null; try { localStorage.removeItem(ADMIN_KEY); } catch { /* 무시 */ } location.reload(); }
+
+async function enter() {
+  const r = await isAdmin(acc);
+  if (r.account) keep(r.account);
+  if (!r.ok) { show('loginCard', true); msg('lMsg', r.msg); return; }
+  show('loginCard', false);
+  $('who').innerHTML = `👤 <b>${esc(acc.nick)}</b> ${r.admin ? '· 관리자' : ''} <button class="sm" id="out2" type="button">로그아웃</button>`;
+  show('who', true); $('out2').onclick = logout;
+  if (!r.admin) { $('myUid').textContent = acc.uid; show('notAdmin', true); return; }
+  show('createCard', true); show('listCard', true);
+  $('fCode').value = randomCode(); refresh();
+}
+
+async function refresh() {
+  msg('listMsg', '');
+  const r = await listCodes(acc); if (r.account) keep(r.account);
+  if (!r.ok) { $('list').innerHTML = `<tr><td colspan="6" class="empty">불러오지 못했습니다. ${esc(r.msg)}</td></tr>`; return; }
+  if (!r.list.length) { $('list').innerHTML = '<tr><td colspan="6" class="empty">아직 만든 쿠폰이 없습니다.</td></tr>'; return; }
+  const now = Date.now();
+  $('list').innerHTML = r.list.map(c => {
+    const expired = c.expires && c.expires <= now, soldOut = c.maxUses && c.used >= c.maxUses;
+    const state = !c.active ? '<span class="pill off">중지</span>' : expired ? '<span class="pill exp">만료</span>' : soldOut ? '<span class="pill exp">소진</span>' : '<span class="pill on">사용 가능</span>';
+    const pct = c.maxUses ? Math.min(100, Math.round((c.used || 0) / c.maxUses * 100)) : 0;
+    return `<tr>
+      <td class="c">${esc(c.code)}</td>
+      <td class="rw">${esc(rewardText(rewardOf(c)))}</td>
+      <td>${c.used || 0} / ${c.maxUses ? c.maxUses : '∞'}${c.maxUses ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ''}</td>
+      <td>${state}<br><small style="color:var(--sub)">${esc(fmtDate(c.expires))}</small></td>
+      <td class="memo"><small>${esc(c.memo || '')}</small></td>
+      <td><div class="acts"><button class="sm" data-act="toggle" data-code="${esc(c.code)}" data-on="${c.active ? 1 : 0}" type="button">${c.active ? '중지' : '재개'}</button><button class="sm warn" data-act="del" data-code="${esc(c.code)}" type="button">삭제</button></div></td>
+    </tr>`;
+  }).join('');
+  window.__codes = Object.fromEntries(r.list.map(c => [c.code, c]));
+}
+
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault(); $('lBtn').disabled = true; msg('lMsg', '로그인 중…', true);
+  const r = await signIn($('lNick').value, $('lPw').value);
+  $('lBtn').disabled = false;
+  if (!r.ok) return msg('lMsg', r.msg);
+  keep(r.account); msg('lMsg', ''); enter();
+});
+$('out1').onclick = logout;
+$('copyUid').onclick = async () => { try { await navigator.clipboard.writeText(acc.uid); $('copyUid').textContent = '복사됨'; } catch { $('copyUid').textContent = '길게 눌러 복사하세요'; } };
+$('genBtn').onclick = () => { $('fCode').value = randomCode(); };
+$('reload').onclick = refresh;
+
+$('codeForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const v = validCode($('fCode').value); if (!v.ok) return msg('fMsg', v.msg);
+  const gold = +$('fGold').value || 0, crystals = +$('fCrys').value || 0, stones = +$('fStone').value || 0;
+  if (gold < 0 || crystals < 0 || stones < 0) return msg('fMsg', '보상은 0 이상이어야 합니다.');
+  if (!gold && !crystals && !stones) return msg('fMsg', '보상을 하나 이상 입력하세요.');
+  let expires = 0;
+  if ($('fExp').value) { const [y, m, d] = $('fExp').value.split('-').map(Number); expires = new Date(y, m - 1, d, 23, 59, 59).getTime(); if (expires <= Date.now()) return msg('fMsg', '만료일이 이미 지났습니다.'); }
+  $('fBtn').disabled = true; msg('fMsg', '만드는 중…', true);
+  const r = await saveCode(acc, v.code, { gold, crystals, stones, maxUses: +$('fMax').value || 0, expires, active: $('fActive').value === '1', memo: $('fMemo').value }, true);
+  $('fBtn').disabled = false; if (r.account) keep(r.account);
+  if (!r.ok) return msg('fMsg', r.msg);
+  msg('fMsg', `${r.msg} · 플레이어는 홈 > 🎁 쿠폰에서 ${r.code} 입력`, true);
+  $('fCode').value = randomCode(); $('fMemo').value = ''; refresh();
+});
+
+$('list').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  const code = b.dataset.code, c = (window.__codes || {})[code]; if (!c) return;
+  if (b.dataset.act === 'del') {
+    if (b.dataset.confirm !== '1') { b.dataset.confirm = '1'; b.textContent = '정말 삭제?'; setTimeout(() => { if (b.isConnected) { b.dataset.confirm = ''; b.textContent = '삭제'; } }, 3000); return; }
+    b.disabled = true; const r = await deleteCode(acc, code); if (r.account) keep(r.account); msg('listMsg', r.msg, r.ok); refresh(); return;
+  }
+  b.disabled = true;
+  const r = await saveCode(acc, code, { ...rewardOf(c), maxUses: c.maxUses, expires: c.expires, memo: c.memo, active: b.dataset.on !== '1' }, false);
+  if (r.account) keep(r.account); msg('listMsg', r.ok ? `${code} ${b.dataset.on === '1' ? '중지' : '재개'}` : r.msg, r.ok); refresh();
+});
+
+if (acc && acc.uid && acc.refreshToken) enter(); else show('loginCard', true);
+</script>
+</body>
+</html>

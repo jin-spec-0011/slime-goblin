@@ -136,3 +136,12 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .aform .btn.go:disabled { opacity: .6; }
 .tnote.warn { margin: 4px 0 0; color: #ffcf8a; }
 .aform label + .astat:empty { min-height: 0; }
+.hrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hrow small { color: var(--sub); font-size: 11px; font-weight: 400; }
+.note { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: #263046; }
+.note.new { border-color: var(--accent); }
+.note h3 { margin: 0; font-size: 15px; color: var(--accent); }
+.note h3 small { color: var(--sub); font-weight: 400; font-size: 12px; margin-left: 6px; }
+.note .nt { display: block; font-size: 14px; margin: 2px 0 6px; }
+.note ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.note li { display: grid; grid-template-columns: 1.6em minmax(0, 1fr); gap: 4px; font-size: 13px; line-height: 1.5; color: var(--text); }

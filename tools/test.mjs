@@ -3,6 +3,7 @@ import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS, JOKES } f
 import { existsSync } from 'node:fs';
 import * as META from '../src/meta.js';
 import * as ON from '../src/online.js';
+import * as NOTES from '../src/notes.js';
 import { setMods, towerRound } from '../src/engine.js';
 import { createGame, step, affinity, autoPlay, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
@@ -276,5 +277,60 @@ for (const c of CHAPTERS) {
   const list = ON.parseRanking({ a: { nick: 'A', floor: 10, at: t0, score: ON.rankScore(10, t0) }, b: { nick: 'B', floor: 12, at: t0, score: ON.rankScore(12, t0) }, bad: { nick: 1 } });
   t('랭킹 파싱·정렬·불량 데이터 제외', list.length === 2 && list[0].nick === 'B');
   t('계정 저장 왕복', (() => { const m = new Map(); const st = { getItem: k => m.get(k) ?? null, setItem: (k, v) => m.set(k, v) }; ON.saveAccount(st, { uid: 'u1', refreshToken: 'r', nick: 'k' }); const ok1 = ON.loadAccount(st)?.uid === 'u1'; ON.clearAccount(st); return ok1 && ON.loadAccount(st) === null; })());
+}
+// v2.4.0: 물 슬라임은 H₂O로만 얻고, H₂O가 물 재료 역할을 한다
+{
+  const w = cg(71); w.cells.forEach(f => f.forEach(r => r.fill(null))); w.queue = []; w.catalysts = 9; w.round = 6;
+  put(w, 'H', 0, 0, 0); put(w, 'H', 1, 0, 0); put(w, 'O', 2, 0, 0);
+  const r1 = combine(w, [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 2, y: 0, z: 0 }]);
+  const h2o = getCell(w, 0, 0, 0);
+  t('H₂O 생성, 물 속성', r1.ok && h2o.key === 'H2O' && h2o.attrs[0] === 'water');
+  put(w, 'FIRE', 1, 0, 0);
+  t('H₂O + 불 = 수증기 (속성 합성)', recipeHint(w, [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }]).fusion?.key === 'STEAM');
+  put(w, 'Na', 2, 0, 0);
+  t('Na + H₂O = 나트륨 다이빙 (비밀 족보)', recipeHint(w, [{ x: 2, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }]).joke?.key === 'NADIVE');
+  t('다른 화합물은 여전히 조합 재료 불가', (() => { put(w, 'H', 3, 3, 0); put(w, 'Cl', 4, 3, 0); combine(w, [{ x: 3, y: 3, z: 0 }, { x: 4, y: 3, z: 0 }]); return recipeHint(w, [{ x: 3, y: 3, z: 0 }, { x: 1, y: 0, z: 0 }]).state === 'bad'; })());
+  const d = createGame(72, { chapter: 2 }); let water = 0;
+  for (let i = 0; i < 400; i++) { step(d); d.queue = []; }
+  for (const sl of d.cells.flat(2)) if (sl && sl.key === 'WATER') water++;
+  t('물 슬라임은 지급되지 않음', water === 0 && !META.DECK_POOL.includes('WATER'));
+  const mem = new Map([[META.PROFILE_KEY, JSON.stringify({ ...META.newProfile(), deck: ['FIRE', 'WATER', 'ELEC', 'O', 'H', 'C', 'N', 'Fe'] })]]);
+  const mp = META.loadProfile({ getItem: k => mem.get(k) ?? null, setItem: () => {} });
+  t('기존 덱의 물은 다른 슬라임으로 교체 (8장 유지)', mp.deck.length === 8 && !mp.deck.includes('WATER') && new Set(mp.deck).size === 8);
+}
+// v2.4.0: 오우거는 Lv1~4 슬라임을 밟고 지나가고, Lv5에서만 멈춰 싸운다
+{
+  const mk = (lv) => { const g = cg(73); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 5;
+    const [x, y] = PATH[2]; for (let k = 0; k < lv; k++) put(g, 'Fe', x, y, 0);
+    g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['giant']; return { g, x, y }; };
+  { const { g, x, y } = mk(3); const hp0 = getCell(g, x, y, 0).hp; let pitted = false;
+    for (let i = 0; i < 12; i++) { step(g); if (g.goblins.some(o => o.pit)) pitted = true; }
+    const sl = getCell(g, x, y, 0);
+    t('오우거: Lv3 칸은 갇히지 않고 지나감', !pitted && g.goblins.some(o => o.idx > 2));
+    t('오우거: 지나가며 Lv3 슬라임을 툭 침', !sl || sl.hp < hp0); }
+  { const { g } = mk(5); let pitted = false;
+    for (let i = 0; i < 12; i++) { step(g); if (g.goblins.some(o => o.pit && o.idx === 2)) pitted = true; }
+    t('오우거: Lv5 칸에서는 멈춰 싸움', pitted); }
+}
+// v2.4.0: 쿠폰 코드 (순수 함수) · 업데이트 노트
+{
+  t('쿠폰: 소문자·하이픈 정규화', ON.normCode('open-2026 ev') === 'OPEN2026EV' && ON.validCode('open-2026').ok);
+  t('쿠폰: 길이·문자 검사', !ON.validCode('ab').ok && !ON.validCode('A'.repeat(21)).ok && !ON.validCode('쿠폰123').ok);
+  const now = Date.now(), base = { active: true, maxUses: 0, used: 0, expires: 0, gold: 500 };
+  t('쿠폰: 사용 가능', ON.codeState(base, now).ok);
+  t('쿠폰: 중지·만료·소진·없음 거부', !ON.codeState({ ...base, active: false }, now).ok && !ON.codeState({ ...base, expires: now - 1 }, now).ok && !ON.codeState({ ...base, maxUses: 3, used: 3 }, now).ok && !ON.codeState(null, now).ok);
+  t('쿠폰: 보상 정리 (음수·소수 방지)', JSON.stringify(ON.rewardOf({ gold: 1000.7, crystals: -3, stones: '2' })) === JSON.stringify({ gold: 1000, crystals: 0, stones: 2 }));
+  t('쿠폰: 무작위 코드 형식', /^[A-Z2-9]{10}$/.test(ON.randomCode()) && ON.randomCode() !== ON.randomCode());
+  t('업데이트 노트: 최신 버전 = 게임 버전', NOTES.NOTES[0].v === NOTES.LATEST_NOTE && NOTES.NOTES.every(n => n.v && n.items.length));
+}
+// 오우거 세기 고정: 챕터 1에서는 챕터 배율과 무관하게 기본 능력치 (라운드 성장만)
+{
+  const g = cg(81); g.round = 5; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['giant']; step(g);
+  const o = g.goblins.find(v => v.type === 'giant');
+  const want = Math.round(GOBLINS.giant.hp * Math.pow(CFG.HP_GROWTH, 4));
+  t('오우거: 챕터 1 체력 = 기본 x 라운드 성장 (챕터 배율 미적용)', o && Math.abs(o.maxhp - want) <= 1, `${o?.maxhp} vs ${want}`);
+  const g2 = createGame(81, { chapter: 3, autoField: false }); g2.round = 5; g2.prepLeft = 1; step(g2); g2.goblins = []; g2.spawnList = ['giant']; step(g2);
+  const o2 = g2.goblins.find(v => v.type === 'giant');
+  t('오우거: 챕터 3은 챕터 1보다 강함', o2 && o2.maxhp > o.maxhp);
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

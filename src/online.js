@@ -175,3 +175,93 @@ export async function fetchRanking(storage, force = false) {
   try { storage?.setItem(RANK_CACHE_KEY, JSON.stringify(rankMem)); } catch { /* 무시 */ }
   return { ok: true, list: rankMem.list, cached: false, at: now };
 }
+
+// ---------- 보상 코드 (쿠폰) ----------
+// 서버 구조: codes/{CODE} = { gold, crystals, stones, maxUses(0=무제한), used, expires(ms, 0=없음), active, memo, created }
+//           redeemed/{uid}/{CODE} = 사용 시각   (계정당 1회)
+//           admins/{uid} = true                  (Firebase 콘솔에서 직접 지정)
+export const CODE_MIN = 4, CODE_MAX = 20;
+export const normCode = raw => String(raw ?? '').toUpperCase().replace(/[\s-]/g, '');
+export function validCode(raw) {
+  const c = normCode(raw);
+  if (c.length < CODE_MIN || c.length > CODE_MAX) return { ok: false, msg: `코드는 ${CODE_MIN}~${CODE_MAX}자입니다.` };
+  if (!/^[A-Z0-9]+$/.test(c)) return { ok: false, msg: '코드는 영문·숫자만 쓸 수 있습니다.' };
+  return { ok: true, code: c };
+}
+// 쿠폰 상태 판정 (순수 함수, 테스트용)
+export function codeState(c, now = Date.now()) {
+  if (!c || typeof c !== 'object') return { ok: false, msg: '존재하지 않는 코드입니다.' };
+  if (c.active !== true) return { ok: false, msg: '사용이 중지된 코드입니다.' };
+  if (c.expires && c.expires <= now) return { ok: false, msg: '기간이 만료된 코드입니다.' };
+  if (c.maxUses && (c.used || 0) >= c.maxUses) return { ok: false, msg: '선착순 수량이 모두 소진된 코드입니다.' };
+  return { ok: true };
+}
+export const rewardOf = c => ({ gold: Math.max(0, Math.floor(+c?.gold || 0)), crystals: Math.max(0, Math.floor(+c?.crystals || 0)), stones: Math.max(0, Math.floor(+c?.stones || 0)) });
+export const rewardText = r => [r.gold ? `💰 골드 ${r.gold.toLocaleString()}` : '', r.crystals ? `💎 원소 결정 ${r.crystals}` : '', r.stones ? `🔮 현자의 돌 ${r.stones}` : ''].filter(Boolean).join(' · ') || '보상 없음';
+
+export async function redeemCode(acc, raw) {
+  const v = validCode(raw); if (!v.ok) return v;
+  const t = await freshToken(acc); if (!t.ok) return t;
+  const a = t.account, code = v.code;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const done = await req(dbUrl(`redeemed/${a.uid}/${code}`, a.idToken));
+    if (done.ok && done.body !== null) return { ok: false, msg: '이미 사용한 코드입니다.', account: a };
+    const c = await req(dbUrl(`codes/${code}`, a.idToken));
+    if (!c.ok) return { ok: false, msg: dbErr(c), account: a };
+    const st = codeState(c.body); if (!st.ok) return { ...st, account: a };
+    // 사용 기록 + 사용 횟수 +1 을 한 번에 (규칙이 정확히 +1, 계정당 1회, 수량·기간을 검사)
+    const w = await req(dbUrl('', a.idToken), json('PATCH', {
+      [`redeemed/${a.uid}/${code}`]: { '.sv': 'timestamp' },
+      [`codes/${code}/used`]: (c.body.used || 0) + 1,
+    }));
+    if (w.ok) { const reward = rewardOf(c.body); return { ok: true, reward, code, msg: `🎁 ${rewardText(reward)}`, account: a }; }
+    if (w.status === 0) return { ok: false, msg: '인터넷 연결을 확인해 주세요.', account: a };
+    // 거부: 다른 사람이 동시에 사용했거나(사용 횟수 변경) 조건 불충족 -> 다시 읽고 재시도
+  }
+  return { ok: false, msg: '잠시 후 다시 시도해 주세요. (동시 사용자 많음)', account: acc };
+}
+
+// ---------- 관리자 ----------
+export async function isAdmin(acc) {
+  const t = await freshToken(acc); if (!t.ok) return t;
+  const r = await req(dbUrl(`admins/${t.account.uid}`, t.account.idToken));
+  if (!r.ok) return { ok: false, msg: dbErr(r), account: t.account };
+  return { ok: true, admin: r.body === true, account: t.account };
+}
+export async function listCodes(acc) {
+  const t = await freshToken(acc); if (!t.ok) return t;
+  const r = await req(dbUrl('codes', t.account.idToken));
+  if (!r.ok) return { ok: false, msg: dbErr(r), account: t.account };
+  const list = Object.entries(r.body || {}).map(([code, c]) => ({ code, ...c })).sort((x, y) => (y.created || 0) - (x.created || 0));
+  return { ok: true, list, account: t.account };
+}
+// 새 코드 생성 또는 수정 (수정 시 사용 횟수 유지)
+export async function saveCode(acc, raw, data, isNew) {
+  const v = validCode(raw); if (!v.ok) return v;
+  const t = await freshToken(acc); if (!t.ok) return t;
+  const a = t.account, rw = rewardOf(data);
+  const body = {
+    ...rw, maxUses: Math.max(0, Math.floor(+data.maxUses || 0)), expires: Math.max(0, Math.floor(+data.expires || 0)),
+    active: data.active !== false, memo: String(data.memo || '').slice(0, 60),
+  };
+  if (isNew) {
+    const ex = await req(dbUrl(`codes/${v.code}`, a.idToken));
+    if (ex.ok && ex.body !== null) return { ok: false, msg: '이미 있는 코드입니다.', account: a };
+    body.used = 0; body.created = { '.sv': 'timestamp' };
+  }
+  const w = await req(dbUrl(`codes/${v.code}`, a.idToken), json(isNew ? 'PUT' : 'PATCH', body));
+  if (!w.ok) return { ok: false, msg: dbErr(w), account: a };
+  return { ok: true, code: v.code, account: a, msg: isNew ? `코드 ${v.code} 생성` : `코드 ${v.code} 수정` };
+}
+export async function deleteCode(acc, raw) {
+  const v = validCode(raw); if (!v.ok) return v;
+  const t = await freshToken(acc); if (!t.ok) return t;
+  const w = await req(dbUrl(`codes/${v.code}`, t.account.idToken), { method: 'DELETE' });
+  if (!w.ok) return { ok: false, msg: dbErr(w), account: t.account };
+  return { ok: true, account: t.account, msg: `코드 ${v.code} 삭제` };
+}
+export function randomCode(len = 10) {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 헷갈리는 0/O, 1/I 제외
+  const buf = new Uint32Array(len); (globalThis.crypto || { getRandomValues: b => b.map(() => Math.random() * 2 ** 32) }).getRandomValues(buf);
+  return Array.from(buf, n => A[n % A.length]).join('');
+}

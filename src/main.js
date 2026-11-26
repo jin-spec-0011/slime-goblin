@@ -5,7 +5,8 @@ import {
   loadProfile, saveProfile, modsOf, UPGRADES, upgradeCost, isMaxed, buyUpgrade, buyResearch, researchCost, RESEARCH_PER,
   DECK_POOL, DECK_SIZE, toggleDeck, stoneGain, prestige, PRESTIGE_MIN_FLOOR, offlineReward, fmt, dropEvery, OFFLINE_RATE, OFFLINE_MAX_SEC,
 } from './meta.js';
-import { loadAccount, saveAccount, clearAccount, signUp, signIn, submitFloor, fetchRanking, validNick, NICK_MIN, NICK_MAX, PW_MIN } from './online.js';
+import { loadAccount, saveAccount, clearAccount, signUp, signIn, submitFloor, fetchRanking, validNick, NICK_MIN, NICK_MAX, PW_MIN, redeemCode, rewardText, CODE_MAX } from './online.js';
+import { NOTES, LATEST_NOTE } from './notes.js';
 import {
   autoPlay, setMods, createGame, step, placeFromQueue, moveSlime, combine, makeMega, comboMegaCount, recipeHint, skipPrep,
   getCell, slimeCount, PATH, lvMult,
@@ -36,7 +37,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.3.0'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.4.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -635,11 +636,51 @@ function showHome() {
     : `<div class="acct"><span>👤 게스트 <small>랭킹 미등록</small></span><button class="lnk" id="hLogin">로그인 · 가입</button></div>`;
   showModal('Element Slime Defense', `${acct}
     <button class="bigbtn ch" id="hChap"><span class="tag">${cleared}/${CHAPTERS.length}</span><b>⚔ 챕터</b><span>고블린 숲부터 고블린 왕성까지 ${CHAPTERS.length}개 챕터</span><span class="chips">${chips}</span></button>
-    <button class="bigbtn tw" id="hTower"><span class="tag">${towerOpen ? `${PROF.towerBest}F` : '🔒'}</span><b>♾ 무한의 탑</b><span>${towerOpen ? '층마다 강해지는 끝없는 도전 · 골드 대량 획득' : `챕터 ${CHAPTERS.length} 클리어 시 도전 가능`}</span><span class="gold">🏆 전체 랭킹 보기</span></button>`, { noOk: true });
+    <button class="bigbtn tw" id="hTower"><span class="tag">${towerOpen ? `${PROF.towerBest}F` : '🔒'}</span><b>♾ 무한의 탑</b><span>${towerOpen ? '층마다 강해지는 끝없는 도전 · 골드 대량 획득' : `챕터 ${CHAPTERS.length} 클리어 시 도전 가능`}</span><span class="gold">🏆 전체 랭킹 보기</span></button>
+    <div class="hrow"><button class="btn" id="hCoupon">🎁 쿠폰</button><button class="btn" id="hNotes">📢 업데이트 <small>${LATEST_NOTE}</small></button></div>`, { noOk: true });
   $('hChap').onclick = () => { closeModal(); showChapterSelect(); };
   $('hTower').onclick = () => { closeModal(); showTower(); };
+  $('hCoupon').onclick = () => { closeModal(); showCoupon(); };
+  $('hNotes').onclick = () => { closeModal(); showNotes(showHome); };
   if ($('hLogin')) $('hLogin').onclick = () => { closeModal(); showAccount('login', showHome); };
   if ($('hLogout')) $('hLogout').onclick = () => { closeModal(); showModal('로그아웃', `<p><b>${escHtml(ACC.nick)}</b> 계정에서 로그아웃할까요?</p><p style="color:var(--sub)">게임 진행 데이터는 이 기기에 그대로 남습니다.</p>`, { okText: '로그아웃', onOk: () => { setAcc(null); ui.msg = '로그아웃했습니다.'; showHome(); }, altText: '취소', onAlt: showHome }); };
+}
+
+// 쿠폰: 관리자가 만든 코드를 입력하면 보상 지급 (계정당 1회)
+function showCoupon() {
+  if (!ACC) {
+    showModal('🎁 쿠폰', '<p>쿠폰은 계정당 한 번씩 받을 수 있어 <b>로그인</b>이 필요합니다.</p>', { okText: '로그인 · 가입', onOk: () => showAccount('login', showCoupon), altText: '◀ 홈', onAlt: showHome });
+    return;
+  }
+  showModal('🎁 쿠폰', `<form id="cForm" class="aform">
+      <label>쿠폰 코드 <small>영문·숫자, 대소문자 구분 없음</small>
+        <input id="cCode" maxlength="${CODE_MAX + 4}" autocomplete="off" autocapitalize="characters" spellcheck="false" required></label>
+      <p class="astat" id="cMsg"></p>
+      <button class="btn go" id="cSubmit" type="submit">보상 받기</button>
+    </form>`, { noOk: true, altText: '◀ 홈', onAlt: showHome });
+  let busy = false;
+  $('cForm').addEventListener('submit', async e => {
+    e.preventDefault(); if (busy) return;
+    busy = true; $('cSubmit').disabled = true; $('cMsg').classList.add('ok'); $('cMsg').textContent = '확인 중…';
+    const r = await redeemCode(ACC, $('cCode').value);
+    busy = false; if ($('cSubmit')) $('cSubmit').disabled = false;
+    if (r.account) setAcc({ ...ACC, ...r.account });
+    if (r.expired) setAcc(null);
+    if (!r.ok) { if ($('cMsg')) { $('cMsg').classList.remove('ok'); $('cMsg').textContent = r.msg; } return; }
+    PROF.gold += r.reward.gold; PROF.totalGold += r.reward.gold; PROF.crystals += r.reward.crystals; PROF.stones += r.reward.stones;
+    saveProf(true); setMods(ui.g, modsOf(PROF));
+    closeModal();
+    showModal('🎉 쿠폰 보상', `<p>코드 <b>${escHtml(r.code)}</b></p><p style="font-size:18px">${escHtml(rewardText(r.reward))}</p>`, { okText: '확인', onOk: showHome });
+  });
+  setTimeout(() => { try { $('cCode').focus({ preventScroll: true }); } catch { /* 무시 */ } }, 50);
+}
+
+// 업데이트 노트
+function showNotes(after = showHome) {
+  lsSet('esd.notesSeen', LATEST_NOTE);
+  const html = NOTES.map((n, i) => `<section class="note${i === 0 ? ' new' : ''}"><h3>${n.v} <small>${n.date}</small></h3><b class="nt">${n.title}</b>
+    <ul>${n.items.map(([ic, tx]) => `<li><span>${ic}</span><span>${tx}</span></li>`).join('')}</ul></section>`).join('');
+  showModal('📢 업데이트 노트', html, { okText: '확인', onOk: after });
 }
 
 function showChapterSelect() {
@@ -743,7 +784,7 @@ const needText = need => Object.entries(need).map(([k, v]) => (v > 1 ? `${symLab
 
 function showHelp(after = null) {
   const rec = RECIPES.map(r => `<tr><td>${r.label} ${r.name}</td><td>${Object.entries(r.need).map(([k, v]) => v > 1 ? `${k}×${v}` : k).join(' + ')}</td><td>${STATUS[r.st.name].label}</td></tr>`).join('');
-  const els = ELEMENTS.map(e => `<tr><td>${e.label || e.sym} ${e.label ? '' : e.name}</td><td>${ATTRS[e.attr].icon} ${ATTRS[e.attr].label}</td><td>${STATUS[e.st.name].label}</td><td>R${e.unlock}</td></tr>`).join('');
+  const els = ELEMENTS.map(e => `<tr><td>${e.label || e.sym} ${e.label ? '' : e.name}</td><td>${ATTRS[e.attr].icon} ${ATTRS[e.attr].label}</td><td>${STATUS[e.st.name].label}</td><td>${e.noDrop ? 'H₂O로만' : 'R' + e.unlock}</td></tr>`).join('');
   const fj = foundJokes();
   const jokeRows = () => JOKES.map(j => fj.has(j.key)
     ? `<tr><td><b>${j.label}</b> ${j.name}</td><td>${needText(j.need)}</td><td>${j.st.map(s => STATUS[s.name].label).join('·')}${j.onCreate?.baseHp ? '·거점+' + j.onCreate.baseHp : ''}${j.onCreate?.catalysts ? '·촉매+' + j.onCreate.catalysts : ''}${j.healAura ? '·회복' : ''}</td></tr>`
@@ -753,7 +794,7 @@ function showHelp(after = null) {
   const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}<br><small>${d.desc || ''}</small></td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
   showModal(`게임 방법 · ${APP_VERSION}`, `
     <p>고블린은 전장의 <b>점선 경로</b>를 따라 이동합니다(챕터마다 모양이 다름). 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
-    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임은 <b>${CFG.DROP_EVERY}초마다 1마리</b>(지급 속도 강화 시 최대 ${dropEvery(UPGRADES.drop.max)}초) 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 그때부터 덱에 쌓입니다(최대 ${CFG.QUEUE_MAX}장). 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
+    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸, <b>Lv5 슬라임에서만 멈추고 Lv1~4는 밟고 지나감</b>). 물 슬라임은 지급되지 않으며 <b>H₂O(H×2+O)</b>가 물 역할을 합니다. 슬라임은 <b>${CFG.DROP_EVERY}초마다 1마리</b>(지급 속도 강화 시 최대 ${dropEvery(UPGRADES.drop.max)}초) 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 그때부터 덱에 쌓입니다(최대 ${CFG.QUEUE_MAX}장). 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
     <p><b>속성</b>: 모든 슬라임은 8속성 중 하나입니다(🔥불 💧물 ⚡전기 ❄얼음 🌪바람 ⛰대지 ☠독 ☢방사). 고블린마다 <b>약점 속성(피해 ×${CFG.WEAK_MUL}, 주황 숫자)</b>과 <b>내성 속성(×${CFG.RESIST_MUL}, 회색 숫자)</b>이 있습니다.</p>
     <p><b>조합</b>(촉매 1개): ① 화학 족보 정확히 일치 → 화합물 150% ② <b>서로 다른 속성 2마리 → 속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%</b> ③ 그 외 → 혼합물 70%.</p>
     <p><b>메가</b>: ${CFG.MEGA_ROUND}라운드부터 사용 가능. Lv5 같은 슬라임 3개 → 3×3 구역, 최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격. 원소 메가는 제한 없음. <b>조합 메가</b>(화학 족보·비밀 족보·속성 합성 Lv5 ×3)는 <b>동시에 ${CFG.COMBO_MEGA_MAX}마리</b>만, 파괴되면 다시 만들 수 있습니다(혼합물 불가).</p>
@@ -781,6 +822,7 @@ function collectFx() {
     if (f.k === 'kill') ui.puffs.push({ idx: f.idx, t0: now, seed: Math.random() * 6 });
     if (f.k === 'heal') ui.floats.push({ idx: f.idx, text: '+' + f.v, col: '#7dff9a', t0: now, dx: (Math.random() - 0.5) * 18 });
     if (f.k === 'leak') ui.floats.push({ idx: f.idx, text: `거점 -${f.v}`, col: '#ff4040', t0: now, dx: 0 });
+    if (f.k === 'stomp') ui.floats.push({ idx: f.idx, text: '쿵!', col: '#e0b07a', t0: now, dx: -14 });
   }
 }
 
@@ -861,8 +903,13 @@ const afterIntro = () => {
 };
 // 첫 실행이면 계정 만들기를 한 번 권하고, 이후에는 홈 화면
 function firstScreen() {
-  if (!ACC && !lsGet('esd.accountAsked')) { lsSet('esd.accountAsked', '1'); showAccount('signup', showHome); }
-  else showHome();
+  const seen = lsGet('esd.notesSeen'), returning = PROF.totalGold > 0 || PROF.towerBest > 0 || !!lsGet(lsBest(1));
+  if (seen !== LATEST_NOTE && returning) showNotes(firstScreen);          // 기존 플레이어: 새 버전 노트 한 번 표시
+  else {
+    if (!seen) lsSet('esd.notesSeen', LATEST_NOTE);                         // 신규 플레이어는 생략
+    if (!ACC && !lsGet('esd.accountAsked')) { lsSet('esd.accountAsked', '1'); showAccount('signup', showHome); }
+    else showHome();
+  }
   syncFloor();
 }
 if (!lsGet('esd.seenHelp')) { lsSet('esd.seenHelp', '1'); showHelp(afterIntro); }

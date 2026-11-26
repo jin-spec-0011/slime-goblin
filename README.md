@@ -34,3 +34,10 @@ GitHub 저장소 Settings → Pages → Source를 **GitHub Actions**로 설정�
 - 진행 데이터(골드·강화·덱)는 기존처럼 기기 localStorage에만 저장. 클라우드에는 닉네임·탑 최고 층만 저장
 - 보안 규칙: `database.rules.json` → Firebase 콘솔 > Realtime Database > 규칙 탭에 붙여넣고 게시
 - 관리: 부적절한 닉네임·기록은 콘솔에서 `ranking/{uid}`, `nicknames/{닉네임}` 삭제, Authentication에서 계정 삭제
+
+## 쿠폰 · 관리자 페이지 (v2.4.0)
+
+- 관리자 페이지: `admin.html` (게임 안에 링크 없음). 게임 계정으로 로그인
+- 관리자 지정: Firebase 콘솔 > Realtime Database > 데이터 > `admins/{uid}` = `true` (불리언). uid는 관리자 페이지에서 로그인하면 표시
+- 쿠폰: `codes/{CODE}` (골드·결정·현자의 돌, 사용 횟수, 만료일). 플레이어는 홈 > 🎁 쿠폰에서 입력, 계정당 1회 (`redeemed/{uid}/{CODE}`)
+- 업데이트 노트: `src/notes.js` 맨 앞에 새 버전을 추가하면 홈 📢 버튼과 첫 실행 팝업에 표시

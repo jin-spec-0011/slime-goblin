@@ -63,7 +63,7 @@ function makeElement(s, sym, lv = 1) {
 function makeCompound(s, rec, lv) {
   const sl = {
     id: s.nextId++, kind: 'compound', key: rec.key, label: rec.label, name: rec.name, els: Object.keys(rec.need),
-    attrs: [...new Set(Object.keys(rec.need).map(k => EL[k].attr))], lv,
+    attrs: rec.attr ? [rec.attr] : [...new Set(Object.keys(rec.need).map(k => EL[k].attr))], lv,
     base: { hp: rec.hp, atk: rec.atk, def: rec.def }, status: [rec.st], kindMul: CFG.COMPOUND_MUL,
     color: rec.color, color2: null, cd: 0, sealed: 0,
   };
@@ -109,6 +109,10 @@ function makeJoke(s, j, lv) {
 const sameCounts = (a, b) => { const k = new Set([...Object.keys(a), ...Object.keys(b)]); for (const x of k) if ((a[x] || 0) !== (b[x] || 0)) return false; return true; };
 
 const fusionOf = (a, b) => FUSIONS.find(f => (f.pair[0] === a && f.pair[1] === b) || (f.pair[0] === b && f.pair[1] === a)) || null;
+// 조합 재료 키: 원소 슬라임은 자기 기호, 물 역할 화합물(H₂O)은 'WATER'로 취급. 그 외(조합·혼합물)는 재료 불가
+const ACTS_AS = Object.fromEntries(RECIPES.filter(r => r.actsAs).map(r => [r.key, r.actsAs]));
+export const ingKey = c => (!c ? null : c.kind === 'element' ? c.key : c.kind === 'compound' && ACTS_AS[c.key] ? ACTS_AS[c.key] : null);
+const ingAttr = c => { const k = ingKey(c); return k ? EL[k].attr : null; };
 
 // 강화(공격·체력) + 속성 연구(슬라임 속성들의 평균 배율)
 export const DEFAULT_MODS = { atk: 1, hp: 1, attrAtk: {}, dropEvery: CFG.DROP_EVERY, catPerRound: 1, baseHp: CFG.BASE_HP, startSlimes: CFG.START_SLIMES, goldMul: 1 };
@@ -127,7 +131,7 @@ export function setMods(s, mods) {
 // ---------- 지급 큐 ----------
 // 슬라임 지급: 필드에 빈칸이 있으면 빈칸에 랜덤 배치, 필드가 가득 차면 덱(큐)에 쌓는다
 function addQueue(s) {
-  let pool = ELEMENTS.filter(e => s.ch.unlockAll || e.unlock <= s.round);
+  let pool = ELEMENTS.filter(e => !e.noDrop && (s.ch.unlockAll || e.unlock <= s.round));
   if (s.deck && s.deck.length) { const d = pool.filter(e => s.deck.includes(e.sym)); if (d.length) pool = d; } // 덱 편성
   const e = pool[Math.floor(s.rng() * pool.length)];
   if (s.autoField) {
@@ -222,8 +226,8 @@ export function moveSlime(s, a, b) {
 export function recipeHint(s, list) {
   const sl = list.map(p => getCell(s, p.x, p.y, p.z)).filter(Boolean);
   if (sl.length < 2) return { state: 'none', text: '슬라임 2개 이상을 선택하세요.' };
-  if (sl.some(c => c.kind !== 'element')) return { state: 'bad', text: '원소·속성 슬라임만 조합할 수 있습니다.' };
-  const cnt = {}; sl.forEach(c => { cnt[c.key] = (cnt[c.key] || 0) + 1; });
+  if (sl.some(c => !ingKey(c))) return { state: 'bad', text: '원소·속성 슬라임(과 물 역할 H₂O)만 조합할 수 있습니다.' };
+  const cnt = {}; sl.forEach(c => { const k = ingKey(c); cnt[k] = (cnt[k] || 0) + 1; });
   // 0) 비밀 족보 (말장난 화학식) - 정확히 일치하면 최우선. 이름은 만들기 전까지 숨김
   const joke = JOKES.find(j => sameCounts(j.need, cnt));
   if (joke) return { state: 'joke', joke, text: '✨ 뭔가 특별한 반응이 일어날 것 같다...' };
@@ -237,8 +241,8 @@ export function recipeHint(s, list) {
   }
   if (best.diff === 0) return { state: 'match', recipe: best.r, text: `${best.r.label} ${best.r.name} (화학 족보 150%)` };
   // 2) 서로 다른 속성 슬라임 2마리 -> 속성 합성
-  if (sl.length === 2 && sl[0].attrs[0] !== sl[1].attrs[0]) {
-    const fu = fusionOf(sl[0].attrs[0], sl[1].attrs[0]);
+  if (sl.length === 2 && ingAttr(sl[0]) !== ingAttr(sl[1])) {
+    const fu = fusionOf(ingAttr(sl[0]), ingAttr(sl[1]));
     if (fu) return { state: 'fusion', fusion: fu, text: `${ATTRS[fu.pair[0]].label} + ${ATTRS[fu.pair[1]].label} = ${fu.label} (속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%)` };
   }
   // 3) 그 외 -> 혼합물 70%
@@ -252,7 +256,7 @@ export function combine(s, list) {
   const h = recipeHint(s, list);
   if (h.state === 'none' || h.state === 'bad') return err(h.text);
   const sl = list.map(p => getCell(s, p.x, p.y, p.z));
-  const cnt = {}; sl.forEach(c => { cnt[c.key] = (cnt[c.key] || 0) + 1; });
+  const cnt = {}; sl.forEach(c => { const k = ingKey(c); cnt[k] = (cnt[k] || 0) + 1; });
   const lv = Math.min(CFG.MAX_LV, Math.ceil(sl.reduce((a, c) => a + c.lv, 0) / sl.length));
   const res = h.state === 'joke' ? makeJoke(s, h.joke, lv)
     : h.state === 'match' ? makeCompound(s, h.recipe, lv)
@@ -357,7 +361,7 @@ function bestAutoAction(s) {
   }
   // 3) 조합 (촉매 1개): 결과 가치 - 재료 가치 + 빈칸 재충전. 결과는 재료 중 가장 앞쪽 칸에 생긴다
   if (s.catalysts > 0) {
-    const els = filled.filter(c => c.sl.kind === 'element');
+    const els = filled.filter(c => ingKey(c.sl));
     const tryList = list => {
       list.sort((p, q) => p.idx - q.idx);
       const h = recipeHint(s, list); if (!['joke', 'match', 'fusion'].includes(h.state)) return;
@@ -372,14 +376,14 @@ function bestAutoAction(s) {
     for (const r of [...JOKES, ...RECIPES]) {
       const pick = []; let okAll = true;
       for (const [k, n] of Object.entries(r.need)) {
-        const cand = els.filter(c => c.sl.key === k && !pick.includes(c)).sort((p, q) => q.sl.lv - p.sl.lv || p.idx - q.idx);
+        const cand = els.filter(c => ingKey(c.sl) === k && !pick.includes(c)).sort((p, q) => q.sl.lv - p.sl.lv || p.idx - q.idx);
         if (cand.length < n) { okAll = false; break; } pick.push(...cand.slice(0, n));
       }
       if (okAll) tryList(pick);
     }
     // 3-2) 속성 합성: 서로 다른 속성 2마리의 모든 쌍
     for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++)
-      if (els[i].sl.attrs[0] !== els[j].sl.attrs[0]) tryList([els[i], els[j]]);
+      if (ingAttr(els[i].sl) !== ingAttr(els[j].sl)) tryList([els[i], els[j]]);
   }
   // 4) 메가: Lv5 같은 원소 3개 (가장 앞쪽 3개), 조합 슬라임은 동시에 1마리까지
   if (s.round >= CFG.MEGA_ROUND || s.tower) {
@@ -441,13 +445,16 @@ function makeGoblin(s, type) {
   // 챕터 배율은 라운드가 갈수록 커진다: 1라운드 30% 적용 -> 10라운드 100% (초반 붕괴 방지)
   const ramp = 0.3 + 0.7 * (r / (CFG.ROUNDS - 1));
   const towerMul = s.tower ? Math.pow(CFG.TOWER_GROWTH, s.round - 1) : 1; // 무한의 탑: 층마다 성장
-  const hpMul = (1 + (s.ch.hpMul - 1) * ramp) * towerMul, atkMul = (1 + (s.ch.atkMul - 1) * ramp) * Math.sqrt(towerMul);
+  let hpMul = (1 + (s.ch.hpMul - 1) * ramp) * towerMul, atkMul = (1 + (s.ch.atkMul - 1) * ramp) * Math.sqrt(towerMul);
+  // 오우거(chAnchor): 챕터 1 배율을 기준점으로 나눈다 -> 챕터 1에서는 항상 기본 능력치(Lv5 약 5마리로 막힘),
+  // 챕터 2~5는 챕터 1 대비 배율만큼만 강해진다. 챕터 밸런스를 다시 맞춰도 오우거 세기가 흔들리지 않음
+  if (d.chAnchor && !s.tower) { const c1 = CHAPTERS[0]; hpMul /= 1 + (c1.hpMul - 1) * ramp; atkMul /= 1 + (c1.atkMul - 1) * ramp; }
   const hp = Math.round(d.hp * Math.pow(CFG.HP_GROWTH, r) * hpMul);
   return {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
     atk: d.atk * (1 + CFG.ATK_GROWTH * r) * atkMul, def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
     multi: d.multi || 1, range: d.range || 0, aura: !!d.aura, evade: d.evade || 0, cleanse: !!d.cleanse,
-    weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, atkBuff: 1,
+    weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, lv5Only: !!d.lv5Only, atkBuff: 1,
     idx: 0, pit: false, st: {}, fights: 0, dead: false,
   };
 }
@@ -548,9 +555,25 @@ function moveGoblin(s, g) {
     const [x, y] = PATH[ni];
     if (trapAt(s, x, y) && !pitOcc(s, ni, g)) {
       if (g.evade > 0) { g.evade--; continue; }
+      if (g.lv5Only && !megaAt(s, x, y) && (columnSlimes(s, x, y)[0]?.lv || 0) < CFG.MAX_LV) { stompBy(s, g, x, y); if (g.dead) return; continue; }
       g.pit = true; s.fx.push({ k: 'fall', idx: ni }); break;
     }
   }
+}
+
+// 오우거: Lv1~4 슬라임 칸은 갇히지 않고 밟고 지나간다. 슬라임이 한 번 공격하고, 오우거는 툭 치고(GIANT_TAP) 계속 걷는다
+function stompBy(s, g, x, y) {
+  const top = columnSlimes(s, x, y)[0]; if (!top) return;
+  if (!(top.sealed > 0)) {
+    const aff = affinity(top, g), dmg = Math.max(1, Math.round(top.atk * aff - (top.pierce ? 0 : effDef(s, g))));
+    hurt(s, g, dmg, aff);
+    if (g.dead) { computeCounts(s); return; }
+    slimeStatus(s, top, g, x, y, aff);
+  }
+  const d = Math.max(1, Math.round(g.atk * CFG.GIANT_TAP * auraOf(s, g).atk * g.atkBuff - top.def));
+  top.hp -= d; s.fx.push({ k: 'dmg', idx: g.idx, v: d, who: 's' }, { k: 'stomp', idx: g.idx });
+  if (top.hp <= 0) { removeSlime(s, top); say(s, `${top.label} 슬라임이 오우거에게 밟혔습니다.`); }
+  computeCounts(s);
 }
 
 const rowSlimes = (s, y) => { const out = []; for (let z = 0; z < CFG.D; z++) for (let x = 0; x < CFG.W; x++) if (s.cells[z][y][x]) out.push(s.cells[z][y][x]); return out; };

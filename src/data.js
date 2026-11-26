@@ -32,6 +32,7 @@ export const CFG = {
   GOLD_SCALE: 0.3,              // 골드 획득 전체 배율 (성장 속도 조절)                // 무한의 탑: 층 사이 준비(초)                // 메가 슬라임 조합 가능 라운드 (이 라운드부터)
   MEGA_MUL: 1.2,
   MEGA_ATK: 2.4,
+  GIANT_TAP: 0.3,               // 오우거가 Lv1~4 슬라임을 밟고 지나갈 때 주는 피해 (공격력 배율)
   COMBO_MEGA_ATK: 1.0,          // 조합 메가(화학·비밀 족보·속성 합성 Lv5 x3) 공격 배율 · 동시에 1마리만
   COMBO_MEGA_HP: 0.15,          // 조합 메가 체력 배율 (원소 메가 공식 대비)
   COMBO_MEGA_MAX: 1,
@@ -98,9 +99,10 @@ export const ATTRS = {
 };
 
 // 원소·속성 슬라임. attr = 소속 속성. FIRE/WATER/ELEC는 원소가 아닌 순수 속성 슬라임
+// noDrop: 지급되지 않음. 물(WATER)은 v2.4.0부터 H₂O 화학 족보로만 얻고, H₂O가 물 슬라임 역할을 대신한다
 export const ELEMENTS = [
   { sym: 'FIRE',  label: '불',   name: '불',   attr: 'fire',  color: '#ff6a3d', hp: 26, atk: 6, def: 0, unlock: 1, st: { name: 'burn', every: 1, dur: 3, mul: 0.7 } },
-  { sym: 'WATER', label: '물',   name: '물',   attr: 'water', color: '#3aa0ff', hp: 34, atk: 4, def: 1, unlock: 1, st: { name: 'slow', every: 1, dur: 2 } },
+  { sym: 'WATER', label: '물',   name: '물',   attr: 'water', color: '#3aa0ff', hp: 34, atk: 4, def: 1, unlock: 1, noDrop: true, st: { name: 'slow', every: 1, dur: 2 } },
   { sym: 'ELEC',  label: '전기', name: '전기', attr: 'elec',  color: '#ffd84d', hp: 24, atk: 5, def: 0, unlock: 1, st: { name: 'chain', every: 1, mul: 0.5 } },
   { sym: 'O',  attr: 'wind', name: '산소',   color: '#4fa3ff', hp: 30, atk: 4, def: 1, unlock: 1, st: { name: 'suffocate', every: 1, dur: 2 } },
   { sym: 'H',  attr: 'fire', name: '수소',   color: '#bfe6ff', hp: 25, atk: 6, def: 0, unlock: 1, st: { name: 'burn', every: 1, dur: 3, mul: 0.6 } },
@@ -116,7 +118,7 @@ export const ELEMENTS = [
 
 // 화합물 족보 (재료는 원소 슬라임 개수 기준)
 export const RECIPES = [
-  { key: 'H2O',   label: 'H₂O',   name: '물',     need: { H: 2, O: 1 },        hp: 40, atk: 6, def: 2, color: '#3aa0ff', st: { name: 'slow', every: 1, dur: 2 } },
+  { key: 'H2O',   label: 'H₂O',   name: '물',     attr: 'water', actsAs: 'WATER', need: { H: 2, O: 1 },        hp: 40, atk: 6, def: 2, color: '#3aa0ff', st: { name: 'slow', every: 1, dur: 2 } },
   { key: 'CO2',   label: 'CO₂',   name: '이산화탄소', need: { C: 1, O: 2 },     hp: 38, atk: 6, def: 2, color: '#8a93a8', st: { name: 'suffocate', every: 1, dur: 3 } },
   { key: 'NaCl',  label: 'NaCl',  name: '소금',   need: { Na: 1, Cl: 1 },      hp: 45, atk: 6, def: 3, color: '#e9eef5', st: { name: 'slow', every: 1, dur: 3 } },
   { key: 'NH3',   label: 'NH₃',   name: '암모니아', need: { N: 1, H: 3 },      hp: 40, atk: 7, def: 1, color: '#4fd1b0', st: { name: 'poison', every: 1, dur: 4, mul: 0.6 } },
@@ -189,7 +191,7 @@ export const GOBLINS = {
   rider:   { name: '기마', desc: '2칸씩 이동',   ch: '기', hp: 22,  atk: 4,  def: 1, spd: 2, leak: 2,  color: '#d6b13c', weak: ['water', 'ice'], resist: ['wind'] },
   archer:  { name: '궁수', desc: '앞 2칸 슬라임 저격',   ch: '궁', hp: 18,  atk: 4,  def: 0, spd: 1, leak: 2,  range: 2, color: '#4fb39a', weak: ['wind'], resist: ['water'] },
   captain: { name: '대장', desc: '주변 고블린 공격·방어 강화',   ch: '대', hp: 40,  atk: 5,  def: 2, spd: 1, leak: 3,  aura: true, color: '#d64a4a', weak: ['poison'], resist: ['elec'] },
-  giant:   { name: '초대형', desc: '2칸 크기, 슬라임 2마리 동시 공격, 빙결·기절 면역, 느림', ch: '초', hp: 400, atk: 20, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, fatigue: 0.2, immune: ['freeze', 'stun'], color: '#7a5a3a', weak: ['rad', 'elec'], resist: ['ice'] }, // 2틱에 1칸, 2칸 크기
+  giant:   { name: '초대형', desc: '2칸 크기, Lv5 슬라임만 멈춰서 공격 (Lv1~4는 밟고 지나감), 빙결·기절 면역, 느림', ch: '초', hp: 400, atk: 20, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, fatigue: 0.2, lv5Only: true, chAnchor: true, immune: ['freeze', 'stun'], color: '#7a5a3a', weak: ['rad', 'elec'], resist: ['ice'] }, // 2틱에 1칸, 2칸 크기
   smart:   { name: '지능형', desc: '함정 1회 회피, 상태이상 정화', ch: '지', hp: 30,  atk: 4,  def: 1, spd: 1, leak: 3,  evade: 1, cleanse: true, color: '#3ab0d6', weak: ['water'], resist: ['poison'] },
   // ---- 개편 추가 4종 ----
   gasmask: { name: '방독', desc: '독·질식 면역', ch: '독', hp: 34,  atk: 4,  def: 1, spd: 1, leak: 2,  immune: ['poison', 'suffocate'], color: '#5f7a4a', weak: ['fire'], resist: ['poison', 'wind'] }, // 독·질식 면역
@@ -241,11 +243,11 @@ function genRounds({ focus = [], chapter, unlockShift = 0 }) {
 }
 
 export const CHAPTERS = [
-  { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 1.77, atkMul: 1.29, boost: {},                         goldMul: 1.0, unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
-  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 1.53, atkMul: 1.21, boost: { fire: 1.25, ice: 0.75 },    goldMul: 1.5, unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], chapter: 2, unlockShift: 1 }) },
-  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 2.92, atkMul: 1.54, boost: { ice: 1.25, fire: 0.75 },     goldMul: 2.2, unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], chapter: 3, unlockShift: 2 }) },
-  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 3.73, atkMul: 1.66, boost: { poison: 1.25, water: 0.85 }, goldMul: 3.2, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], chapter: 4, unlockShift: 3 }) },
-  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 4.99, atkMul: 1.81, boost: { elec: 1.15, rad: 1.15 },     goldMul: 4.5, unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], chapter: 5, unlockShift: 4 }) },
+  { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 3.91, atkMul: 1.69, boost: {},                         goldMul: 1.0, unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
+  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 4.83, atkMul: 1.8, boost: { fire: 1.25, ice: 0.75 },    goldMul: 1.5, unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], chapter: 2, unlockShift: 1 }) },
+  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 8.65, atkMul: 2.09, boost: { ice: 1.25, fire: 0.75 },     goldMul: 2.2, unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], chapter: 3, unlockShift: 2 }) },
+  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 11.58, atkMul: 2.24, boost: { poison: 1.25, water: 0.85 }, goldMul: 3.2, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], chapter: 4, unlockShift: 3 }) },
+  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 17.94, atkMul: 2.46, boost: { elec: 1.15, rad: 1.15 },     goldMul: 4.5, unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], chapter: 5, unlockShift: 4 }) },
 ];
 
 // 무한의 탑: 챕터 5 클리어 후 열림. 층마다 고블린이 강해지고 끝이 없다 (편성은 engine.towerRound)

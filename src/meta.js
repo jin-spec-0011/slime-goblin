@@ -28,7 +28,7 @@ export function newProfile() {
     v: 1, gold: 0, crystals: 0, stones: 0, prestiges: 0,
     upgrades: Object.fromEntries(Object.keys(UPGRADES).map(k => [k, 0])),
     research: Object.fromEntries(Object.keys(ATTRS).map(k => [k, 0])),
-    deck: ['FIRE', 'WATER', 'ELEC', 'O', 'H', 'C', 'N', 'Fe'],
+    deck: ['FIRE', 'ELEC', 'O', 'H', 'C', 'N', 'Fe', 'He'],
     towerBest: 0, totalGold: 0, goldRate: 0, lastSeen: Date.now(),
   };
 }
@@ -38,7 +38,11 @@ export function loadProfile(storage) {
     const p = JSON.parse(storage?.getItem(PROFILE_KEY) || 'null');
     if (!p || p.v !== 1) return newProfile();
     const base = newProfile();
-    return { ...base, ...p, upgrades: { ...base.upgrades, ...p.upgrades }, research: { ...base.research, ...p.research } };
+    const out = { ...base, ...p, upgrades: { ...base.upgrades, ...p.upgrades }, research: { ...base.research, ...p.research } };
+    // v2.4.0: 덱에서 지급되지 않는 슬라임(물) 제거 -> 덱에 없는 슬라임으로 채움
+    out.deck = (Array.isArray(out.deck) ? out.deck : base.deck).filter(sym => DECK_POOL.includes(sym));
+    for (const sym of DECK_POOL) { if (out.deck.length >= Math.min(DECK_SIZE, (p.deck || []).length || DECK_SIZE)) break; if (!out.deck.includes(sym)) out.deck.push(sym); }
+    return out;
   } catch { return newProfile(); }
 }
 export function saveProfile(storage, p) {
@@ -64,7 +68,7 @@ export function buyResearch(p, attr) {
 }
 
 // 덱: 정확히 DECK_SIZE장. 순수 속성 슬라임 포함 13종 중 선택
-export const DECK_POOL = ELEMENTS.map(e => e.sym);
+export const DECK_POOL = ELEMENTS.filter(e => !e.noDrop).map(e => e.sym); // 물은 H₂O로만 얻으므로 덱에서 제외
 export function toggleDeck(p, sym) {
   const i = p.deck.indexOf(sym);
   if (i >= 0) { if (p.deck.length <= 4) return { ok: false, msg: '덱은 최소 4장이어야 합니다.' }; p.deck.splice(i, 1); return { ok: true }; }

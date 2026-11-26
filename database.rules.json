@@ -25,6 +25,31 @@
         ".write": "auth != null && auth.uid === $uid",
         ".validate": "newData.hasChildren(['nick', 'floor', 'at', 'score']) && newData.child('floor').isNumber() && newData.child('floor').val() >= 1 && newData.child('floor').val() <= 999 && (!data.exists() || newData.child('floor').val() >= data.child('floor').val()) && newData.child('at').isNumber() && newData.child('at').val() <= now && newData.child('score').isNumber() && newData.child('score').val() >= newData.child('floor').val() * 10000000000 && newData.child('score').val() < (newData.child('floor').val() + 1) * 10000000000 && newData.child('nick').val() === root.child('users').child($uid).child('nick').val()"
       }
+    },
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    },
+    "codes": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        ".validate": "newData.hasChildren(['gold', 'crystals', 'stones', 'maxUses', 'used', 'expires', 'active']) && $code.length >= 4 && $code.length <= 20",
+        "used": {
+          ".write": "auth != null && newData.isNumber() && newData.val() === (data.exists() ? data.val() : 0) + 1 && !root.child('redeemed').child(auth.uid).child($code).exists() && newData.parent().parent().parent().child('redeemed').child(auth.uid).child($code).exists() && (newData.parent().child('maxUses').val() === 0 || newData.val() <= newData.parent().child('maxUses').val())"
+        }
+      }
+    },
+    "redeemed": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$code": {
+          ".write": "auth != null && auth.uid === $uid && !data.exists() && newData.exists()",
+          ".validate": "root.child('codes').child($code).child('active').val() === true && (root.child('codes').child($code).child('expires').val() === 0 || root.child('codes').child($code).child('expires').val() > now) && newData.parent().parent().parent().child('codes').child($code).child('used').val() === root.child('codes').child($code).child('used').val() + 1"
+        }
+      }
     }
   }
 }
