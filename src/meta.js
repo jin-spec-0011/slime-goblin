@@ -41,7 +41,8 @@ export function loadProfile(storage) {
     const out = { ...base, ...p, upgrades: { ...base.upgrades, ...p.upgrades }, research: { ...base.research, ...p.research } };
     // v2.4.0: 덱에서 지급되지 않는 슬라임(물) 제거 -> 덱에 없는 슬라임으로 채움
     out.deck = (Array.isArray(out.deck) ? out.deck : base.deck).filter(sym => DECK_POOL.includes(sym));
-    for (const sym of DECK_POOL) { if (out.deck.length >= Math.min(DECK_SIZE, (p.deck || []).length || DECK_SIZE)) break; if (!out.deck.includes(sym)) out.deck.push(sym); }
+    out.deck = [...new Set(out.deck)].slice(0, DECK_SIZE);
+    for (const sym of DECK_POOL) { if (out.deck.length >= DECK_SIZE) break; if (!out.deck.includes(sym)) out.deck.push(sym); } // 항상 8종
     return out;
   } catch { return newProfile(); }
 }
@@ -67,14 +68,17 @@ export function buyResearch(p, attr) {
   return { ok: true, msg: `${ATTRS[attr].label} 연구 Lv${lv + 1}` };
 }
 
-// 덱: 정확히 DECK_SIZE장. 순수 속성 슬라임 포함 13종 중 선택
+// 덱: 정확히 DECK_SIZE장 (8장 미만이면 같은 슬라임이 너무 자주 나와 난이도가 무너짐)
 export const DECK_POOL = ELEMENTS.filter(e => !e.noDrop).map(e => e.sym); // 물은 H₂O로만 얻으므로 덱에서 제외
+// 덱 편집 (편집 중에는 0~8장, 게임 입장은 정확히 8장일 때만: deckReady)
 export function toggleDeck(p, sym) {
+  if (!DECK_POOL.includes(sym)) return { ok: false, msg: '덱에 넣을 수 없는 슬라임입니다.' };
   const i = p.deck.indexOf(sym);
-  if (i >= 0) { if (p.deck.length <= 4) return { ok: false, msg: '덱은 최소 4장이어야 합니다.' }; p.deck.splice(i, 1); return { ok: true }; }
-  if (p.deck.length >= DECK_SIZE) return { ok: false, msg: `덱은 최대 ${DECK_SIZE}장입니다.` };
+  if (i >= 0) { p.deck.splice(i, 1); return { ok: true }; }
+  if (p.deck.length >= DECK_SIZE) return { ok: false, msg: `덱은 ${DECK_SIZE}종입니다. 먼저 하나를 빼세요.` };
   p.deck.push(sym); return { ok: true };
 }
+export const deckReady = deck => Array.isArray(deck) && deck.length === DECK_SIZE && new Set(deck).size === DECK_SIZE && deck.every(x => DECK_POOL.includes(x));
 
 // 환생: 골드·골드 강화 초기화, 현자의 돌 획득(영구 배율). 연구·덱·결정·탑 최고 기록은 유지
 // 현자의 돌 = (탑 최고 층 / 5)^1.5 (예: 20층 8개, 40층 22개). 이미 받은 만큼은 빼고 지급

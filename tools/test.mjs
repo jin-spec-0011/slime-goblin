@@ -333,4 +333,16 @@ for (const c of CHAPTERS) {
   const o2 = g2.goblins.find(v => v.type === 'giant');
   t('오우거: 챕터 3은 챕터 1보다 강함', o2 && o2.maxhp > o.maxhp);
 }
+// 덱은 정확히 8종: 편집 중 빼기 가능, 9번째 추가 불가, 입장 조건 deckReady, 짧은 저장 덱은 8종으로 채움
+{
+  const p = META.newProfile();
+  t('덱: 기본 덱 8종 입장 가능', META.deckReady(p.deck));
+  t('덱: 9번째 추가 불가', !META.toggleDeck(p, META.DECK_POOL.find(x => !p.deck.includes(x))).ok && p.deck.length === 8);
+  META.toggleDeck(p, p.deck[0]);
+  t('덱: 빼면 7종 → 입장 불가', p.deck.length === 7 && !META.deckReady(p.deck));
+  t('덱: 중복·물 포함은 입장 불가', !META.deckReady(['FIRE', 'FIRE', 'ELEC', 'O', 'H', 'C', 'N', 'Fe']) && !META.deckReady(['WATER', 'FIRE', 'ELEC', 'O', 'H', 'C', 'N', 'Fe']));
+  const mem = new Map([[META.PROFILE_KEY, JSON.stringify({ ...META.newProfile(), deck: ['FIRE', 'ELEC', 'O', 'H'] })]]);
+  const lp = META.loadProfile({ getItem: k => mem.get(k) ?? null, setItem: () => {} });
+  t('덱: 저장된 4종 덱은 8종으로 자동 채움', META.deckReady(lp.deck) && ['FIRE', 'ELEC', 'O', 'H'].every(x => lp.deck.includes(x)));
+}
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
