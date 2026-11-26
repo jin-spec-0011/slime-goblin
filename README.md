@@ -27,3 +27,10 @@ ES Module과 Service Worker 때문에 `file://`로는 실행되지 않습니다.
 
 ## 배포
 GitHub 저장소 Settings → Pages → Source를 **GitHub Actions**로 설정한 뒤 `main`에 push.
+
+## 온라인 랭킹 (v2.3.0)
+
+- 닉네임 + 비밀번호 계정, 무한의 탑 TOP 100 랭킹. Firebase Auth·Realtime Database를 SDK 없이 REST로 호출 (`src/online.js`)
+- 진행 데이터(골드·강화·덱)는 기존처럼 기기 localStorage에만 저장. 클라우드에는 닉네임·탑 최고 층만 저장
+- 보안 규칙: `database.rules.json` → Firebase 콘솔 > Realtime Database > 규칙 탭에 붙여넣고 게시
+- 관리: 부적절한 닉네임·기록은 콘솔에서 `ranking/{uid}`, `nicknames/{닉네임}` 삭제, Authentication에서 계정 삭제

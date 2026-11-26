@@ -89,3 +89,50 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .deckcard img { width: 100%; image-rendering: pixelated; }
 .deckcard.on { border-color: #6be08a; box-shadow: 0 0 0 2px #6be08a inset; }
 .deckcard small { display: block; color: var(--sub); }
+
+/* ---------- 홈 · 무한의 탑 랭킹 · 계정 (v2.3.0) ---------- */
+.lnk { background: none; border: 0; color: var(--accent); font: inherit; font-size: 13px; font-weight: 700; padding: 6px 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.acct { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--panel2); border: 2px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 14px; margin-bottom: 10px; }
+.acct b { color: var(--accent); }
+.acct small { color: var(--sub); font-size: 12px; margin-left: 4px; }
+.bigbtn { display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; position: relative; font: inherit; color: var(--text);
+  background: var(--panel2); border: 3px solid var(--line); border-radius: 14px; padding: 14px 14px 12px; margin-bottom: 10px; cursor: pointer; }
+.bigbtn b { font-size: 19px; }
+.bigbtn span { font-size: 13px; color: var(--sub); }
+.bigbtn .gold { color: var(--accent); font-weight: 700; }
+.bigbtn.ch { border-color: #6fa8ff; }
+.bigbtn.tw { border-color: #c27bff; background: linear-gradient(160deg, #4a3a5e, #352a48); }
+.bigbtn .tag { position: absolute; top: 12px; right: 14px; font-size: 14px; font-weight: 800; color: var(--accent); }
+.bigbtn .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 6px; }
+.bigbtn .chips i { font-style: normal; text-align: center; background: #263046; border: 1px solid var(--line); border-radius: 7px; padding: 4px 0; font-size: 13px; color: var(--text); }
+.bigbtn .chips i.ok { border-color: var(--ok); color: var(--ok); }
+.bigbtn .chips i.lock { opacity: .5; }
+.mine { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; background: linear-gradient(160deg, #4a3a5e, #352a48);
+  border: 2px solid #c27bff; border-radius: 12px; padding: 10px 12px; }
+.mine .cup { font-size: 24px; }
+.mine b { display: block; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mine span { font-size: 13px; color: var(--sub); }
+.mine .fl { font-size: 20px; font-weight: 900; color: var(--accent); white-space: nowrap; }
+.tnote { font-size: 12px; color: var(--sub); margin: 8px 0 0; line-height: 1.5; }
+.rhead { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 4px; font-size: 14px; }
+.rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rank li { display: grid; grid-template-columns: 2.4em minmax(0, 1fr) auto; gap: 8px; align-items: center; background: #263046; border-radius: 8px; padding: 7px 10px; font-size: 14px; }
+.rank li .n { text-align: center; font-weight: 800; color: var(--sub); }
+.rank li:nth-child(1) .n { color: #ffd34d; } .rank li:nth-child(2) .n { color: #dfe6f2; } .rank li:nth-child(3) .n { color: #e0a36b; }
+.rank li .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank li .nm small { color: #c27bff; font-size: 11px; margin-left: 6px; font-weight: 700; }
+.rank li .f { font-weight: 800; color: var(--accent); white-space: nowrap; }
+.rank li.me { outline: 2px solid #c27bff; }
+.rank li.empty { display: block; text-align: center; color: var(--sub); font-size: 13px; padding: 14px 8px; }
+.aform { display: flex; flex-direction: column; gap: 6px; }
+.aform label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 700; }
+.aform label small { color: var(--sub); font-weight: 400; font-size: 12px; }
+.aform input { font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px; border: 2px solid var(--line); background: #1f2738; color: var(--text);
+  user-select: text; -webkit-user-select: text; }
+.aform input:focus { outline: none; border-color: var(--accent); }
+.astat { min-height: 18px; margin: 0; font-size: 13px; color: var(--danger); }
+.astat.ok { color: var(--ok); }
+.aform .btn.go { background: #3f7a44; border-color: var(--ok); padding: 11px; font-size: 15px; font-weight: 800; }
+.aform .btn.go:disabled { opacity: .6; }
+.tnote.warn { margin: 4px 0 0; color: #ffcf8a; }
+.aform label + .astat:empty { min-height: 0; }

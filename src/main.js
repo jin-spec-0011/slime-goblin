@@ -5,6 +5,7 @@ import {
   loadProfile, saveProfile, modsOf, UPGRADES, upgradeCost, isMaxed, buyUpgrade, buyResearch, researchCost, RESEARCH_PER,
   DECK_POOL, DECK_SIZE, toggleDeck, stoneGain, prestige, PRESTIGE_MIN_FLOOR, offlineReward, fmt, dropEvery, OFFLINE_RATE, OFFLINE_MAX_SEC,
 } from './meta.js';
+import { loadAccount, saveAccount, clearAccount, signUp, signIn, submitFloor, fetchRanking, validNick, NICK_MIN, NICK_MAX, PW_MIN } from './online.js';
 import {
   autoPlay, setMods, createGame, step, placeFromQueue, moveSlime, combine, makeMega, comboMegaCount, recipeHint, skipPrep,
   getCell, slimeCount, PATH, lvMult,
@@ -35,7 +36,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.2.1'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.3.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -549,6 +550,7 @@ function showModal(title, html, opts = {}) {
   $('mAlt').textContent = opts.altText || '';
   $('mOk').classList.toggle('hidden', opts.noOk === true);
   $('mAlt').classList.toggle('hidden', !opts.altText);
+  document.querySelector('#modal .mbtns').classList.toggle('hidden', opts.noOk === true && !opts.altText); // 버튼이 없으면 하단 줄도 숨김
   modalOk = opts.onOk || null; modalAlt = opts.onAlt || null;
   $('modal').classList.remove('hidden');
 }
@@ -586,7 +588,7 @@ function showUpgrades(tab = 'up', after = null) {
   const pb = document.getElementById('doPrestige');
   if (pb) pb.onclick = () => {
     const r = prestige(PROF); ui.msg = r.msg;
-    if (r.ok) { saveProf(true); closeModal(); showModal('🔮 환생 완료', `<p>현자의 돌 <b>+${r.gain}</b> (총 ${PROF.stones}개)</p><p>모든 골드 획득 x${(1 + 0.2 * PROF.stones).toFixed(1)}, 슬라임 공격 x${(1 + 0.05 * PROF.stones).toFixed(2)}</p>`, { okText: '새로 시작', onOk: () => { newGame(1); showChapterSelect(); } }); }
+    if (r.ok) { saveProf(true); closeModal(); showModal('🔮 환생 완료', `<p>현자의 돌 <b>+${r.gain}</b> (총 ${PROF.stones}개)</p><p>모든 골드 획득 x${(1 + 0.2 * PROF.stones).toFixed(1)}, 슬라임 공격 x${(1 + 0.05 * PROF.stones).toFixed(2)}</p>`, { okText: '새로 시작', onOk: () => { newGame(1); showHome(); } }); }
   };
 }
 
@@ -606,8 +608,41 @@ function showDeck() {
 $('bUpg').onclick = () => showUpgrades('up');
 $('bDeck').onclick = () => showDeck();
 
-// 챕터 선택 화면
-function showChapterSelect(canClose = false) {
+// ---------- 홈 · 챕터 · 무한의 탑 · 계정 ----------
+const escHtml = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let ACC = loadAccount(STORE);                       // 로그인 정보 (없으면 게스트)
+const setAcc = a => { ACC = a; if (a) saveAccount(STORE, a); else clearAccount(STORE); };
+const chaptersCleared = () => CHAPTERS.filter(c => +(lsGet(lsBest(c.id)) || 0) > CFG.ROUNDS).length;
+
+// 탑 최고 기록을 랭킹에 올림 (서버 기록보다 높을 때만, 실패해도 게임은 계속)
+async function syncFloor(force = false) {
+  if (!ACC || !(PROF.towerBest >= 1) || (!force && PROF.towerBest <= (ACC.submitted || 0))) return null;
+  const r = await submitFloor(ACC, PROF.towerBest);
+  if (r.account) setAcc(r.account);
+  if (r.expired) setAcc(null);
+  if (r.msg && !r.skipped) { ui.msg = r.ok ? r.msg : `랭킹 등록 실패: ${r.msg}`; }
+  return r;
+}
+
+function showHome() {
+  const open = unlocked(), towerOpen = open > CHAPTERS.length, cleared = chaptersCleared();
+  const chips = CHAPTERS.map(c => {
+    const best = +(lsGet(lsBest(c.id)) || 0);
+    return `<i class="${best > CFG.ROUNDS ? 'ok' : c.id > open ? 'lock' : ''}">${c.id > open ? '🔒' : c.id}${best > CFG.ROUNDS ? '✓' : ''}</i>`;
+  }).join('');
+  const acct = ACC
+    ? `<div class="acct"><span>👤 <b>${escHtml(ACC.nick)}</b></span><button class="lnk" id="hLogout">로그아웃</button></div>`
+    : `<div class="acct"><span>👤 게스트 <small>랭킹 미등록</small></span><button class="lnk" id="hLogin">로그인 · 가입</button></div>`;
+  showModal('Element Slime Defense', `${acct}
+    <button class="bigbtn ch" id="hChap"><span class="tag">${cleared}/${CHAPTERS.length}</span><b>⚔ 챕터</b><span>고블린 숲부터 고블린 왕성까지 ${CHAPTERS.length}개 챕터</span><span class="chips">${chips}</span></button>
+    <button class="bigbtn tw" id="hTower"><span class="tag">${towerOpen ? `${PROF.towerBest}F` : '🔒'}</span><b>♾ 무한의 탑</b><span>${towerOpen ? '층마다 강해지는 끝없는 도전 · 골드 대량 획득' : `챕터 ${CHAPTERS.length} 클리어 시 도전 가능`}</span><span class="gold">🏆 전체 랭킹 보기</span></button>`, { noOk: true });
+  $('hChap').onclick = () => { closeModal(); showChapterSelect(); };
+  $('hTower').onclick = () => { closeModal(); showTower(); };
+  if ($('hLogin')) $('hLogin').onclick = () => { closeModal(); showAccount('login', showHome); };
+  if ($('hLogout')) $('hLogout').onclick = () => { closeModal(); showModal('로그아웃', `<p><b>${escHtml(ACC.nick)}</b> 계정에서 로그아웃할까요?</p><p style="color:var(--sub)">게임 진행 데이터는 이 기기에 그대로 남습니다.</p>`, { okText: '로그아웃', onOk: () => { setAcc(null); ui.msg = '로그아웃했습니다.'; showHome(); }, altText: '취소', onAlt: showHome }); };
+}
+
+function showChapterSelect() {
   const open = unlocked();
   const atl = b => Object.entries(b).map(([a, v]) => `${ATTRS[a].icon}${ATTRS[a].label} ${v > 1 ? '+' : ''}${Math.round((v - 1) * 100)}%`).join(' · ') || '없음';
   const rows = CHAPTERS.map(c => {
@@ -616,11 +651,76 @@ function showChapterSelect(canClose = false) {
     return `<button class="chbtn" data-ch="${c.id}" ${locked ? 'disabled' : ''} style="border-color:${c.color}">
       <b>${locked ? '🔒' : c.id}. ${c.name}</b><span>${c.pathLabel} · 환경 ${atl(c.boost)}</span><span>${locked ? `챕터 ${c.id - 1} 클리어 시 열림` : rec}</span></button>`;
   }).join('');
-  const towerOpen = open > CHAPTERS.length;
-  const towerRow = `<button class="chbtn" data-ch="${TOWER_ID}" ${towerOpen ? '' : 'disabled'} style="border-color:#c27bff">
-      <b>${towerOpen ? '♾' : '🔒'} 무한의 탑</b><span>층마다 강해지는 끝없는 도전 · 골드 대량 획득</span><span>${towerOpen ? `최고 ${PROF.towerBest}층` : '챕터 5 클리어 시 열림'}</span></button>`;
-  showModal('챕터 선택', `<div class="chlist">${rows}${towerRow}</div>`, canClose ? { okText: '닫기' } : { noOk: true });
+  showModal('⚔ 챕터 선택', `<div class="chlist">${rows}</div>`, { noOk: true, altText: '◀ 홈', onAlt: showHome });
   for (const b of document.querySelectorAll('.chbtn')) b.onclick = () => { closeModal(); newGame(+b.dataset.ch); };
+}
+
+let towerView = 0;                                   // 비동기 응답이 다른 화면을 덮지 않도록 화면 번호로 확인
+function showTower(force = false) {
+  const view = ++towerView, open = unlocked() > CHAPTERS.length;
+  const mine = ACC
+    ? `<div class="mine"><span class="cup">🏆</span><div><b>${escHtml(ACC.nick)}</b><span id="tMyRank">순위 확인 중…</span></div><span class="fl">${PROF.towerBest}F</span></div>`
+    : `<div class="mine guest"><span class="cup">🏆</span><div><b>내 최고 ${PROF.towerBest}층</b><span>로그인하면 랭킹에 등록됩니다</span></div><button class="lnk" id="tLogin">로그인 · 가입</button></div>`;
+  showModal('♾ 무한의 탑', `${mine}
+    ${open ? '' : `<p class="tnote">🔒 챕터 ${CHAPTERS.length}을 클리어하면 도전할 수 있습니다. 랭킹은 지금도 볼 수 있어요.</p>`}
+    <div class="rhead"><b>전체 랭킹 TOP 100</b><button class="lnk" id="tRefresh">↻ 새로고침</button></div>
+    <ol class="rank" id="tRank"><li class="empty">불러오는 중…</li></ol>
+    <p class="tnote" id="tInfo">같은 층이면 먼저 도달한 사람이 위 · 60초마다 갱신</p>`,
+    open ? { okText: '1층부터 도전', onOk: () => newGame(TOWER_ID), altText: '◀ 홈', onAlt: showHome } : { noOk: true, altText: '◀ 홈', onAlt: showHome });
+  if ($('tLogin')) $('tLogin').onclick = () => { closeModal(); showAccount('signup', () => showTower(true)); };
+  $('tRefresh').onclick = () => showTower(true);
+  (async () => {
+    if (ACC && PROF.towerBest > (ACC.submitted || 0)) await syncFloor();
+    const r = await fetchRanking(STORE, force);
+    if (view !== towerView || $('modal').classList.contains('hidden') || !$('tRank')) return;
+    if (!r.ok) { $('tRank').innerHTML = `<li class="empty">랭킹을 불러오지 못했습니다. ${escHtml(r.msg)}</li>`; if ($('tMyRank')) $('tMyRank').textContent = '순위 확인 실패'; return; }
+    $('tRank').innerHTML = r.list.length
+      ? r.list.map((e, i) => `<li class="${ACC && e.uid === ACC.uid ? 'me' : ''}"><span class="n">${i + 1}</span><span class="nm">${escHtml(e.nick)}${ACC && e.uid === ACC.uid ? '<small>나</small>' : ''}</span><span class="f">${e.floor}F</span></li>`).join('')
+      : '<li class="empty">아직 등록된 기록이 없습니다. 첫 번째 주인공이 되어 보세요!</li>';
+    if ($('tMyRank')) {
+      const i = ACC ? r.list.findIndex(e => e.uid === ACC.uid) : -1;
+      $('tMyRank').textContent = i >= 0 ? `전체 ${i + 1}위` : PROF.towerBest ? `TOP ${r.list.length} 밖` : '아직 기록 없음';
+    }
+    const sec = Math.round((Date.now() - r.at) / 1000);
+    $('tInfo').textContent = `같은 층이면 먼저 도달한 사람이 위 · ${sec < 5 ? '방금' : `${sec}초 전`} 갱신`;
+  })();
+}
+
+function showAccount(mode = 'signup', after = showHome) {
+  const signup = mode === 'signup';
+  showModal(signup ? '계정 만들기' : '로그인', `<form id="aForm" class="aform" autocomplete="on">
+      <label>닉네임 <small>${NICK_MIN}~${NICK_MAX}자 · 한글·영문·숫자</small>
+        <input id="aNick" name="username" autocomplete="username" maxlength="${NICK_MAX}" required></label>
+      <p class="astat" id="aNickMsg"></p>
+      <label>비밀번호 <small>${PW_MIN}자 이상</small>
+        <input id="aPw" type="password" name="password" autocomplete="${signup ? 'new-password' : 'current-password'}" minlength="${PW_MIN}" required></label>
+      ${signup ? `<label>비밀번호 확인<input id="aPw2" type="password" autocomplete="new-password" minlength="${PW_MIN}" required></label>` : ''}
+      ${signup ? '<p class="tnote warn">⚠ 이메일 없이 닉네임으로 가입하므로 <b>비밀번호를 잊으면 복구할 수 없습니다.</b> 게임 진행 데이터는 지금처럼 이 기기에 저장되고, 계정은 닉네임과 탑 랭킹에만 쓰입니다.</p>' : ''}
+      <p class="astat" id="aMsg"></p>
+      <button class="btn go" id="aSubmit" type="submit">${signup ? '가입하고 시작' : '로그인'}</button>
+      <button class="lnk" id="aSwitch" type="button">${signup ? '이미 계정이 있어요 · 로그인' : '처음이에요 · 계정 만들기'}</button>
+    </form>`, { noOk: true, altText: '게스트로 하기', onAlt: after });
+  const msg = (id, t, ok = false) => { $(id).textContent = t; $(id).classList.toggle('ok', ok); };
+  $('aSwitch').onclick = () => showAccount(signup ? 'login' : 'signup', after);
+  if (signup) $('aNick').addEventListener('input', () => { const v = validNick($('aNick').value); msg('aNickMsg', $('aNick').value && !v.ok ? v.msg : ''); });
+  let busy = false;
+  $('aForm').addEventListener('submit', async e => {
+    e.preventDefault(); if (busy) return;
+    const nick = $('aNick').value, pw = $('aPw').value;
+    if (signup) {
+      const v = validNick(nick); if (!v.ok) return msg('aMsg', v.msg);
+      if (pw.length < PW_MIN) return msg('aMsg', `비밀번호는 ${PW_MIN}자 이상이어야 합니다.`);
+      if (pw !== $('aPw2').value) return msg('aMsg', '비밀번호 확인이 일치하지 않습니다.');
+    }
+    busy = true; $('aSubmit').disabled = true; msg('aMsg', signup ? '가입 중…' : '로그인 중…', true);
+    const r = signup ? await signUp(nick, pw) : await signIn(nick, pw);
+    busy = false; if ($('aSubmit')) $('aSubmit').disabled = false;
+    if (!r.ok) return msg('aMsg', r.msg);
+    setAcc(r.account); ui.msg = r.msg;
+    closeModal(); after();
+    syncFloor();                                      // 이 기기의 탑 기록을 바로 등록
+  });
+  setTimeout(() => { try { $('aNick').focus({ preventScroll: true }); } catch { /* 무시 */ } }, 50);
 }
 
 // ---------- 비밀 족보 발견 기록 ----------
@@ -692,9 +792,13 @@ function checkEnd() {
     const earned = `<p>획득: 💰 ${fmt(g.gold)} · 💎 ${g.crystals}</p>`;
     if (g.tower) {
       const prev = PROF.towerBest; PROF.towerBest = Math.max(PROF.towerBest, g.round); saveProf(true);
-      showModal(`무한의 탑 ${g.round}층`, `<p>도달 <b>${g.round}층</b> · 최고 기록 <b>${PROF.towerBest}층</b>${g.round > prev ? ' (신기록!)' : ''}</p>${earned}
+      if (g.round > prev) syncFloor();                 // 신기록이면 랭킹 등록 (로그인 시)
+      const rankLine = ACC ? `<p>🏆 ${g.round > prev ? '랭킹에 새 기록을 등록합니다.' : '랭킹 기록은 최고 층 기준입니다.'} <button class="lnk" id="eRank">랭킹 보기</button></p>`
+        : `<p style="color:var(--sub)">🏆 로그인하면 이 기록이 전체 랭킹에 올라갑니다. <button class="lnk" id="eRank">로그인 · 랭킹</button></p>`;
+      showModal(`무한의 탑 ${g.round}층`, `<p>도달 <b>${g.round}층</b> · 최고 기록 <b>${PROF.towerBest}층</b>${g.round > prev ? ' (신기록!)' : ''}</p>${earned}${rankLine}
         <p style="color:var(--sub)">강화로 더 높이 오르세요. ${PROF.towerBest >= PRESTIGE_MIN_FLOOR ? `환생하면 현자의 돌 ${stoneGain(PROF)}개를 받습니다.` : `${PRESTIGE_MIN_FLOOR}층부터 환생할 수 있습니다.`}</p>`,
         { okText: '다시 도전', onOk: () => newGame(TOWER_ID), altText: '⬆ 강화', onAlt: () => showUpgrades('up', () => newGame(TOWER_ID)) });
+      $('eRank').onclick = () => { closeModal(); if (ACC) showTower(true); else showAccount('signup', () => showTower(true)); };
       return;
     }
     const won = g.phase === 'won', n = g.chapter;
@@ -705,7 +809,7 @@ function checkEnd() {
     const body = `<p>챕터 ${n} <b>${g.ch.name}</b> · 도달 라운드 <b>${g.round}</b> · 처치 <b>${g.kills}</b> · 남은 거점 <b>${g.baseHp}</b></p>
       <p>최고 기록: ${best > CFG.ROUNDS ? '클리어' : `라운드 ${best}`}</p>
       ${earned}${next > CHAPTERS.length ? '<p>🔓 <b>무한의 탑</b>이 열렸습니다!</p>' : next ? `<p>🔓 챕터 ${next} <b>${CHAPTERS[next - 1].name}</b>이(가) 열렸습니다!</p>` : ''}`;
-    if (won) showModal(`챕터 ${n} 클리어!`, body, { okText: next > CHAPTERS.length ? '무한의 탑 도전' : `챕터 ${next} 시작`, onOk: () => newGame(next), altText: '⬆ 강화', onAlt: () => showUpgrades('up', () => showChapterSelect()) });
+    if (won) showModal(`챕터 ${n} 클리어!`, body, { okText: next > CHAPTERS.length ? '무한의 탑 도전' : `챕터 ${next} 시작`, onOk: () => newGame(next), altText: '⬆ 강화', onAlt: () => showUpgrades('up', () => showHome()) });
     else showModal('거점 함락', body + '<p style="color:var(--sub)">번 골드로 강화하고 다시 도전하세요.</p>', { okText: '다시 하기', onOk: () => newGame(n), altText: '⬆ 강화', onAlt: () => showUpgrades('up', () => newGame(n)) });
   }
 }
@@ -752,19 +856,25 @@ const off = offlineReward(PROF);
 const afterIntro = () => {
   if (off.gold > 0) {
     PROF.gold += off.gold; saveProf(true);
-    showModal('💤 오프라인 보상', `<p>자리를 비운 <b>${Math.floor(off.sec / 3600)}시간 ${Math.floor((off.sec % 3600) / 60)}분</b> 동안 슬라임들이 일했습니다.</p><p style="font-size:20px">💰 +${fmt(off.gold)}</p><p style="color:var(--sub)">최근 분당 골드의 ${Math.round(OFFLINE_RATE * 100)}%, 최대 ${OFFLINE_MAX_SEC / 3600}시간</p>`, { okText: '받기', onOk: () => showChapterSelect() });
-  } else showChapterSelect();
+    showModal('💤 오프라인 보상', `<p>자리를 비운 <b>${Math.floor(off.sec / 3600)}시간 ${Math.floor((off.sec % 3600) / 60)}분</b> 동안 슬라임들이 일했습니다.</p><p style="font-size:20px">💰 +${fmt(off.gold)}</p><p style="color:var(--sub)">최근 분당 골드의 ${Math.round(OFFLINE_RATE * 100)}%, 최대 ${OFFLINE_MAX_SEC / 3600}시간</p>`, { okText: '받기', onOk: firstScreen });
+  } else firstScreen();
 };
+// 첫 실행이면 계정 만들기를 한 번 권하고, 이후에는 홈 화면
+function firstScreen() {
+  if (!ACC && !lsGet('esd.accountAsked')) { lsSet('esd.accountAsked', '1'); showAccount('signup', showHome); }
+  else showHome();
+  syncFloor();
+}
 if (!lsGet('esd.seenHelp')) { lsSet('esd.seenHelp', '1'); showHelp(afterIntro); }
 else afterIntro();
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveProf(true); });
 window.addEventListener('pagehide', () => saveProf(true));
-// HUD의 챕터-라운드를 누르면 챕터 선택 (진행 중이면 포기 확인)
+// HUD의 챕터-라운드를 누르면 홈 (진행 중이면 포기 확인)
 $('hRound').parentElement.style.cursor = 'pointer';
 $('hRound').parentElement.onclick = () => {
   const g = ui.g;
-  if (g.phase === 'run' || g.round > 1) showModal('챕터 선택', '<p>진행 중인 게임을 포기하고 챕터 선택으로 갈까요?</p>', { okText: '계속하기', altText: '챕터 선택', onAlt: () => showChapterSelect(true) });
-  else showChapterSelect(true);
+  if (g.phase === 'run' || g.round > 1) showModal('홈으로', '<p>진행 중인 게임을 포기하고 홈으로 갈까요?</p>', { okText: '계속하기', altText: '홈으로', onAlt: showHome });
+  else showHome();
 };
 requestAnimationFrame(frame);
 

@@ -1,0 +1,30 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "nicknames": {
+      "$nick": {
+        ".read": true,
+        ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && !newData.exists()))",
+        ".validate": "newData.isString() && $nick.length >= 2 && $nick.length <= 12"
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && (!data.exists() || !newData.exists())",
+        ".validate": "newData.hasChildren(['nick', 'joined']) && newData.child('nick').isString() && newData.child('nick').val().length >= 2 && newData.child('nick').val().length <= 12 && newData.parent().parent().child('nicknames').child(newData.child('nick').val().toLowerCase()).val() === $uid"
+      }
+    },
+    "ranking": {
+      ".read": true,
+      ".indexOn": [
+        "score"
+      ],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['nick', 'floor', 'at', 'score']) && newData.child('floor').isNumber() && newData.child('floor').val() >= 1 && newData.child('floor').val() <= 999 && (!data.exists() || newData.child('floor').val() >= data.child('floor').val()) && newData.child('at').isNumber() && newData.child('at').val() <= now && newData.child('score').isNumber() && newData.child('score').val() >= newData.child('floor').val() * 10000000000 && newData.child('score').val() < (newData.child('floor').val() + 1) * 10000000000 && newData.child('nick').val() === root.child('users').child($uid).child('nick').val()"
+      }
+    }
+  }
+}

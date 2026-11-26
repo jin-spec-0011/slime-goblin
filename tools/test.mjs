@@ -2,6 +2,7 @@
 import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS, JOKES } from '../src/data.js';
 import { existsSync } from 'node:fs';
 import * as META from '../src/meta.js';
+import * as ON from '../src/online.js';
 import { setMods, towerRound } from '../src/engine.js';
 import { createGame, step, affinity, autoPlay, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
@@ -255,5 +256,25 @@ for (const c of CHAPTERS) {
   // 챕터 난이도는 주로 구성에서 나온다: 같은 라운드의 일반 고블린 비율이 챕터 5가 더 낮음
   const normalShare = c => { const r = CHAPTERS[c - 1].rounds[7]; const tot = r.reduce((a, [, n]) => a + n, 0); return (r.find(([k]) => k === 'normal')?.[1] || 0) / tot; };
   t('챕터 5 8라운드는 챕터 1보다 강한 고블린 비율이 높음', normalShare(5) < normalShare(1));
+}
+// 온라인: 닉네임·내부 이메일·랭킹 점수 (네트워크 없이 순수 함수만)
+{
+  t('닉네임 한글 허용', ON.validNick('슬라임장인').ok);
+  t('닉네임 1자 거부', !ON.validNick('슬').ok);
+  t('닉네임 13자 거부', !ON.validNick('가나다라마바사아자차카타파').ok);
+  t('닉네임 특수문자 거부', !ON.validNick('slime!').ok && !ON.validNick('a b').ok && !ON.validNick('ㅅㅅ').ok);
+  t('닉네임 금칙어 거부', !ON.validNick('관리자킴').ok && !ON.validNick('AdminKim').ok);
+  t('닉네임 키는 대소문자 무시', ON.nickKey('SlimeKim') === ON.nickKey('slimekim'));
+  const em = ON.nickEmail('가나다라마바사아자차카타');
+  t('내부 이메일 아이디 64자 이내 (한글 12자)', em.split('@')[0].length <= 64 && em.endsWith('@slime-goblin.firebaseapp.com'));
+  t('내부 이메일 대소문자 무시·1:1', ON.nickEmail('Kim01') === ON.nickEmail('kim01') && ON.nickEmail('kim01') !== ON.nickEmail('kim02'));
+  t('내부 이메일 형식', /^n[a-z2-7]+@/.test(ON.nickEmail('슬라임')));
+  const t0 = Date.UTC(2026, 10, 26);
+  t('랭킹: 높은 층이 위', ON.rankScore(20, t0 + 9e9) > ON.rankScore(19, t0));
+  t('랭킹: 같은 층이면 먼저 달성이 위', ON.rankScore(20, t0) > ON.rankScore(20, t0 + 1000));
+  t('랭킹 점수 범위 (규칙과 동일)', ON.rankScore(999, t0) < 1000 * 1e10 && ON.rankScore(999, t0) <= Number.MAX_SAFE_INTEGER && ON.rankScore(5, t0) >= 5e10);
+  const list = ON.parseRanking({ a: { nick: 'A', floor: 10, at: t0, score: ON.rankScore(10, t0) }, b: { nick: 'B', floor: 12, at: t0, score: ON.rankScore(12, t0) }, bad: { nick: 1 } });
+  t('랭킹 파싱·정렬·불량 데이터 제외', list.length === 2 && list[0].nick === 'B');
+  t('계정 저장 왕복', (() => { const m = new Map(); const st = { getItem: k => m.get(k) ?? null, setItem: (k, v) => m.set(k, v) }; ON.saveAccount(st, { uid: 'u1', refreshToken: 'r', nick: 'k' }); const ok1 = ON.loadAccount(st)?.uid === 'u1'; ON.clearAccount(st); return ok1 && ON.loadAccount(st) === null; })());
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
