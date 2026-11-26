@@ -11,11 +11,9 @@ concurrency:
   group: pages
   cancel-in-progress: true
 jobs:
-  deploy:
+  # 1) 테스트 + 업로드 (테스트 실패 시 배포하지 않음)
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,5 +27,13 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
+  # 2) 배포: 업로드가 끝난 뒤 별도 작업으로 실행 (같은 작업에서 바로 조회하면 간헐적으로 "artifact 없음" 발생)
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
