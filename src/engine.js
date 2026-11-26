@@ -268,24 +268,46 @@ export function combine(s, list) {
   return ok(h.state === 'match' ? `${res.label} 합성 성공!` : h.state === 'fusion' ? `속성 합성: ${res.label}!` : `혼합물 ${res.label} 생성`);
 }
 
+const COMBO_KINDS = ['compound', 'fusion', 'joke'];
+export const isComboMegaable = sl => !!sl && COMBO_KINDS.includes(sl.kind);
+export const comboMegaCount = s => s.megas.filter(m => m.combo).length;
+
+// 메가 슬라임: Lv5 같은 슬라임 3개 -> 3x3 구역
+//  - 원소(순수 속성 포함): 제한 없음
+//  - 조합(화학 족보·비밀 족보·속성 합성): 동시에 COMBO_MEGA_MAX마리까지, 파괴되면 다시 만들 수 있음
 export function makeMega(s, list) {
   if (s.round < CFG.MEGA_ROUND && !s.tower) return err(`메가 슬라임은 ${CFG.MEGA_ROUND}라운드부터 사용 가능합니다.`);
-  if (list.length !== 3) return err('Lv5 동일 원소 슬라임 3개를 선택하세요.');
+  if (list.length !== 3) return err('Lv5 같은 슬라임 3개를 선택하세요.');
   const sl = list.map(p => getCell(s, p.x, p.y, p.z));
-  if (sl.some(c => !c || c.kind !== 'element' || c.lv < CFG.MAX_LV)) return err('Lv5 원소 슬라임만 가능합니다.');
-  if (!(sl[0].key === sl[1].key && sl[1].key === sl[2].key)) return err('같은 원소여야 합니다.');
-  const e = EL[sl[0].key], m = lvMult(CFG.MAX_LV);
+  if (sl.some(c => !c || (c.kind !== 'element' && !isComboMegaable(c)))) return err('원소 또는 조합 슬라임만 메가가 됩니다 (혼합물 불가).');
+  if (sl.some(c => c.lv < CFG.MAX_LV)) return err('Lv5 슬라임만 가능합니다.');
+  if (!(sl[0].key === sl[1].key && sl[1].key === sl[2].key)) return err('같은 슬라임 3개여야 합니다.');
+  const combo = sl[0].kind !== 'element';
+  if (combo && comboMegaCount(s) >= CFG.COMBO_MEGA_MAX) return err(`조합 메가는 동시에 ${CFG.COMBO_MEGA_MAX}마리만 가능합니다. 파괴되면 다시 만들 수 있습니다.`);
+  const m = lvMult(CFG.MAX_LV), src = sl[0];
   const zx = Math.min(Math.max(list[0].x - 1, 0), CFG.W - 3), zy = Math.min(Math.max(list[0].y - 1, 0), CFG.H - 3);
-  const mega = {
-    id: s.nextId++, kind: 'mega', key: sl[0].key + 'M', label: e.label || sl[0].key, name: `메가 ${e.name}`, els: [sl[0].key], attrs: [e.attr], lv: 6,
-    maxhp: Math.round(3 * e.hp * m * CFG.MEGA_MUL * 2 * s.mods.hp), atk: e.atk * m * CFG.MEGA_ATK * s.mods.atk * (s.mods.attrAtk[e.attr] || 1),
-    def: e.def * (1 + 0.25 * (CFG.MAX_LV - 1)) * 1.5, status: [e.st], color: e.color, zx, zy, cd: 0, sealed: 0,
-  };
+  let mega;
+  if (!combo) {
+    const e = EL[src.key];
+    mega = {
+      id: s.nextId++, kind: 'mega', key: src.key + 'M', label: e.label || src.key, name: `메가 ${e.name}`, els: [src.key], attrs: [e.attr], lv: 6,
+      maxhp: Math.round(3 * e.hp * m * CFG.MEGA_MUL * 2 * s.mods.hp), atk: e.atk * m * CFG.MEGA_ATK * s.mods.atk * (s.mods.attrAtk[e.attr] || 1),
+      def: e.def * (1 + 0.25 * (CFG.MAX_LV - 1)) * 1.5, status: [e.st], color: e.color, zx, zy, cd: 0, sealed: 0,
+    };
+  } else {
+    const b = src.base, km = src.kindMul || 1;
+    const research = src.attrs.reduce((a, at) => a + (s.mods.attrAtk[at] || 1), 0) / src.attrs.length;
+    mega = {
+      id: s.nextId++, kind: 'mega', combo: true, artKey: src.key, key: src.key + 'M', label: src.label, name: `메가 ${src.name}`, els: src.els, attrs: src.attrs, lv: 6,
+      maxhp: Math.round(3 * b.hp * km * m * CFG.MEGA_MUL * 2 * CFG.COMBO_MEGA_HP * s.mods.hp), atk: b.atk * km * m * CFG.COMBO_MEGA_ATK * s.mods.atk * research,
+      def: b.def * (1 + 0.25 * (CFG.MAX_LV - 1)) * 1.5, status: src.status, pierce: !!src.pierce, color: src.color, zx, zy, cd: 0, sealed: 0,
+    };
+  }
   mega.hp = mega.maxhp;
   list.forEach(p => { s.cells[p.z][p.y][p.x] = null; });
   s.megas.push(mega); computeCounts(s);
-  say(s, `메가 ${e.name} 슬라임 가동! (구역 ${zx + 1},${zy + 1} 기준 3×3)`);
-  return ok('메가 슬라임 생성');
+  say(s, `${mega.name} 슬라임 가동! (구역 ${zx + 1},${zy + 1} 기준 3×3)`);
+  return ok(combo ? `조합 메가 생성: ${mega.name}` : '메가 슬라임 생성');
 }
 
 // =====================================================================
@@ -359,10 +381,11 @@ function bestAutoAction(s) {
     for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++)
       if (els[i].sl.attrs[0] !== els[j].sl.attrs[0]) tryList([els[i], els[j]]);
   }
-  // 4) 메가: Lv5 같은 원소 3개 (가장 앞쪽 3개)
+  // 4) 메가: Lv5 같은 원소 3개 (가장 앞쪽 3개), 조합 슬라임은 동시에 1마리까지
   if (s.round >= CFG.MEGA_ROUND || s.tower) {
     const by = {};
-    for (const c of filled) if (c.sl.kind === 'element' && c.sl.lv === CFG.MAX_LV) (by[c.sl.key] ||= []).push(c);
+    const comboOk = comboMegaCount(s) < CFG.COMBO_MEGA_MAX;
+    for (const c of filled) if (c.sl.lv === CFG.MAX_LV && (c.sl.kind === 'element' || (comboOk && isComboMegaable(c.sl)))) (by[c.sl.key] ||= []).push(c);
     for (const k in by) if (by[k].length >= 3) {
       const three = by[k].slice(0, 3);
       offer(three.reduce((a, c) => a + V(c.sl, c.idx), 0) * 0.8 + refillValue(s) * 3, () => makeMega(s, three.map(({ x, y, z }) => ({ x, y, z }))), `메가 ${k}`);
@@ -571,7 +594,7 @@ function fight(s, g, x, y) {
     }
   }
   for (const t of col) if (t.hp <= 0) { removeSlime(s, t); say(s, `${t.label} 슬라임이 쓰러졌습니다.`); }
-  if (mega && mega.hp <= 0) { s.megas = s.megas.filter(m => m !== mega); say(s, '메가 슬라임이 파괴되었습니다.'); }
+  if (mega && mega.hp <= 0) { s.megas = s.megas.filter(m => m !== mega); say(s, mega.combo ? `${mega.name}이(가) 파괴되었습니다. 다시 만들 수 있습니다.` : '메가 슬라임이 파괴되었습니다.'); }
   computeCounts(s);
 }
 
@@ -611,7 +634,7 @@ function actMega(s, m) {
   m.cd++;
   for (const g of targets) {
     const aff = affinity(m, g);
-    hurt(s, g, Math.max(1, Math.round(m.atk * aff - effDef(s, g))), aff);
+    hurt(s, g, Math.max(1, Math.round(m.atk * aff - (m.pierce ? 0 : effDef(s, g)))), aff);
     if (!g.dead) for (const st of m.status) if (m.cd % (st.every || 1) === 0 && STATUS[st.name].kind !== 'explode') applyStatus(g, st, { lv: CFG.MAX_LV, atk: m.atk });
   }
 }

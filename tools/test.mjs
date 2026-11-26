@@ -112,6 +112,25 @@ t('거점 0 → 패배', s.phase === 'over');
   t('탑 오우거 최대 5마리', towerRound(30).find(([k]) => k === 'giant')[1] === 5);
   t('오우거 빙결·기절 면역', GOBLINS.giant.immune.includes('freeze') && GOBLINS.giant.immune.includes('stun'));
 }
+// 조합 메가: 같은 조합 슬라임 Lv5 x3, 동시에 1마리만, 파괴되면 다시 가능
+{
+  const mk = (s, x, y, sym) => { for (let l = 0; l < 5; l++) { s.queue.unshift({ id: Math.random(), sym }); placeFromQueue(s, 0, x, y, 0); } };
+  const s = cg(21); s.cells.forEach(f => f.forEach(r => r.fill(null))); s.queue = []; s.round = 6; s.catalysts = 9;
+  const made = [];
+  for (let k = 0; k < 6; k++) {                    // 뇌운(전기+바람) Lv5 6마리
+    const y = Math.floor(k / 2) + (k >= 4 ? 1 : 0), x0 = (k % 2) * 2;
+    mk(s, x0, y, 'ELEC'); mk(s, x0 + 1, y, 'O');
+    const r = combine(s, [{ x: x0, y, z: 0 }, { x: x0 + 1, y, z: 0 }]);
+    if (r.ok) made.push({ x: x0, y, z: 0 });
+  }
+  t('조합 슬라임 Lv5 생성', made.length === 6 && getCell(s, made[0].x, made[0].y, 0).lv === 5);
+  const r1 = makeMega(s, made.slice(0, 3));
+  t('조합 메가 생성', r1.ok && s.megas.length === 1 && s.megas[0].combo);
+  const r2 = makeMega(s, made.slice(3, 6));
+  t('조합 메가는 동시에 1마리만', !r2.ok && s.megas.length === 1);
+  s.megas = [];                                    // 파괴됐다고 가정
+  t('파괴 후 다시 생성 가능', makeMega(s, made.slice(3, 6)).ok);
+}
 // 교착 방지: 얼음 내성 주술사 2마리가 질소(빙결) 슬라임에 갇혀 서로 회복해도 결국 쓰러짐
 {
   const s2 = cg(21); s2.prepLeft = 1; step(s2); s2.spawnList = [];

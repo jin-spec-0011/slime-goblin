@@ -180,7 +180,7 @@ function fit(ctx, img, cx, bottom, maxW, maxH) {
 
 // 반환: { rect, label } — label이 있으면 호출측이 이름표를 덧그린다(이미지에 글자가 없는 경우)
 export function drawSlimeArt(ctx, sl, cx, bottom, maxW, maxH) {
-  const img = sl.kind === 'mega' ? IMG.slime_mega
+  const img = sl.kind === 'mega' ? (sl.combo ? IMG['slime_' + sl.artKey] || IMG.slime_mega : IMG.slime_mega)
     : sl.kind === 'mixture' ? IMG.slime_mix
     : IMG['slime_' + sl.key] || IMG['slime_' + sl.els[0]] || null;
   if (!img) {

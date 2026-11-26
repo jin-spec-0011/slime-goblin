@@ -6,7 +6,7 @@ import {
   DECK_POOL, DECK_SIZE, toggleDeck, stoneGain, prestige, PRESTIGE_MIN_FLOOR, offlineReward, fmt, dropEvery, OFFLINE_RATE, OFFLINE_MAX_SEC,
 } from './meta.js';
 import {
-  autoPlay, setMods, createGame, step, placeFromQueue, moveSlime, combine, makeMega, recipeHint, skipPrep,
+  autoPlay, setMods, createGame, step, placeFromQueue, moveSlime, combine, makeMega, comboMegaCount, recipeHint, skipPrep,
   getCell, slimeCount, PATH, lvMult,
 } from './engine.js';
 
@@ -35,7 +35,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.1.0'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.2.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -389,7 +389,7 @@ function slimeInfo(sl) {
 
 function refreshInfo() {
   const g = ui.g;
-  if (ui.megaMode) { setInfo(`<b>메가 모드</b> · Lv5 같은 원소 3개 선택 (${ui.comboList.length}/3) 후 메가 버튼`); return; }
+  if (ui.megaMode) { setInfo(`<b>메가 모드</b> · Lv5 같은 슬라임 3개 선택 (${ui.comboList.length}/3) 후 메가 버튼 · 조합 메가 ${comboMegaCount(ui.g)}/${CFG.COMBO_MEGA_MAX}`); return; }
   if (ui.combo) {
     const h = recipeHint(g, ui.comboList);
     setInfo(`<b>조합 모드</b> (촉매 ${g.catalysts}) · 선택 ${ui.comboList.length}개 · ${h.text}`);
@@ -652,7 +652,7 @@ function showHelp(after = null) {
     <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). 슬라임은 <b>${CFG.DROP_EVERY}초마다 1마리</b>(지급 속도 강화 시 최대 ${dropEvery(UPGRADES.drop.max)}초) 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 그때부터 덱에 쌓입니다(최대 ${CFG.QUEUE_MAX}장). 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
     <p><b>속성</b>: 모든 슬라임은 8속성 중 하나입니다(🔥불 💧물 ⚡전기 ❄얼음 🌪바람 ⛰대지 ☠독 ☢방사). 고블린마다 <b>약점 속성(피해 ×${CFG.WEAK_MUL}, 주황 숫자)</b>과 <b>내성 속성(×${CFG.RESIST_MUL}, 회색 숫자)</b>이 있습니다.</p>
     <p><b>조합</b>(촉매 1개): ① 화학 족보 정확히 일치 → 화합물 150% ② <b>서로 다른 속성 2마리 → 속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%</b> ③ 그 외 → 혼합물 70%.</p>
-    <p><b>메가</b>: ${CFG.MEGA_ROUND}라운드부터 사용 가능. Lv5 같은 원소 3개 → 3×3 구역, 최대 5마리 동시 공격.</p>
+    <p><b>메가</b>: ${CFG.MEGA_ROUND}라운드부터 사용 가능. Lv5 같은 슬라임 3개 → 3×3 구역, 최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격. 원소 메가는 제한 없음. <b>조합 메가</b>(화학 족보·비밀 족보·속성 합성 Lv5 ×3)는 <b>동시에 ${CFG.COMBO_MEGA_MAX}마리</b>만, 파괴되면 다시 만들 수 있습니다(혼합물 불가).</p>
     <p>보너스: 같은 <b>속성</b> 2개↑ 받는 피해 -10%, 3개↑ 공격 +20%, 같은 가로줄에 같은 속성 3개 공격 +20%.</p>
     <table><tr><th>속성 합성</th><th>결과</th><th>효과</th></tr>${fus}</table>
     <p><b>비밀 족보</b> (${foundJokes().size}/${JOKES.length} 발견): 말도 안 되지만 위트 있는 '화학식'. 조합 모드에서 정확히 맞추면 다른 규칙보다 우선합니다. 같은 원소끼리도 됩니다.</p>

@@ -1,11 +1,12 @@
 // 성장형 난이도 튜닝: '챕터 N은 강화 L레벨에서 승률 50%'가 되도록 챕터 체력 배율 탐색 (자동 모드)
-// 사용: node tools/tune_prog.mjs [판수=10]
+// 사용: node tools/tune_prog.mjs [판수=10] [챕터 목록=1,2,3,4,5]
 import { CHAPTERS } from '../src/data.js';
 import { runBatch, modsAt } from './sim.mjs';
 
 const N = +process.argv[2] || 10;
 const PLAN = { 1: 1, 2: 2, 3: 5, 4: 8, 5: 12 };   // 챕터 -> 승률 50% 강화 레벨 (연구는 레벨/3)
-for (const [cid, up] of Object.entries(PLAN)) {
+const ONLY = (process.argv[3] || '').split(',').filter(Boolean).map(Number);
+for (const [cid, up] of Object.entries(PLAN).filter(([c]) => !ONLY.length || ONLY.includes(+c))) {
   const ch = CHAPTERS[cid - 1], mods = modsAt(up, Math.floor(up / 3));
   let lo = Math.log(0.5), hi = Math.log(2000), best = null;
   for (let it = 0; it < 9; it++) {

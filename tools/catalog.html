@@ -74,7 +74,7 @@ section(`비밀 족보 ${JOKES.length}종`, `말장난 화학식 · 능력치 ×
     [`${st(j.st)}${j.healAura ? '·주변 회복' : ''}${j.onCreate?.baseHp ? '·거점+' + j.onCreate.baseHp : ''}${j.onCreate?.catalysts ? '·촉매+' + j.onCreate.catalysts : ''}`, `💡 ${j.hint}`])));
 section('기타 2종', '혼합물 · 메가', [
   card('slime_mix', '혼합물', '족보·합성 불일치', [`능력치 ×${CFG.MIXTURE_MUL}`, '재료 원소 효과 2개']),
-  card('slime_mega', '메가 슬라임', `Lv5 같은 원소 ×3`, [`${CFG.MEGA_ROUND}라운드부터 · 3×3 구역`, `최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격`]),
+  card('slime_mega', '메가 슬라임', `Lv5 같은 슬라임 ×3`, [`${CFG.MEGA_ROUND}라운드부터 · 3×3 구역 · 최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격`, `원소 메가 무제한 · 조합 메가 동시 ${CFG.COMBO_MEGA_MAX}마리 (파괴 시 재생성)`]),
 ]);
 
 const total = Object.keys(GOBLINS).length + ELEMENTS.length + FUSIONS.length + RECIPES.length + JOKES.length + 2;
