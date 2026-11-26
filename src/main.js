@@ -35,7 +35,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.2.0'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.2.1'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -153,6 +153,10 @@ function drawBoard() {
   // 입구가 맨 윗줄이면 그 칸 위에 진입 표시 (맨 아래 입구는 칸 안 '입구' 표시만)
   if (PATH[0][1] === 0) pixelText(ctx, '▼ 고블린 진입', Math.min(w - 50, Math.max(50, PATH[0][0] * cw + cw / 2)), pad - 6, 10, '#9fe08a');
   pixelText(ctx, g.tower ? `♾ 무한의 탑 ${g.round}층` : `${g.chapter}. ${g.ch.name}`, w - 6, 16, 12, '#ffd34d', 'right');
+  // 메가 보유 현황 (원소 메가는 제한 없음, 조합 메가는 동시 COMBO_MEGA_MAX마리)
+  { const cm = comboMegaCount(g), em = g.megas.length - cm;
+    pixelText(ctx, `원소 메가 : ${em}개`, 6, 16, 12, em ? '#ffd34d' : '#a9b6d0', 'left');
+    pixelText(ctx, `조합 메가 : ${cm}/${CFG.COMBO_MEGA_MAX}개`, 6, 34, 12, cm ? '#ff9de6' : '#a9b6d0', 'left'); }
   ctx.save(); ctx.translate(0, pad); // 이하 좌표는 판(5x5) 기준
   // 칸 이동 보간: 틱마다 바뀐 경로 위치(idx)를 짧은 시간 동안 부드럽게 이동
   // 일반: 틱의 60% 동안 이동. 느린 고블린(spd<1, 초대형): 다음 이동까지 쉬지 않고 천천히 걷도록 1/spd 틱에 걸쳐 이동
