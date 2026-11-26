@@ -454,7 +454,7 @@ function makeGoblin(s, type) {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
     atk: d.atk * (1 + CFG.ATK_GROWTH * r) * atkMul, def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
     multi: d.multi || 1, range: d.range || 0, aura: !!d.aura, evade: d.evade || 0, cleanse: !!d.cleanse,
-    weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, lv5Only: !!d.lv5Only, atkBuff: 1,
+    weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, lv5Only: !!d.lv5Only, stRes: d.stRes || null, atkBuff: 1,
     idx: 0, pit: false, st: {}, fights: 0, dead: false,
   };
 }
@@ -469,13 +469,17 @@ function startRound(s) {
   say(s, `라운드 ${s.round} 시작! 고블린 ${s.spawnList.length}마리`);
 }
 
+// 오우거(lv5Only): Lv1~4 슬라임에게서는 어떤 피해·효과도 받지 않는다 (메가는 예외)
+const ignores = (g, sl) => !!(g.lv5Only && sl && sl.kind !== 'mega' && (sl.lv || 0) < CFG.MAX_LV);
+const stResOf = (g, name) => (g.stRes && g.stRes[name] !== undefined ? g.stRes[name] : 1); // 상태 피해 내성 (오우거 피폭 50%)
+
 function applyStatus(g, st, owner) {
   const def = STATUS[st.name]; if (!def) return;
   if (g.immune && g.immune.includes(st.name)) return; // 방독: 독·질식 면역
   const e = g.st[st.name] || (g.st[st.name] = { t: 0, v: 0, fresh: false });
   const m = lvMult(owner.lv > CFG.MAX_LV ? CFG.MAX_LV : owner.lv);
   e.t = Math.max(e.t, st.dur || 1); e.fresh = true;
-  if (def.kind === 'dot') e.v = Math.max(e.v, owner.atk * (st.mul || 0.5));
+  if (def.kind === 'dot') e.v = Math.max(e.v, owner.atk * (st.mul || 0.5) * stResOf(g, st.name));
   else if (def.kind === 'defdown') e.v = Math.min(st.cap || 8, e.v + (st.val || 1) * m);
 }
 
@@ -518,16 +522,16 @@ function slimeStatus(s, sl, g, x, y, aff = 1) {
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const ni = PATH.findIndex(p => p[0] === x + dx && p[1] === y + dy);
         if (ni < 0) continue;
-        s.goblins.filter(o => !o.dead && o.idx === ni).forEach(o => hurt(s, o, sl.atk * (st.mul || 1)));
+        s.goblins.filter(o => !o.dead && o.idx === ni && !ignores(o, sl)).forEach(o => hurt(s, o, sl.atk * (st.mul || 1)));
       }
-      hurt(s, g, sl.atk * (st.mul || 1) * aff, aff);
+      if (!ignores(g, sl)) hurt(s, g, sl.atk * (st.mul || 1) * aff, aff);
     } else {
-      applyStatus(g, st, aff === 1 ? sl : { lv: sl.lv, atk: sl.atk * aff });
+      if (!ignores(g, sl)) applyStatus(g, st, aff === 1 ? sl : { lv: sl.lv, atk: sl.atk * aff });
       if (st.aoe) {
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const ni = PATH.findIndex(p => p[0] === x + dx && p[1] === y + dy);
           if (ni < 0) continue;
-          s.goblins.filter(o => !o.dead && o.idx === ni).forEach(o => hurt(s, o, sl.atk * st.aoe));
+          s.goblins.filter(o => !o.dead && o.idx === ni && !ignores(o, sl)).forEach(o => hurt(s, o, sl.atk * st.aoe * stResOf(o, st.name)));
         }
       }
     }
@@ -563,13 +567,8 @@ function moveGoblin(s, g) {
 
 // 오우거: Lv1~4 슬라임 칸은 갇히지 않고 밟고 지나간다. 슬라임이 한 번 공격하고, 오우거는 툭 치고(GIANT_TAP) 계속 걷는다
 function stompBy(s, g, x, y) {
+  // 오우거: Lv1~4 슬라임 칸은 갇히지 않고 밟고 지나간다. 슬라임은 오우거에게 피해를 주지 못하고, 오우거는 툭 치고(GIANT_TAP) 계속 걷는다
   const top = columnSlimes(s, x, y)[0]; if (!top) return;
-  if (!(top.sealed > 0)) {
-    const aff = affinity(top, g), dmg = Math.max(1, Math.round(top.atk * aff - (top.pierce ? 0 : effDef(s, g))));
-    hurt(s, g, dmg, aff);
-    if (g.dead) { computeCounts(s); return; }
-    slimeStatus(s, top, g, x, y, aff);
-  }
   const d = Math.max(1, Math.round(g.atk * CFG.GIANT_TAP * auraOf(s, g).atk * g.atkBuff - top.def));
   top.hp -= d; s.fx.push({ k: 'dmg', idx: g.idx, v: d, who: 's' }, { k: 'stomp', idx: g.idx });
   if (top.hp <= 0) { removeSlime(s, top); say(s, `${top.label} 슬라임이 오우거에게 밟혔습니다.`); }
@@ -593,7 +592,7 @@ function fight(s, g, x, y) {
   }
   const top = col[0] || null;
   // 슬라임(함정)이 먼저 공격
-  if (top && !(top.sealed > 0)) {
+  if (top && !(top.sealed > 0) && !ignores(g, top)) {
     const b = bonus(s, top, row), aff = affinity(top, g);
     const dmg = Math.max(1, Math.round(top.atk * b.atk * aff - (top.pierce ? 0 : effDef(s, g))));
     hurt(s, g, dmg, aff);

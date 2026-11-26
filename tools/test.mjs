@@ -1,5 +1,6 @@
 // 핵심 규칙 단위 테스트: node tools/test.mjs
-import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS, JOKES } from '../src/data.js';
+import { CFG, ROUND_TABLE, GOBLINS, CHAPTERS, FUSIONS, RECIPES, ATTRS, JOKES, ELEMENTS } from '../src/data.js';
+const ELEMENTS_U = ELEMENTS.find(e => e.sym === 'U');
 import { existsSync } from 'node:fs';
 import * as META from '../src/meta.js';
 import * as ON from '../src/online.js';
@@ -344,5 +345,20 @@ for (const c of CHAPTERS) {
   const mem = new Map([[META.PROFILE_KEY, JSON.stringify({ ...META.newProfile(), deck: ['FIRE', 'ELEC', 'O', 'H'] })]]);
   const lp = META.loadProfile({ getItem: k => mem.get(k) ?? null, setItem: () => {} });
   t('덱: 저장된 4종 덱은 8종으로 자동 채움', META.deckReady(lp.deck) && ['FIRE', 'ELEC', 'O', 'H'].every(x => lp.deck.includes(x)));
+}
+// v2.4.2: 오우거는 Lv1~4 슬라임에게 피해를 받지 않고, 피폭 지속 피해는 50%만 받는다
+{
+  const setup = (sym, lv, at = 2) => { const g = cg(91); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 5;
+    const [x, y] = PATH[at]; for (let k = 0; k < lv; k++) put(g, sym, x, y, 0);
+    g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['giant']; return { g, x, y }; };
+  { const { g } = setup('U', 4); let hp0 = null, maxStep = 0;
+    for (let i = 0; i < 14; i++) { step(g); const o = g.goblins.find(v => v.type === 'giant'); if (o) { hp0 ??= o.maxhp; maxStep = Math.max(maxStep, o.idx); if (o.idx > 2) { t('오우거: Lv4 슬라임 칸을 지나가도 피해 0', o.hp === o.maxhp && !Object.keys(o.st).length); break; } } } }
+  { const { g } = setup('Na', 3, 3); let ok = null;           // 나트륨(폭발) Lv3이 옆 칸에 있어도 오우거는 피해 없음
+    for (let i = 0; i < 14; i++) { step(g); const o = g.goblins.find(v => v.type === 'giant'); if (o && o.idx >= 4) { ok = o.hp === o.maxhp; break; } }
+    t('오우거: Lv3 폭발 범위 피해 없음', ok === true); }
+  { const { g, x, y } = setup('U', 5); const sl = getCell(g, x, y, 0); let v = null;
+    for (let i = 0; i < 20 && v === null; i++) { step(g); const o = g.goblins.find(q => q.type === 'giant'); if (o?.st?.radiate?.v) v = o.st.radiate.v; }
+    const st = ELEMENTS_U.st, want = sl.atk * CFG.WEAK_MUL * (st.mul || 0.5) * 0.5;
+    t('오우거: 피폭 지속 피해 50%', v !== null && Math.abs(v - want) < 0.01); }
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
