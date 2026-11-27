@@ -114,6 +114,7 @@ t('거점 0 → 패배', s.phase === 'over');
   t('오우거 편성: 1-5부터 매 라운드, 챕터 N은 N마리', ok);
   t('탑 오우거 최대 5마리', towerRound(30).find(([k]) => k === 'giant')[1] === 5);
   t('오우거 빙결·기절 면역', GOBLINS.giant.immune.includes('freeze') && GOBLINS.giant.immune.includes('stun'));
+  t('오우거 속성 상성 없음', !GOBLINS.giant.weak.length && !GOBLINS.giant.resist.length);
 }
 // 조합 메가: 같은 조합 슬라임 Lv5 x3, 동시에 1마리만, 파괴되면 다시 가능
 {
@@ -358,7 +359,7 @@ for (const c of CHAPTERS) {
     t('오우거: Lv3 폭발 범위 피해 없음', ok === true); }
   { const { g, x, y } = setup('U', 5); const sl = getCell(g, x, y, 0); let v = null;
     for (let i = 0; i < 20 && v === null; i++) { step(g); const o = g.goblins.find(q => q.type === 'giant'); if (o?.st?.radiate?.v) v = o.st.radiate.v; }
-    const st = ELEMENTS_U.st, want = sl.atk * CFG.WEAK_MUL * (st.mul || 0.5) * 0.5;
+    const st = ELEMENTS_U.st, want = sl.atk * (st.mul || 0.5) * 0.5; // 상성 없음(x1) · 피폭 50%
     t('오우거: 피폭 지속 피해 50%', v !== null && Math.abs(v - want) < 0.01); }
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
