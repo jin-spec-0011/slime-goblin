@@ -362,4 +362,21 @@ for (const c of CHAPTERS) {
     const st = ELEMENTS_U.st, want = sl.atk * (st.mul || 0.5) * 0.5; // 상성 없음(x1) · 피폭 50%
     t('오우거: 피폭 지속 피해 50%', v !== null && Math.abs(v - want) < 0.01); }
 }
+// v2.5.0: 적응형 난이도 (챕터 전용) — 기준 이하 강화는 영향 없음, 기준보다 강하면 고블린·보상이 함께 오름
+{
+  const base = META.planMods(META.PLAN_LV[4]);
+  const d0 = META.adaptiveDiff(base, 4, null);
+  t('적응형: 기준 레벨이면 배율 1', Math.abs(d0.diffHp - 1) < 1e-9 && d0.diffGold === 1);
+  const weak = META.adaptiveDiff(META.planMods(1), 4, null);
+  t('적응형: 기준보다 약하면 쉬워지지 않음 (배율 1)', weak.diffHp === 1 && weak.ratio < 1);
+  const strong = META.adaptiveDiff(META.planMods(16), 4, null);
+  t('적응형: 기준보다 강하면 고블린 체력·공격·보상 증가', strong.diffHp > 1.5 && strong.diffAtk > 1 && strong.diffGold > 1 && strong.diffAtk < strong.diffHp);
+  t('적응형: 무한의 탑은 적용 안 함', META.adaptiveDiff(META.planMods(30), 6, null).diffHp === 1);
+  const g1 = createGame(95, { chapter: 4, autoField: false }), g2 = createGame(95, { chapter: 4, autoField: false, mods: { diffHp: 2, diffAtk: 1.4, diffGold: 1.4 } });
+  for (const g of [g1, g2]) { g.round = 6; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['fighter']; step(g); }
+  const f1 = g1.goblins[0], f2 = g2.goblins[0];
+  t('적응형: 엔진에 체력 2배 반영', f1 && f2 && Math.abs(f2.maxhp / f1.maxhp - 2) < 0.02);
+  setMods(g2, META.modsOf(META.newProfile()));
+  t('적응형: 게임 중 강화해도 난이도 유지', g2.mods.diffHp === 2);
+}
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

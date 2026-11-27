@@ -115,15 +115,16 @@ export const ingKey = c => (!c ? null : c.kind === 'element' ? c.key : c.kind ==
 const ingAttr = c => { const k = ingKey(c); return k ? EL[k].attr : null; };
 
 // 강화(공격·체력) + 속성 연구(슬라임 속성들의 평균 배율)
-export const DEFAULT_MODS = { atk: 1, hp: 1, attrAtk: {}, dropEvery: CFG.DROP_EVERY, catPerRound: 1, baseHp: CFG.BASE_HP, startSlimes: CFG.START_SLIMES, goldMul: 1 };
+export const DEFAULT_MODS = { atk: 1, hp: 1, attrAtk: {}, dropEvery: CFG.DROP_EVERY, catPerRound: 1, baseHp: CFG.BASE_HP, startSlimes: CFG.START_SLIMES, goldMul: 1, diffHp: 1, diffAtk: 1, diffGold: 1 };
 function applySlimeMods(s, sl) {
   const at = sl.attrs.length ? sl.attrs.reduce((a, k) => a + (s.mods.attrAtk[k] || 1), 0) / sl.attrs.length : 1;
   sl.modAtk = s.mods.atk * at; sl.modHp = s.mods.hp;
 }
 // 게임 중 강화를 사면 즉시 반영 (필드 슬라임 재계산·회복, 거점 체력 증가분 추가)
 export function setMods(s, mods) {
-  const prevBase = s.mods.baseHp;
-  s.mods = { ...DEFAULT_MODS, ...mods };
+  const prevBase = s.mods.baseHp, keep = { diffHp: s.mods.diffHp, diffAtk: s.mods.diffAtk, diffGold: s.mods.diffGold };
+  s.mods = { ...DEFAULT_MODS, ...keep, ...mods };   // 적응형 난이도는 게임 시작 시 고정 (게임 중 강화로 바뀌지 않음)
+  for (const k of Object.keys(keep)) if (mods[k] === undefined) s.mods[k] = keep[k];
   for (const sl of s.cells.flat(2)) if (sl) { applySlimeMods(s, sl); recalc(sl); }
   if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += s.mods.baseHp - prevBase;
 }
@@ -420,7 +421,7 @@ export function skipPrep(s) {
 function goldFor(s, base) {
   const prog = s.tower ? 1 + 0.2 * (CFG.ROUNDS - 1) : 1 + 0.2 * (s.round - 1);
   const chMul = s.tower ? s.ch.goldMul * Math.pow(CFG.TOWER_GOLD_GROWTH, s.round - 1) : s.ch.goldMul;
-  return Math.round(base * prog * chMul * s.mods.goldMul * CFG.GOLD_SCALE);
+  return Math.round(base * prog * chMul * s.mods.goldMul * (s.tower ? 1 : s.mods.diffGold || 1) * CFG.GOLD_SCALE);
 }
 // 무한의 탑 층별 편성: 모든 종류 섞임, 층이 오를수록 수·오우거 증가
 export function towerRound(floor) {
@@ -449,6 +450,7 @@ function makeGoblin(s, type) {
   // 오우거(chAnchor): 챕터 1 배율을 기준점으로 나눈다 -> 챕터 1에서는 항상 기본 능력치(Lv5 약 5마리로 막힘),
   // 챕터 2~5는 챕터 1 대비 배율만큼만 강해진다. 챕터 밸런스를 다시 맞춰도 오우거 세기가 흔들리지 않음
   if (d.chAnchor && !s.tower) { const c1 = CHAPTERS[0]; hpMul /= 1 + (c1.hpMul - 1) * ramp; atkMul /= 1 + (c1.atkMul - 1) * ramp; }
+  if (!s.tower) { hpMul *= s.mods.diffHp || 1; atkMul *= s.mods.diffAtk || 1; } // 적응형 난이도 (플레이어 전투력 비례)
   const hp = Math.round(d.hp * Math.pow(CFG.HP_GROWTH, r) * hpMul);
   return {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,

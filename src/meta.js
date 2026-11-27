@@ -116,3 +116,32 @@ export function fmt(n) {
   for (const [s, v] of u) if (Math.abs(n) >= v) return (n / v).toFixed(n / v >= 100 ? 0 : 1).replace(/\.0$/, '') + s;
   return String(n);
 }
+
+// ---------- 적응형 난이도 (챕터 전용, 무한의 탑 제외) ----------
+// 챕터마다 기준 강화 레벨(PLAN_LV)이 있다. 플레이어 전투력이 기준보다 높으면 그 비율만큼 고블린도 강해지고
+// 보상 골드도 늘어난다. 기준보다 약할 때는 쉬워지지 않는다 (성장해서 깨는 구조 유지).
+export const PLAN_LV = { 1: 1, 2: 2, 3: 5, 4: 8, 5: 12 };
+export const ADAPT_ALPHA = 0.67;                  // 고블린 체력 배율 = (전투력 비율)^(ALPHA + CURVE x ln 비율) · tools/tune_adapt.mjs로 보정
+export const ADAPT_CURVE = 0.04;                  // 기준보다 훨씬 강할수록 조금 더 강하게 따라감
+export function planMods(lv) {
+  const p = newProfile();
+  for (const k of Object.keys(p.upgrades)) p.upgrades[k] = UPGRADES[k].max !== undefined ? Math.min(UPGRADES[k].max, lv) : lv;
+  for (const k of Object.keys(p.research)) p.research[k] = Math.floor(lv / 3);
+  return modsOf(p);
+}
+// 전투력: 공격 x 덱 속성 연구 평균 x sqrt(체력) x sqrt(지급 속도) x sqrt(거점 체력)
+export function powerOf(mods, deck) {
+  const syms = deck && deck.length ? deck : newProfile().deck;
+  const attrs = syms.map(sym => ELEMENTS.find(e => e.sym === sym)?.attr).filter(Boolean);
+  const res = attrs.length ? attrs.reduce((a, at) => a + ((mods.attrAtk && mods.attrAtk[at]) || 1), 0) / attrs.length : 1;
+  return (mods.atk || 1) * res * Math.sqrt(mods.hp || 1) * Math.sqrt(CFG.DROP_EVERY / (mods.dropEvery || CFG.DROP_EVERY))
+    * Math.sqrt((mods.baseHp || CFG.BASE_HP) / CFG.BASE_HP);
+}
+export function adaptiveDiff(mods, chapter, deck, alpha = ADAPT_ALPHA) {
+  const lv = PLAN_LV[chapter];
+  if (!lv) return { diffHp: 1, diffAtk: 1, diffGold: 1, ratio: 1 };
+  const ratio = powerOf(mods, deck) / powerOf(planMods(lv), null);
+  if (!(ratio > 1)) return { diffHp: 1, diffAtk: 1, diffGold: 1, ratio };
+  const hp = Math.pow(ratio, alpha + ADAPT_CURVE * Math.log(ratio));
+  return { diffHp: hp, diffAtk: Math.sqrt(hp), diffGold: Math.sqrt(hp), ratio };
+}

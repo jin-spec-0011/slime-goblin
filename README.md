@@ -20,6 +20,7 @@ ES Module과 Service Worker 때문에 `file://`로는 실행되지 않습니다.
 | `tools/sim.mjs` | 밸런스 시뮬레이터. 기본값 = **x3 배속, 사람 30APM** (`node tools/sim.mjs 30 [strong\|weak] [챕터] [--speed=3] [--apm=30]`, `--apm=0` 무제한, `--debug` 시간초과 판 출력) |
 | `tools/tune.mjs` | 챕터별 목표 승률에 맞는 체력 배율 자동 탐색 |
 | `tools/ogre_check.mjs` | 오우거 세기 측정: Lv5 슬라임 N마리 대비 처치율·부순 슬라임 수 |
+| `tools/tune_adapt.mjs` | 적응형 난이도 강도(ADAPT_ALPHA) 보정: 기준보다 강화가 높은 경우의 승률 측정 |
 | `tools/tune_prog.mjs` | 성장형 튜닝: '챕터 N은 강화 L레벨에서 승률 50%'가 되도록 배율 탐색 |
 | `tools/progress.mjs` | 성장 시뮬레이터: 자동 모드로 판을 돌리며 강화·연구하는 방치형 플레이어 (`node tools/progress.mjs 30`) |
 | `tools/gen_slimes.py` | 슬라임 픽셀아트 생성기 (원소·조합·비밀 족보) |
@@ -41,3 +42,10 @@ GitHub 저장소 Settings → Pages → Source를 **GitHub Actions**로 설정�
 - 관리자 지정: Firebase 콘솔 > Realtime Database > 데이터 > `admins/{uid}` = `true` (불리언). uid는 관리자 페이지에서 로그인하면 표시
 - 쿠폰: `codes/{CODE}` (골드·결정·현자의 돌, 사용 횟수, 만료일). 플레이어는 홈 > 🎁 쿠폰에서 입력, 계정당 1회 (`redeemed/{uid}/{CODE}`)
 - 업데이트 노트: `src/notes.js` 맨 앞에 새 버전을 추가하면 홈 📢 버튼과 첫 실행 팝업에 표시
+
+## 적응형 난이도 (v2.5.0, 챕터 전용)
+
+- 챕터마다 기준 강화 레벨 `PLAN_LV`(src/meta.js). 기준 레벨에서 목표 승률 약 37.5% (자동 모드)
+- 전투력 = 공격 x 덱 속성 연구 평균 x sqrt(체력) x sqrt(지급 속도) x sqrt(거점 체력)
+- 전투력이 기준보다 높으면 고블린 체력 x 비율^(ADAPT_ALPHA + ADAPT_CURVE x ln 비율), 공격·골드 보상은 그 제곱근. 기준보다 낮으면 변화 없음
+- 무한의 탑은 적용하지 않음 (랭킹 공정성)

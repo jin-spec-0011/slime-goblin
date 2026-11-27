@@ -1,6 +1,6 @@
 import { createGame, step, placeFromQueue, moveSlime, getCell, slimeCount, makeMega, skipPrep, autoPlay, PATH } from '../src/engine.js';
 import { CFG } from '../src/data.js';
-import { newProfile, modsOf, UPGRADES } from '../src/meta.js';
+import { newProfile, modsOf, UPGRADES, adaptiveDiff } from '../src/meta.js';
 
 // 단순 AI: 같은 원소에 겹치기 우선, 없으면 경로 앞쪽 칸부터 배치
 // 사용: node tools/sim.mjs <판수> [strong|weak|auto] [챕터] [--speed=3] [--apm=30] [--up=N] [--res=N] [--tower=1]
@@ -70,7 +70,8 @@ function ai(s, weak = WEAK) {
 export function runBatch(n, chapter, weak, modsOverride = null) { // weak: false|true|'auto'
   let wins = 0, stalls = 0; const reach = Array(11).fill(0); const hpLeft = [];
   for (let seed = 1; seed <= n; seed++) {
-    const s = createGame(seed, { chapter, mods: modsOverride || profileMods(), deck: newProfile().deck }); // 기본 덱 8종
+    const base = modsOverride || profileMods(), deck = newProfile().deck;
+    const s = createGame(seed, { chapter, mods: base.__fixedDiff ? base : { ...base, ...adaptiveDiff(base, chapter, deck) }, deck }); // 기본 덱 8종 + 적응형 난이도
     let t = 0;
     while (s.phase !== 'over' && s.phase !== 'won' && t++ < 3000) { if (weak === 'auto') autoPlay(s); else ai(s, weak); step(s); }
     if (s.phase === 'won') { wins++; hpLeft.push(s.baseHp); } else if (s.phase !== 'over') stalls++;
