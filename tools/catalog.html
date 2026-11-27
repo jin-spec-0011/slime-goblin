@@ -22,6 +22,9 @@
   .card .line b { color: var(--text); }
   .strip { background: var(--panel); border: 2px solid var(--line); border-radius: 10px; padding: 8px; overflow: hidden; }
   .strip img { width: 100%; image-rendering: auto; }
+  .rules { margin-top: 8px; font-size: 13px; line-height: 1.6; }
+  .rules ul { margin: 6px 0 0; padding-left: 18px; color: var(--sub); }
+  .rules b { color: var(--text); }
 </style>
 </head>
 <body>
@@ -45,9 +48,10 @@ const card = (img, name, key, lines) => `<div class="card"><div class="art"><img
   <div class="name">${name}</div><div class="key">${key}</div>${lines.map(l => `<div class="line">${l}</div>`).join('')}</div>`;
 
 // 고블린 12종
-section(`고블린 ${Object.keys(GOBLINS).length}종`, '1라운드 기준 능력치 · 라운드마다 HP ×' + CFG.HP_GROWTH,
+const gAtk = d => +(d.atk * (d.chAnchor ? 1 : (CFG.GOBLIN_ATK_MUL || 1))).toFixed(1);
+section(`고블린 ${Object.keys(GOBLINS).length}종`, `기본 능력치 (공격은 오우거 제외 x${CFG.GOBLIN_ATK_MUL || 1} 반영) · 라운드마다 HP x${CFG.HP_GROWTH} · 챕터·강화 수준에 따라 추가 배율`,
   Object.entries(GOBLINS).map(([k, d]) => card(`goblin_${k}`, d.name, k, [
-    `HP <b>${d.hp}</b> · 공격 <b>${d.atk}</b> · 방어 <b>${d.def}</b> · 속도 <b>${d.spd}</b>칸/초`,
+    `HP <b>${d.hp}</b> · 공격 <b>${gAtk(d)}</b> · 방어 <b>${d.def}</b> · 속도 <b>${d.spd}</b>칸/초`,
     `약점 ${atl(d.weak)} · 내성 ${atl(d.resist)}`,
     `${d.desc || ''} · 거점 -${d.leak}`,
   ])));
@@ -56,6 +60,16 @@ section(`고블린 ${Object.keys(GOBLINS).length}종`, '1라운드 기준 능력
 const h = document.createElement('h2'); h.innerHTML = '오우거 걷기 모션 <small>영상에서 추출한 16프레임</small>';
 const s = document.createElement('div'); s.className = 'strip'; s.innerHTML = '<img src="../assets/goblin_giant_walk.png" alt="">';
 root.append(h, s);
+
+// 오우거 특수 규칙
+const og = document.createElement('div'); og.className = 'strip rules';
+og.innerHTML = `<b>🧌 오우거(초대형) 특수 규칙</b><ul>
+  <li>5라운드부터 매 라운드 등장 · 챕터 N에서 N마리 (최대 5) · 무한의 탑 층마다 5마리</li>
+  <li><b>Lv5 슬라임과 메가에서만 멈춰 싸움</b> · Lv1~4 칸은 밟고 지나가며 툭 침 (공격 x${CFG.GIANT_TAP}) · Lv1~4 슬라임의 피해·효과는 전부 무시</li>
+  <li><b>짓밟기</b>: 메가 구역에서는 칸의 슬라임 대신 메가를 직접 공격 (x${CFG.GIANT_STOMP_MUL})</li>
+  <li><b>충격파</b>: 짓밟을 때마다 서 있는 칸 + 상하좌우 5칸의 슬라임 전부(레벨 무관)에 공격 x${CFG.GIANT_STOMP_SPLASH}</li>
+  <li>속성 상성 없음 · 빙결·기절 면역 · 피폭 지속 피해 50% · 포획 피로 20%</li></ul>`;
+root.append(og);
 
 // 슬라임
 const pure = ELEMENTS.filter(e => e.label), els = ELEMENTS.filter(e => !e.label);
@@ -74,11 +88,11 @@ section(`비밀 족보 ${JOKES.length}종`, `말장난 화학식 · 능력치 ×
     [`${st(j.st)}${j.healAura ? '·주변 회복' : ''}${j.onCreate?.baseHp ? '·거점+' + j.onCreate.baseHp : ''}${j.onCreate?.catalysts ? '·촉매+' + j.onCreate.catalysts : ''}`, `💡 ${j.hint}`])));
 section('기타 2종', '혼합물 · 메가', [
   card('slime_mix', '혼합물', '족보·합성 불일치', [`능력치 ×${CFG.MIXTURE_MUL}`, '재료 원소 효과 2개']),
-  card('slime_mega', '메가 슬라임', `Lv5 같은 슬라임 ×3`, [`${CFG.MEGA_ROUND}라운드부터 · 3×3 구역 · 최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격`, `원소 메가 무제한 · 조합 메가 동시 ${CFG.COMBO_MEGA_MAX}마리 (파괴 시 재생성)`]),
+  card('slime_mega', '메가 슬라임', `Lv5 같은 슬라임 ×3`, [`${CFG.MEGA_ROUND}라운드부터 · 3×3 구역 · 최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격`, `원소 메가 공격 x${CFG.MEGA_ATK} 무제한 · 조합 메가 동시 ${CFG.COMBO_MEGA_MAX}마리`, '오우거 짓밟기에 2배 피해']),
 ]);
 
 const total = Object.keys(GOBLINS).length + ELEMENTS.length + FUSIONS.length + RECIPES.length + JOKES.length + 2;
-document.getElementById('meta').textContent = `총 ${total}종 (고블린 ${Object.keys(GOBLINS).length} · 슬라임 ${total - Object.keys(GOBLINS).length})`;
+document.getElementById('meta').textContent = `v2.5.3 기준 · 총 ${total}종 (고블린 ${Object.keys(GOBLINS).length} · 슬라임 ${total - Object.keys(GOBLINS).length})`;
 document.body.dataset.ready = '1';
 </script>
 </body>
