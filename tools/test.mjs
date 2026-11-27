@@ -370,7 +370,7 @@ for (const c of CHAPTERS) {
   const weak = META.adaptiveDiff(META.planMods(1), 4, null);
   t('적응형: 기준보다 약하면 쉬워지지 않음 (배율 1)', weak.diffHp === 1 && weak.ratio < 1);
   const strong = META.adaptiveDiff(META.planMods(16), 4, null);
-  t('적응형: 기준보다 강하면 고블린 체력·공격·보상 증가', strong.diffHp > 1.5 && strong.diffAtk > 1 && strong.diffGold > 1 && strong.diffAtk < strong.diffHp);
+  t('적응형: 기준보다 강하면 고블린 체력·공격·보상 증가', strong.diffHp > 1.5 && strong.diffAtk > 1 && strong.diffGold > 1);
   t('적응형: 무한의 탑은 적용 안 함', META.adaptiveDiff(META.planMods(30), 6, null).diffHp === 1);
   const g1 = createGame(95, { chapter: 4, autoField: false }), g2 = createGame(95, { chapter: 4, autoField: false, mods: { diffHp: 2, diffAtk: 1.4, diffGold: 1.4 } });
   for (const g of [g1, g2]) { g.round = 6; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['fighter']; step(g); }
@@ -433,5 +433,16 @@ for (const c of CHAPTERS) {
     t('폭식: 먹으면 체력 20% 회복', o.hp >= o.maxhp * 0.69); }
   t('폭식: 챕터 1은 6라운드부터 등장', CHAPTERS[0].rounds.slice(0, 5).every(r => !r.some(([k]) => k === 'glutton')) && CHAPTERS[0].rounds[5].some(([k]) => k === 'glutton'));
   t('폭식: 그림·걷기 시트 존재', existsSync('assets/goblin_glutton.png') && existsSync('assets/goblin_glutton_walk.png'));
+}
+// v2.6.2: 방어 투자(슬라임 체력·거점)가 기준보다 높으면 고블린 공격력 추가 상승
+{
+  const base = META.planMods(META.PLAN_LV[4]);
+  t('방어 연동: 기준 레벨이면 공격 배율 1', Math.abs(META.adaptiveDiff(base, 4, null).diffAtk - 1) < 1e-9);
+  const tank = { ...base, hp: base.hp * 2, baseHp: base.baseHp * 2 };
+  const d = META.adaptiveDiff(tank, 4, null), want = Math.pow(2 * Math.sqrt(2), META.ADAPT_DEF_EXP);
+  t('방어 연동: 체력·거점 2배면 공격 배율에 (방어 비율)^0.7 곱함', d.defRatio > 2.8 && Math.abs(d.diffAtk / Math.sqrt(d.diffHp) - want) < 1e-6);
+  const weakTank = { ...META.planMods(1), hp: 3, baseHp: 100 };
+  const w = META.adaptiveDiff(weakTank, 4, null);
+  t('방어 연동: 전체 전투력이 기준 미만이어도 방어 과투자면 공격만 상승', w.diffHp === 1 && w.diffAtk > 1);
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

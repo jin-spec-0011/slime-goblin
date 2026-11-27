@@ -121,7 +121,7 @@ export function fmt(n) {
 // 챕터마다 기준 강화 레벨(PLAN_LV)이 있다. 플레이어 전투력이 기준보다 높으면 그 비율만큼 고블린도 강해지고
 // 보상 골드도 늘어난다. 기준보다 약할 때는 쉬워지지 않는다 (성장해서 깨는 구조 유지).
 export const PLAN_LV = { 1: 1, 2: 2, 3: 5, 4: 8, 5: 12 };
-export const ADAPT_ALPHA = 0.67;                  // 고블린 체력 배율 = (전투력 비율)^(ALPHA + CURVE x ln 비율) · tools/tune_adapt.mjs로 보정
+export const ADAPT_ALPHA = 0.56;                  // 고블린 체력 배율 = (전투력 비율)^(ALPHA + CURVE x ln 비율) · tools/tune_adapt.mjs로 보정
 export const ADAPT_CURVE = 0.04;                  // 기준보다 훨씬 강할수록 조금 더 강하게 따라감
 export function planMods(lv) {
   const p = newProfile();
@@ -137,11 +137,15 @@ export function powerOf(mods, deck) {
   return (mods.atk || 1) * res * Math.sqrt(mods.hp || 1) * Math.sqrt(CFG.DROP_EVERY / (mods.dropEvery || CFG.DROP_EVERY))
     * Math.sqrt((mods.baseHp || CFG.BASE_HP) / CFG.BASE_HP);
 }
-export function adaptiveDiff(mods, chapter, deck, alpha = ADAPT_ALPHA) {
+// 방어 투자 = 슬라임 체력 배율 x sqrt(거점 체력). 기준보다 높으면 고블린 공격력을 추가로 올린다 (탱커형 성장 견제)
+export const ADAPT_DEF_EXP = 0.3;
+export const defenseOf = mods => (mods.hp || 1) * Math.sqrt((mods.baseHp || CFG.BASE_HP) / CFG.BASE_HP);
+export function adaptiveDiff(mods, chapter, deck, alpha = ADAPT_ALPHA, defExp = ADAPT_DEF_EXP) {
   const lv = PLAN_LV[chapter];
-  if (!lv) return { diffHp: 1, diffAtk: 1, diffGold: 1, ratio: 1 };
-  const ratio = powerOf(mods, deck) / powerOf(planMods(lv), null);
-  if (!(ratio > 1)) return { diffHp: 1, diffAtk: 1, diffGold: 1, ratio };
+  if (!lv) return { diffHp: 1, diffAtk: 1, diffGold: 1, ratio: 1, defRatio: 1 };
+  const plan = planMods(lv), ratio = powerOf(mods, deck) / powerOf(plan, null);
+  const defRatio = defenseOf(mods) / defenseOf(plan), defAtk = defRatio > 1 ? Math.pow(defRatio, defExp) : 1;
+  if (!(ratio > 1)) return { diffHp: 1, diffAtk: defAtk, diffGold: 1, ratio, defRatio };
   const hp = Math.pow(ratio, alpha + ADAPT_CURVE * Math.log(ratio));
-  return { diffHp: hp, diffAtk: Math.sqrt(hp), diffGold: Math.sqrt(hp), ratio };
+  return { diffHp: hp, diffAtk: Math.sqrt(hp) * defAtk, diffGold: Math.sqrt(hp), ratio, defRatio };
 }
