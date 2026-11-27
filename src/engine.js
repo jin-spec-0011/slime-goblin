@@ -456,7 +456,7 @@ function makeGoblin(s, type) {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
     atk: d.atk * (1 + CFG.ATK_GROWTH * r) * atkMul, def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
     multi: d.multi || 1, range: d.range || 0, aura: !!d.aura, evade: d.evade || 0, cleanse: !!d.cleanse,
-    weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, lv5Only: !!d.lv5Only, stRes: d.stRes || null, atkBuff: 1,
+    weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, lv5Only: !!d.lv5Only, megaStomp: !!d.megaStomp, stRes: d.stRes || null, atkBuff: 1,
     idx: 0, pit: false, st: {}, fights: 0, dead: false,
   };
 }
@@ -605,7 +605,12 @@ function fight(s, g, x, y) {
   if (!g.dead && g.atk > 0 && !locked(s, g)) {
     const aura = auraOf(s, g).atk;
     const gatk = g.atk * aura * g.atkBuff * (hasSt(g, 'suffocate') ? 0.5 : 1);
-    if (col.length) {
+    if (mega && g.megaStomp) {
+      // 오우거 짓밟기: 메가 구역에서는 칸의 슬라임을 무시하고 메가를 직접 강타 (피해 x GIANT_STOMP_MUL)
+      const d = Math.max(1, Math.round(gatk * CFG.GIANT_STOMP_MUL - mega.def));
+      mega.hp -= d; s.fx.push({ k: 'dmg', idx: g.idx, v: d, who: 's' }, { k: 'stomp', idx: g.idx });
+      if (!g.stompSaid) { g.stompSaid = true; say(s, `🦶 오우거가 ${mega.name}을(를) 짓밟습니다!`); }
+    } else if (col.length) {
       const b = bonus(s, col[0], row);
       for (const t of col.slice(0, g.multi)) {
         const d = Math.max(1, Math.round(gatk * b.take - t.def));

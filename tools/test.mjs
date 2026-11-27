@@ -379,4 +379,17 @@ for (const c of CHAPTERS) {
   setMods(g2, META.modsOf(META.newProfile()));
   t('적응형: 게임 중 강화해도 난이도 유지', g2.mods.diffHp === 2);
 }
+// v2.5.1: 오우거 짓밟기 — 메가 구역에서는 칸의 슬라임 대신 메가를 2배 피해로 공격
+{
+  const g = cg(97); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 5;
+  put(g, 'Fe', 1, 0, 0); for (let k = 0; k < 4; k++) put(g, 'Fe', 1, 0, 0);          // (1,0)에 Lv5 철
+  g.megas = [{ id: 'M', kind: 'mega', key: 'FeM', label: '철', name: '메가 철', els: ['Fe'], attrs: ['earth'], lv: 6, maxhp: 5000, hp: 5000, atk: 1, def: 0, status: [], color: '#888', zx: 1, zy: 0, cd: 0, sealed: 0 }];
+  g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['giant'];
+  const sl = getCell(g, 1, 0, 0), slHp = sl.hp; let o = null;
+  for (let i = 0; i < 10; i++) { step(g); o = g.goblins.find(v => v.type === 'giant') || o; }
+  const lost = 5000 - g.megas[0].hp, perHit = Math.round(o.atk * CFG.GIANT_STOMP_MUL);
+  t('오우거 짓밟기: 메가가 피해를 받음', lost > 0 && o.pit);
+  t('오우거 짓밟기: 1회 피해 = 공격 x2', lost % perHit === 0 || Math.abs(lost / Math.round(lost / perHit) - perHit) <= 1);
+  t('오우거 짓밟기: 칸의 슬라임은 공격하지 않음', getCell(g, 1, 0, 0) === sl && sl.hp === slHp);
+}
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
