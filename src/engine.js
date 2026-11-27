@@ -472,7 +472,9 @@ function startRound(s) {
 }
 
 // 오우거(lv5Only): Lv1~4 슬라임에게서는 어떤 피해·효과도 받지 않는다 (메가는 예외)
-const ignores = (g, sl) => !!(g.lv5Only && sl && sl.kind !== 'mega' && (sl.lv || 0) < CFG.MAX_LV);
+// 폭식(eatLv): Lv(eatLv) 이하 슬라임에게서는 어떤 피해·효과도 받지 않는다
+export const ignores = (g, sl) => !!(sl && sl.kind !== 'mega' && ((g.lv5Only && (sl.lv || 0) < CFG.MAX_LV) || (g.eatLv && (sl.lv || 0) <= g.eatLv)));
+// ↑ 폭식 고블린(eatLv): 먹을 수 있는 레벨(Lv2 이하) 슬라임의 피해·효과도 전부 무시
 const stResOf = (g, name) => (g.stRes && g.stRes[name] !== undefined ? g.stRes[name] : 1); // 상태 피해 내성 (오우거 피폭 50%)
 
 function applyStatus(g, st, owner) {

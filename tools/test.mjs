@@ -6,6 +6,7 @@ import * as META from '../src/meta.js';
 import * as ON from '../src/online.js';
 import * as NOTES from '../src/notes.js';
 import { setMods, towerRound } from '../src/engine.js';
+import * as ENG from '../src/engine.js';
 import { createGame, step, affinity, autoPlay, placeFromQueue, moveSlime, combine, makeMega, recipeHint, getCell, PATH } from '../src/engine.js';
 let pass = 0, fail = 0;
 // 기존 규칙 테스트는 빈 필드를 전제로 하므로 자동 배치를 끄고 실행
@@ -444,5 +445,25 @@ for (const c of CHAPTERS) {
   const weakTank = { ...META.planMods(1), hp: 3, baseHp: 100 };
   const w = META.adaptiveDiff(weakTank, 4, null);
   t('방어 연동: 전체 전투력이 기준 미만이어도 방어 과투자면 공격만 상승', w.diffHp === 1 && w.diffAtk > 1);
+}
+// v2.6.3: 폭식 고블린은 Lv2 이하 슬라임의 피해·효과를 받지 않음 (옆 칸 폭발 포함)
+{
+  const g = cg(103); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 6;
+  const [x3, y3] = PATH[3]; for (let k = 0; k < 3; k++) put(g, 'Fe', x3, y3, 0);     // 3번 칸 Lv3 철 -> 폭식이 갇힘
+  const nb = [[x3, y3 + 1], [x3, y3 - 1]].find(([x, y]) => y >= 0 && y < CFG.H && !PATH.slice(0, 4).some(p => p[0] === x && p[1] === y)) || [x3, y3 + 1];
+  put(g, 'Na', nb[0], nb[1], 0); put(g, 'Na', nb[0], nb[1], 0);                     // 옆 칸 Lv2 나트륨(폭발)
+  g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['glutton'];
+  let o = null; for (let i = 0; i < 8; i++) { step(g); o = g.goblins.find(v => v.type === 'glutton') || o; }
+  const na = getCell(g, nb[0], nb[1], 0);
+  t('폭식: Lv2 이하 슬라임 무시 규칙 적용', o && o.eatLv === 2);
+  t('폭식: Lv3 칸에 갇혀 싸우는 중 (Lv3의 피해는 받음)', o && o.pit && o.hp < o.maxhp);
+  t('폭식: 옆 칸 Lv2 슬라임은 남아 있음 (먹지 않은 칸)', !!na && na.lv === 2);
+}
+{
+  const glut = { eatLv: 2 }, ogre = { lv5Only: true }, normal = {};
+  const sl = lv => ({ kind: 'element', lv }), mega = { kind: 'mega', lv: 6 };
+  t('면역 규칙: 폭식은 Lv1·Lv2 무시, Lv3부터 피해', ENG.ignores(glut, sl(1)) && ENG.ignores(glut, sl(2)) && !ENG.ignores(glut, sl(3)) && !ENG.ignores(glut, mega));
+  t('면역 규칙: 오우거는 Lv1~4 무시, Lv5·메가는 피해', ENG.ignores(ogre, sl(4)) && !ENG.ignores(ogre, sl(5)) && !ENG.ignores(ogre, mega));
+  t('면역 규칙: 일반 고블린은 무시 없음', !ENG.ignores(normal, sl(1)));
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
