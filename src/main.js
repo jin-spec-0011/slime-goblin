@@ -37,7 +37,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.6.3'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.7.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -279,15 +279,19 @@ function drawBoard() {
     if (isSel || inCombo) { ctx.strokeStyle = inCombo ? '#6be08a' : '#ffd34d'; ctx.lineWidth = 3; roundRect(ctx, X + 3, Y + 3, cw - 6, ch - 6, 7); ctx.stroke(); }
   }
   // 걷는 고블린 (도착한 칸에 슬라임이 있으면 칸 오른쪽 위로 비켜서 지나감)
+  // 같은 칸을 나란히 걷는 고블린은 좌우로 살짝 벌려 그린다
+  const laneOf = new Map(), laneCnt = new Map();
+  for (const wk of walking) { if (isBig(wk.gb)) continue; const k = `${Math.round(wk.fx)},${Math.round(wk.fy)}`; const n = laneCnt.get(k) || 0; laneOf.set(wk.gb.id, n); laneCnt.set(k, n + 1); }
   for (const wk of walking) {
     const { gb } = wk;
     if (isBig(gb)) { bigs.push({ gb, trappedIn: null, x: wk.fx, y: wk.fy, moving: wk.moving, flip: wk.flip }); continue; }
+    const lanes = laneCnt.get(`${Math.round(wk.fx)},${Math.round(wk.fy)}`) || 1, laneDx = lanes > 1 ? ((laneOf.get(gb.id) || 0) - (lanes - 1) / 2) * (lanes > 2 ? 0.24 : 0.4) * cw : 0;
     const cx0 = Math.round(wk.fx), cy0 = Math.round(wk.fy);
     const idxHere = PATH_IDX.get(`${cx0},${cy0}`);
     const occupied = !wk.moving && (!!getCell(g, cx0, cy0, 0) || inside.has(idxHere));
     const frozen = !!(gb.st.freeze && gb.st.freeze.t > 0);
     const size = Math.min(cw, ch) * (occupied ? 0.55 : 0.82);
-    const cx = wk.fx * cw + (occupied ? cw * 0.72 : cw / 2), bottom = wk.fy * ch + (occupied ? ch * 0.62 : ch - 8);
+    const cx = wk.fx * cw + (occupied ? cw * 0.72 : cw / 2) + (occupied ? 0 : laneDx), bottom = wk.fy * ch + (occupied ? ch * 0.62 : ch - 8) - ((laneOf.get(gb.id) || 0) % 2 ? 4 : 0);
     const rc = drawGoblinArt(ctx, gb.type, frozen, cx, bottom, size, { frame: frameOf(gb, wk.moving), flip: wk.flip, ...motion(gb, wk.moving ? 'walk' : 'idle') });
     hpBar(ctx, cx - size * 0.4, Math.max(wk.fy * ch + 3, rc.y - 6), size * 0.8, gb.hp / gb.maxhp, '#ff5a5a');
     goblinStatus(ctx, gb, cx + size * 0.42, rc.y);
@@ -367,7 +371,7 @@ function renderHud() {
   const g = ui.g;
   $('hRound').textContent = g.tower ? `탑${g.round}` : `${g.chapter}-${g.round}`;
   $('mGold').textContent = fmt(PROF.gold); $('mCrys').textContent = fmt(PROF.crystals); $('mStone').textContent = fmt(PROF.stones);
-  $('hBase').textContent = g.baseHp;
+  $('hBase').textContent = Math.max(0, Math.ceil(g.baseHp));   // 거점 피해가 소수일 수 있어 올림 표시
   $('hBase').style.color = g.baseHp <= 5 ? 'var(--danger)' : '';
   $('hCount').textContent = `${slimeCount(g)}/${CFG.CAP}`;
   $('hCat').textContent = g.catalysts;
@@ -877,7 +881,7 @@ function checkEnd() {
     lsSet(lsBest(n), String(best));
     const next = won ? n + 1 : 0; // 챕터 5 다음은 무한의 탑
     if (next && unlocked() < next) lsSet(LS_UNLOCK, String(next));
-    const body = `<p>챕터 ${n} <b>${g.ch.name}</b> · 도달 라운드 <b>${g.round}</b> · 처치 <b>${g.kills}</b> · 남은 거점 <b>${g.baseHp}</b></p>
+    const body = `<p>챕터 ${n} <b>${g.ch.name}</b> · 도달 라운드 <b>${g.round}</b> · 처치 <b>${g.kills}</b> · 남은 거점 <b>${Math.max(0, Math.ceil(g.baseHp))}</b></p>
       <p>최고 기록: ${best > CFG.ROUNDS ? '클리어' : `라운드 ${best}`}</p>
       ${earned}${next > CHAPTERS.length ? '<p>🔓 <b>무한의 탑</b>이 열렸습니다!</p>' : next ? `<p>🔓 챕터 ${next} <b>${CHAPTERS[next - 1].name}</b>이(가) 열렸습니다!</p>` : ''}`;
     if (won) showModal(`챕터 ${n} 클리어!`, body, { okText: next > CHAPTERS.length ? '무한의 탑 도전' : `챕터 ${next} 시작`, onOk: () => startGame(next, showHome), altText: '⬆ 강화', onAlt: () => showUpgrades('up', () => showHome()) });

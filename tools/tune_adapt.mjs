@@ -13,7 +13,7 @@ for (const alpha of alphas) {
   for (const ch of chapters) for (const ex of extras) {
     const lv = PLAN_LV[ch] + ex, mods = modsAt(lv, Math.floor(lv / 3));
     // runBatch는 META.ADAPT_ALPHA를 쓰므로, 여기서는 alpha를 직접 넣은 난이도로 덮어쓴다
-    const diff = adaptiveDiff(mods, ch, null, alpha);
+    const diff = adaptiveDiff(mods, ch, null, alpha, undefined, +(process.env.BETA ?? META.ADAPT_BASE_EXP));
     const r = runBatch(N, ch, 'auto', { ...mods, ...diff, __fixedDiff: true }).wins / N;
     cells.push(`챕터${ch}+${ex} ${Math.round(r * 100)}%`);
   }

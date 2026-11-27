@@ -89,8 +89,8 @@ t('뒤 고블린은 다음 칸으로 진행', passed >= 1);
 // 빈 맵 → 전원 통과 → 거점 피해
 s = cg(5); s.queue = []; s.prepLeft = 1;
 let n = 0; while (s.phase !== 'prep' || n < 2) { step(s); n++; if (n > 200) break; s.queue = []; }
-const leakR1 = ROUND_TABLE[0].reduce((a, [type, n]) => a + GOBLINS[type].leak * n, 0);
-t(`빈 맵 통과 시 거점 -${leakR1}`, s.baseHp === CFG.BASE_HP - leakR1);
+const leakR1 = ROUND_TABLE[0].reduce((a, [type, n]) => a + GOBLINS[type].leak * (type === 'giant' ? n : Math.round(n * CFG.SPAWN_COUNT_MUL)), 0); // 물량 배율 반영
+t(`빈 맵 통과 시 거점 -${leakR1} (챕터 거점 배율 적용)`, s.baseHp === Math.round(CFG.BASE_HP * (s.ch.baseMul ?? 1)) - leakR1);
 // 패배 판정
 s = cg(6); s.baseHp = 1; s.prepLeft = 1; n = 0;
 while (s.phase !== 'over' && n++ < 200) { s.queue = []; step(s); }
@@ -372,6 +372,9 @@ for (const c of CHAPTERS) {
   t('적응형: 기준보다 약하면 쉬워지지 않음 (배율 1)', weak.diffHp === 1 && weak.ratio < 1);
   const strong = META.adaptiveDiff(META.planMods(16), 4, null);
   t('적응형: 기준보다 강하면 고블린 체력·공격·보상 증가', strong.diffHp > 1.5 && strong.diffAtk > 1 && strong.diffGold > 1);
+  t('적응형: 강할수록 챕터 거점 배율 감소 (기준이면 1)', strong.diffBase < 1 && d0.diffBase === 1);
+  { const gb = createGame(96, { chapter: 2, autoField: false, mods: { diffBase: 0.5 } }), ga = createGame(96, { chapter: 2, autoField: false });
+    t('적응형: diffBase가 거점 체력에 반영', Math.abs(gb.baseHp - ga.baseHp / 2) <= 1); }
   t('적응형: 무한의 탑은 적용 안 함', META.adaptiveDiff(META.planMods(30), 6, null).diffHp === 1);
   const g1 = createGame(95, { chapter: 4, autoField: false }), g2 = createGame(95, { chapter: 4, autoField: false, mods: { diffHp: 2, diffAtk: 1.4, diffGold: 1.4 } });
   for (const g of [g1, g2]) { g.round = 6; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['fighter']; step(g); }
@@ -465,5 +468,18 @@ for (const c of CHAPTERS) {
   t('면역 규칙: 폭식은 Lv1·Lv2 무시, Lv3부터 피해', ENG.ignores(glut, sl(1)) && ENG.ignores(glut, sl(2)) && !ENG.ignores(glut, sl(3)) && !ENG.ignores(glut, mega));
   t('면역 규칙: 오우거는 Lv1~4 무시, Lv5·메가는 피해', ENG.ignores(ogre, sl(4)) && !ENG.ignores(ogre, sl(5)) && !ENG.ignores(ogre, mega));
   t('면역 규칙: 일반 고블린은 무시 없음', !ENG.ignores(normal, sl(1)));
+}
+// v2.7.0: 1초에 2마리 입장, 한 칸에 2마리까지 나란히, 물량 x1.5 (오우거 제외)
+{
+  const g = cg(105); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 3;
+  g.prepLeft = 1; step(g);
+  t('물량 x2: 챕터 1 3라운드 18 -> 36마리', g.spawnList.length + g.goblins.length === Math.round(18 * CFG.SPAWN_COUNT_MUL));
+  step(g); const n1 = g.goblins.length;
+  t('입장: 첫 1초에 SPAWN_PER_TICK마리', n1 === CFG.SPAWN_PER_TICK);
+  step(g);
+  const byIdx = {}; for (const o of g.goblins) if (!o.pit) byIdx[o.idx] = (byIdx[o.idx] || 0) + 1;
+  t('칸당 최대 SURFACE_CAP마리', Object.values(byIdx).every(c => c <= CFG.SURFACE_CAP) && g.goblins.length === CFG.SPAWN_PER_TICK * 2);
+  const g2 = cg(106); g2.round = 5; g2.prepLeft = 1; step(g2);
+  t('오우거 수는 그대로 (챕터 1은 1마리)', [...g2.spawnList, ...g2.goblins.map(o => o.type)].filter(x => x === 'giant').length === 1);
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

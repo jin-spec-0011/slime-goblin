@@ -32,6 +32,9 @@ export const CFG = {
   GOLD_SCALE: 0.3,              // 골드 획득 전체 배율 (성장 속도 조절)                // 무한의 탑: 층 사이 준비(초)                // 메가 슬라임 조합 가능 라운드 (이 라운드부터)
   MEGA_MUL: 1.2,
   MEGA_ATK: 2.4,
+  SPAWN_PER_TICK: 3,            // 1초에 입장하는 고블린 수 (v2.7.0: 1 -> 3)
+  SURFACE_CAP: 3,               // 한 칸에 나란히 걸을 수 있는 고블린 수 (2칸 크기는 칸 하나를 다 차지)
+  SPAWN_COUNT_MUL: 2,           // 라운드 고블린 물량 배율 (오우거 제외)
   GLUTTON_HEAL: 0.2,            // 폭식 고블린: 슬라임 한 마리 먹을 때마다 최대 체력의 20% 회복
   GOBLIN_ATK_MUL: 1.3,          // 오우거를 제외한 고블린 공격력 배율 (v2.5.2 +30%)
   GIANT_STOMP_SPLASH: 0.5,      // 짓밟기 충격파: + 모양 5칸 슬라임에 오우거 공격력 x 0.5 (레벨 무관)
@@ -248,11 +251,11 @@ function genRounds({ focus = [], chapter, unlockShift = 0 }) {
 }
 
 export const CHAPTERS = [
-  { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 2.08, atkMul: 1.37, boost: {},                         goldMul: 1.0, unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
-  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 1.83, atkMul: 1.31, boost: { fire: 1.25, ice: 0.75 },    goldMul: 1.5, unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], chapter: 2, unlockShift: 1 }) },
-  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 3.49, atkMul: 1.63, boost: { ice: 1.25, fire: 0.75 },     goldMul: 2.2, unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], chapter: 3, unlockShift: 2 }) },
-  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 4.38, atkMul: 1.75, boost: { poison: 1.25, water: 0.85 }, goldMul: 3.2, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], chapter: 4, unlockShift: 3 }) },
-  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 6.26, atkMul: 1.93, boost: { elec: 1.15, rad: 1.15 },     goldMul: 4.5, unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], chapter: 5, unlockShift: 4 }) },
+  { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 3.33, atkMul: 1.61, baseMul: 31.3, boost: {},                         goldMul: 1.0, unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
+  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 2.93, atkMul: 1.54, baseMul: 21.3, boost: { fire: 1.25, ice: 0.75 },    goldMul: 1.5, unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], chapter: 2, unlockShift: 1 }) },
+  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 5.58, atkMul: 1.87, baseMul: 17.2, boost: { ice: 1.25, fire: 0.75 },     goldMul: 2.2, unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], chapter: 3, unlockShift: 2 }) },
+  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 7.01, atkMul: 1.98, baseMul: 8.3, boost: { poison: 1.25, water: 0.85 }, goldMul: 3.2, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], chapter: 4, unlockShift: 3 }) },
+  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 10.02, atkMul: 2.16, baseMul: 7.0, boost: { elec: 1.15, rad: 1.15 },     goldMul: 4.5, unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], chapter: 5, unlockShift: 4 }) },
 ];
 
 // 무한의 탑: 챕터 5 클리어 후 열림. 층마다 고블린이 강해지고 끝이 없다 (편성은 engine.towerRound)

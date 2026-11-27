@@ -9,7 +9,7 @@ const TARGET = +(process.env.TARGET || 0.375);       // 기준 레벨 목표 승
 const ONLY = (process.argv[3] || '').split(',').filter(Boolean).map(Number);
 for (const [cid, up] of Object.entries(PLAN).filter(([c]) => !ONLY.length || ONLY.includes(+c))) {
   const ch = CHAPTERS[cid - 1], mods = modsAt(up, Math.floor(up / 3));
-  let lo = Math.log(0.5), hi = Math.log(2000), best = null;
+  let lo = Math.log(+(process.env.LO || 0.5)), hi = Math.log(2000), best = null;
   for (let it = 0; it < 9; it++) {
     const mid = (lo + hi) / 2, h = +Math.exp(mid).toFixed(2);
     ch.hpMul = h; ch.atkMul = +(1 + 0.35 * Math.log2(h)).toFixed(2);

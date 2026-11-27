@@ -139,13 +139,16 @@ export function powerOf(mods, deck) {
 }
 // 방어 투자 = 슬라임 체력 배율 x sqrt(거점 체력). 기준보다 높으면 고블린 공격력을 추가로 올린다 (탱커형 성장 견제)
 export const ADAPT_DEF_EXP = 0.3;
+export let ADAPT_BASE_EXP = 0.1;                   // 챕터 거점 배율 = (전투력 비율)^-BASE_EXP x (거점 비율)^-BASE_HP_EXP · 강한 플레이어가 누수 0으로 손쉽게 이기지 않게
+export const ADAPT_BASE_HP_EXP = 0.5;
 export const defenseOf = mods => (mods.hp || 1) * Math.sqrt((mods.baseHp || CFG.BASE_HP) / CFG.BASE_HP);
-export function adaptiveDiff(mods, chapter, deck, alpha = ADAPT_ALPHA, defExp = ADAPT_DEF_EXP) {
+export function adaptiveDiff(mods, chapter, deck, alpha = ADAPT_ALPHA, defExp = ADAPT_DEF_EXP, baseExp = ADAPT_BASE_EXP) {
   const lv = PLAN_LV[chapter];
-  if (!lv) return { diffHp: 1, diffAtk: 1, diffGold: 1, ratio: 1, defRatio: 1 };
+  if (!lv) return { diffHp: 1, diffAtk: 1, diffGold: 1, diffBase: 1, ratio: 1, defRatio: 1 };
   const plan = planMods(lv), ratio = powerOf(mods, deck) / powerOf(plan, null);
   const defRatio = defenseOf(mods) / defenseOf(plan), defAtk = defRatio > 1 ? Math.pow(defRatio, defExp) : 1;
-  if (!(ratio > 1)) return { diffHp: 1, diffAtk: defAtk, diffGold: 1, ratio, defRatio };
+  const baseR = (mods.baseHp || CFG.BASE_HP) / (plan.baseHp || CFG.BASE_HP), baseFix = baseR > 1 ? Math.pow(baseR, -ADAPT_BASE_HP_EXP) : 1;
+  if (!(ratio > 1)) return { diffHp: 1, diffAtk: defAtk, diffGold: 1, diffBase: baseFix, ratio, defRatio };
   const hp = Math.pow(ratio, alpha + ADAPT_CURVE * Math.log(ratio));
-  return { diffHp: hp, diffAtk: Math.sqrt(hp) * defAtk, diffGold: Math.sqrt(hp), ratio, defRatio };
+  return { diffHp: hp, diffAtk: Math.sqrt(hp) * defAtk, diffGold: Math.sqrt(hp), diffBase: Math.pow(ratio, -baseExp) * baseFix, ratio, defRatio };
 }

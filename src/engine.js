@@ -25,7 +25,7 @@ export function createGame(seed = Date.now(), opts = {}) {
   const mods = { ...DEFAULT_MODS, ...(opts.mods || {}) };
   const s = {
     seed, rng: mulberry32(seed), tick: 0, round: tower || 1, phase: 'prep', prepLeft: CFG.FIRST_PREP,
-    baseHp: mods.baseHp, catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
+    baseHp: Math.round(mods.baseHp * (tower ? 1 : (ch.baseMul ?? 1) * (mods.diffBase || 1))), catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
     gold: 0, crystals: 0, dropAcc: 0, autoRounds: new Set(),
     cells: Array.from({ length: CFG.D }, () => Array.from({ length: CFG.H }, () => Array(CFG.W).fill(null))),
     queue: [], goblins: [], spawnList: [], megas: [], nextId: 1, kills: 0, lost: 0,
@@ -115,18 +115,18 @@ export const ingKey = c => (!c ? null : c.kind === 'element' ? c.key : c.kind ==
 const ingAttr = c => { const k = ingKey(c); return k ? EL[k].attr : null; };
 
 // 강화(공격·체력) + 속성 연구(슬라임 속성들의 평균 배율)
-export const DEFAULT_MODS = { atk: 1, hp: 1, attrAtk: {}, dropEvery: CFG.DROP_EVERY, catPerRound: 1, baseHp: CFG.BASE_HP, startSlimes: CFG.START_SLIMES, goldMul: 1, diffHp: 1, diffAtk: 1, diffGold: 1 };
+export const DEFAULT_MODS = { atk: 1, hp: 1, attrAtk: {}, dropEvery: CFG.DROP_EVERY, catPerRound: 1, baseHp: CFG.BASE_HP, startSlimes: CFG.START_SLIMES, goldMul: 1, diffHp: 1, diffAtk: 1, diffGold: 1, diffBase: 1 };
 function applySlimeMods(s, sl) {
   const at = sl.attrs.length ? sl.attrs.reduce((a, k) => a + (s.mods.attrAtk[k] || 1), 0) / sl.attrs.length : 1;
   sl.modAtk = s.mods.atk * at; sl.modHp = s.mods.hp;
 }
 // 게임 중 강화를 사면 즉시 반영 (필드 슬라임 재계산·회복, 거점 체력 증가분 추가)
 export function setMods(s, mods) {
-  const prevBase = s.mods.baseHp, keep = { diffHp: s.mods.diffHp, diffAtk: s.mods.diffAtk, diffGold: s.mods.diffGold };
+  const prevBase = s.mods.baseHp, keep = { diffHp: s.mods.diffHp, diffAtk: s.mods.diffAtk, diffGold: s.mods.diffGold, diffBase: s.mods.diffBase };
   s.mods = { ...DEFAULT_MODS, ...keep, ...mods };   // 적응형 난이도는 게임 시작 시 고정 (게임 중 강화로 바뀌지 않음)
   for (const k of Object.keys(keep)) if (mods[k] === undefined) s.mods[k] = keep[k];
   for (const sl of s.cells.flat(2)) if (sl) { applySlimeMods(s, sl); recalc(sl); }
-  if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += s.mods.baseHp - prevBase;
+  if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += Math.round((s.mods.baseHp - prevBase) * (s.tower ? 1 : (s.ch.baseMul ?? 1) * (s.mods.diffBase || 1)));
 }
 
 // ---------- 지급 큐 ----------
@@ -435,7 +435,8 @@ export function towerRound(floor) {
 // ---------- 고블린 ----------
 function buildSpawn(s, round) {
   const table = s.tower ? towerRound(round) : s.ch.rounds[round - 1];
-  const groups = table.map(([t, n]) => Array(n).fill(t));
+  // 물량 배율 (오우거 수는 규칙대로 유지)
+  const groups = table.map(([t, n]) => Array(t === 'giant' ? n : Math.round(n * CFG.SPAWN_COUNT_MUL)).fill(t));
   const out = []; let more = true;
   while (more) { more = false; for (const g of groups) if (g.length) { out.push(g.shift()); more = true; } }
   return out;
@@ -463,7 +464,9 @@ function makeGoblin(s, type) {
 
 // 지표면(걷는 고블린)과 구덩이(빠진 고블린)를 따로 점유한다.
 // 구덩이는 칸마다 1마리만 빠지고, 뒤따르는 고블린은 그 위를 지나 다음 칸으로 진행한다.
-const surfaceOcc = (s, idx) => s.goblins.some(g => !g.dead && !g.pit && g.idx === idx);
+// 지표면 점유: 한 칸에 SURFACE_CAP마리까지 나란히 걸을 수 있다 (2칸 크기 고블린은 칸 하나를 다 차지)
+const laneW = g => ((GOBLINS[g.type].size || 1) > 1 ? CFG.SURFACE_CAP : 1);
+const surfaceOcc = (s, idx, add = 1) => s.goblins.reduce((n, g) => n + (!g.dead && !g.pit && g.idx === idx ? laneW(g) : 0), 0) + add > CFG.SURFACE_CAP;
 const pitOcc = (s, idx, self = null) => s.goblins.some(g => !g.dead && g.pit && g.idx === idx && g !== self);
 
 function startRound(s) {
@@ -543,10 +546,12 @@ function slimeStatus(s, sl, g, x, y, aff = 1) {
   void m;
 }
 
+// 거점 체력 = 강화 거점 체력 x 챕터 baseMul (고블린이 무리로 깊이 들어오는 만큼 거점을 챕터별로 키운다)
 function leak(s, g) {
-  g.dead = true; s.baseHp -= g.leak;
-  s.fx.push({ k: 'leak', idx: PATH.length - 1, v: g.leak });
-  say(s, `${g.name} 고블린이 거점에 도달! 거점 -${g.leak}`);
+  const d = g.leak;
+  g.dead = true; s.baseHp -= d;
+  s.fx.push({ k: 'leak', idx: PATH.length - 1, v: d });
+  say(s, `${g.name} 고블린이 거점에 도달! 거점 -${d}`);
 }
 
 function moveGoblin(s, g) {
@@ -558,7 +563,7 @@ function moveGoblin(s, g) {
   while (steps-- > 0) {
     const ni = g.idx + 1;
     if (ni >= PATH.length) { leak(s, g); return; }
-    if (surfaceOcc(s, ni)) break;
+    if (surfaceOcc(s, ni, laneW(g))) break;
     g.idx = ni;
     const [x, y] = PATH[ni];
     if (trapAt(s, x, y) && !pitOcc(s, ni, g)) {
@@ -700,7 +705,9 @@ export function step(s) {
   }
   computeCounts(s);
   // 스폰
-  if (s.spawnList.length && !surfaceOcc(s, 0)) {
+  for (let k = 0; k < CFG.SPAWN_PER_TICK && s.spawnList.length; k++) {   // 1초에 최대 SPAWN_PER_TICK마리 입장
+    const type = s.spawnList[0], w = (GOBLINS[type].size || 1) > 1 ? CFG.SURFACE_CAP : 1;
+    if (surfaceOcc(s, 0, w)) break;
     const g = makeGoblin(s, s.spawnList.shift());
     if (trapAt(s, PATH[0][0], PATH[0][1]) && !pitOcc(s, 0)) g.pit = true;
     s.goblins.push(g);
