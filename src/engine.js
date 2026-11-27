@@ -454,7 +454,7 @@ function makeGoblin(s, type) {
   const hp = Math.round(d.hp * Math.pow(CFG.HP_GROWTH, r) * hpMul);
   return {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
-    atk: d.atk * (1 + CFG.ATK_GROWTH * r) * atkMul, def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
+    atk: d.atk * (1 + CFG.ATK_GROWTH * r) * atkMul * (d.chAnchor ? 1 : CFG.GOBLIN_ATK_MUL), def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
     multi: d.multi || 1, range: d.range || 0, aura: !!d.aura, evade: d.evade || 0, cleanse: !!d.cleanse,
     weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, lv5Only: !!d.lv5Only, megaStomp: !!d.megaStomp, stRes: d.stRes || null, atkBuff: 1,
     idx: 0, pit: false, st: {}, fights: 0, dead: false,

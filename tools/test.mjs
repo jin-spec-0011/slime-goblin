@@ -392,4 +392,12 @@ for (const c of CHAPTERS) {
   t('오우거 짓밟기: 1회 피해 = 공격 x2', lost % perHit === 0 || Math.abs(lost / Math.round(lost / perHit) - perHit) <= 1);
   t('오우거 짓밟기: 칸의 슬라임은 공격하지 않음', getCell(g, 1, 0, 0) === sl && sl.hp === slHp);
 }
+// v2.5.2: 오우거를 제외한 고블린 공격력 +30%
+{
+  const g = cg(99); g.round = 1; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['fighter']; step(g);
+  const f = g.goblins.find(v => v.type === 'fighter');
+  const c1 = CHAPTERS[0], ramp = 0.3, want = GOBLINS.fighter.atk * (1 + (c1.atkMul - 1) * ramp) * CFG.GOBLIN_ATK_MUL;
+  t('일반 고블린 공격력 x1.3 적용', f && Math.abs(f.atk - want) < 1e-6);
+  t('오우거는 공격력 배율 미적용', CFG.GOBLIN_ATK_MUL === 1.3 && GOBLINS.giant.chAnchor);
+}
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
