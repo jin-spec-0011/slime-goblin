@@ -37,7 +37,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.5.2'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.5.3'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -850,6 +850,7 @@ function collectFx() {
     if (f.k === 'heal') ui.floats.push({ idx: f.idx, text: '+' + f.v, col: '#7dff9a', t0: now, dx: (Math.random() - 0.5) * 18 });
     if (f.k === 'leak') ui.floats.push({ idx: f.idx, text: `거점 -${f.v}`, col: '#ff4040', t0: now, dx: 0 });
     if (f.k === 'stomp') ui.floats.push({ idx: f.idx, text: '쿵!', col: '#e0b07a', t0: now, dx: -14 });
+    if (f.k === 'slimeHit') { const i = PATH_IDX.get(`${f.x},${f.y}`); if (i !== undefined) ui.floats.push({ idx: i, text: '▼' + f.v, col: '#ff9a5a', t0: now, dx: (Math.random() - 0.5) * 14 }); }
   }
 }
 

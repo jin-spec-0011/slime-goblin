@@ -610,6 +610,15 @@ function fight(s, g, x, y) {
       const d = Math.max(1, Math.round(gatk * CFG.GIANT_STOMP_MUL - mega.def));
       mega.hp -= d; s.fx.push({ k: 'dmg', idx: g.idx, v: d, who: 's' }, { k: 'stomp', idx: g.idx });
       if (!g.stompSaid) { g.stompSaid = true; say(s, `🦶 오우거가 ${mega.name}을(를) 짓밟습니다!`); }
+      // 짓밟기 충격파: 서 있는 칸 + 상하좌우의 슬라임 전부 (레벨 무관) 오우거 공격력 x GIANT_STOMP_SPLASH
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const sx = x + dx, sy = y + dy; if (sx < 0 || sy < 0 || sx >= CFG.W || sy >= CFG.H) continue;
+        for (const t of columnSlimes(s, sx, sy)) {
+          const d2 = Math.max(1, Math.round(gatk * CFG.GIANT_STOMP_SPLASH - t.def));
+          t.hp -= d2; s.fx.push({ k: 'slimeHit', x: sx, y: sy, v: d2 });
+          if (t.hp <= 0 && (dx || dy)) { removeSlime(s, t); say(s, `${t.label} 슬라임이 짓밟기 충격파에 쓰러졌습니다.`); } // 가운데 칸은 아래 공통 처리
+        }
+      }
     } else if (col.length) {
       const b = bonus(s, col[0], row);
       for (const t of col.slice(0, g.multi)) {

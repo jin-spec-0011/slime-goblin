@@ -390,7 +390,8 @@ for (const c of CHAPTERS) {
   const lost = 5000 - g.megas[0].hp, perHit = Math.round(o.atk * CFG.GIANT_STOMP_MUL);
   t('오우거 짓밟기: 메가가 피해를 받음', lost > 0 && o.pit);
   t('오우거 짓밟기: 1회 피해 = 공격 x2', lost % perHit === 0 || Math.abs(lost / Math.round(lost / perHit) - perHit) <= 1);
-  t('오우거 짓밟기: 칸의 슬라임은 공격하지 않음', getCell(g, 1, 0, 0) === sl && sl.hp === slHp);
+  const shock = Math.max(1, Math.round(o.atk * CFG.GIANT_STOMP_SPLASH - sl.def)), lostSl = slHp - sl.hp;
+  t('오우거 짓밟기: 칸의 슬라임은 직접 공격 대신 충격파(50%)만 받음', lostSl > 0 && lostSl % shock === 0);
 }
 // v2.5.2: 오우거를 제외한 고블린 공격력 +30%
 {
@@ -399,5 +400,19 @@ for (const c of CHAPTERS) {
   const c1 = CHAPTERS[0], ramp = 0.3, want = GOBLINS.fighter.atk * (1 + (c1.atkMul - 1) * ramp) * CFG.GOBLIN_ATK_MUL;
   t('일반 고블린 공격력 x1.3 적용', f && Math.abs(f.atk - want) < 1e-6);
   t('오우거는 공격력 배율 미적용', CFG.GOBLIN_ATK_MUL === 1.3 && GOBLINS.giant.chAnchor);
+}
+// v2.5.3: 짓밟기 충격파 — 오우거 위치 + 상하좌우 슬라임 전부(레벨 무관) 피해, 대각선은 안전
+{
+  const g = cg(98); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 5;
+  g.megas = [{ id: 'M', kind: 'mega', key: 'FeM', label: '철', name: '메가 철', els: ['Fe'], attrs: ['earth'], lv: 6, maxhp: 99999, hp: 99999, atk: 1, def: 0, status: [], color: '#888', zx: 1, zy: 0, cd: 0, sealed: 0 }];
+  put(g, 'Fe', 1, 1, 0); put(g, 'Fe', 2, 0, 0); put(g, 'Fe', 0, 1, 0);       // (1,0) 기준 아래·오른쪽 = +, (0,1) = 대각선
+  for (let k = 0; k < 2; k++) put(g, 'Fe', 1, 1, 0);                          // 아래 칸은 Lv3
+  const down = getCell(g, 1, 1, 0), right = getCell(g, 2, 0, 0), diag = getCell(g, 0, 1, 0);
+  const h = [down.hp, right.hp, diag.hp];
+  g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['giant'];
+  let o = null; for (let i = 0; i < 6; i++) { step(g); o = g.goblins.find(v => v.type === 'giant') || o; }
+  t('충격파: 오우거가 (1,0) 메가 구역에서 짓밟는 중', o && o.pit && PATH[o.idx][0] === 1 && PATH[o.idx][1] === 0);
+  t('충격파: 아래(Lv3)·오른쪽(Lv1) 슬라임 피해', (getCell(g, 1, 1, 0)?.hp ?? -1) < h[0] && (getCell(g, 2, 0, 0)?.hp ?? -1) < h[1]);
+  t('충격파: 대각선 슬라임은 안전', getCell(g, 0, 1, 0) === diag && diag.hp === h[2]);
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
