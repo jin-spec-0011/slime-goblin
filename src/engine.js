@@ -456,7 +456,7 @@ function makeGoblin(s, type) {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
     atk: d.atk * (1 + CFG.ATK_GROWTH * r) * atkMul * (d.chAnchor ? 1 : CFG.GOBLIN_ATK_MUL), def: d.def + Math.floor(r / 3), spd: d.spd, leak: d.leak,
     multi: d.multi || 1, range: d.range || 0, aura: !!d.aura, evade: d.evade || 0, cleanse: !!d.cleanse,
-    weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, lv5Only: !!d.lv5Only, megaStomp: !!d.megaStomp, stRes: d.stRes || null, atkBuff: 1,
+    weak: d.weak || [], resist: d.resist || [], immune: d.immune || [], heal: d.heal || 0, feast: d.feast || 0, lv5Only: !!d.lv5Only, megaStomp: !!d.megaStomp, eatLv: d.eatLv || 0, stRes: d.stRes || null, atkBuff: 1,
     idx: 0, pit: false, st: {}, fights: 0, dead: false,
   };
 }
@@ -561,10 +561,19 @@ function moveGoblin(s, g) {
     const [x, y] = PATH[ni];
     if (trapAt(s, x, y) && !pitOcc(s, ni, g)) {
       if (g.evade > 0) { g.evade--; continue; }
+      if (g.eatLv) { const top = columnSlimes(s, x, y)[0]; if (top && (top.lv || 0) <= g.eatLv) { eatSlime(s, g, top); if (!trapAt(s, x, y)) continue; } }
       if (g.lv5Only && !megaAt(s, x, y) && (columnSlimes(s, x, y)[0]?.lv || 0) < CFG.MAX_LV) { stompBy(s, g, x, y); if (g.dead) return; continue; }
       g.pit = true; s.fx.push({ k: 'fall', idx: ni }); break;
     }
   }
+}
+
+// 폭식 고블린: Lv(eatLv) 이하 슬라임을 통째로 먹고 체력을 회복한 뒤 계속 걷는다 (메가는 먹지 않음)
+function eatSlime(s, g, sl) {
+  removeSlime(s, sl); computeCounts(s);
+  const heal = g.maxhp * CFG.GLUTTON_HEAL; g.hp = Math.min(g.maxhp, g.hp + heal);
+  s.fx.push({ k: 'eat', idx: g.idx }, { k: 'heal', idx: g.idx, v: Math.round(heal) });
+  if (!g.ateSaid) { g.ateSaid = true; say(s, `😋 폭식 고블린이 ${sl.label} 슬라임(Lv${sl.lv})을 먹어 치웠습니다!`); }
 }
 
 // 오우거: Lv1~4 슬라임 칸은 갇히지 않고 밟고 지나간다. 슬라임이 한 번 공격하고, 오우거는 툭 치고(GIANT_TAP) 계속 걷는다

@@ -415,4 +415,23 @@ for (const c of CHAPTERS) {
   t('충격파: 아래(Lv3)·오른쪽(Lv1) 슬라임 피해', (getCell(g, 1, 1, 0)?.hp ?? -1) < h[0] && (getCell(g, 2, 0, 0)?.hp ?? -1) < h[1]);
   t('충격파: 대각선 슬라임은 안전', getCell(g, 0, 1, 0) === diag && diag.hp === h[2]);
 }
+// v2.6.0: 폭식 고블린 — Lv2 이하 슬라임은 먹고 지나가며 회복, Lv3 이상에서는 갇힘
+{
+  const mk = lv => { const g = cg(101); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 6;
+    const [x, y] = PATH[2]; for (let k = 0; k < lv; k++) put(g, 'Fe', x, y, 0);
+    g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['glutton']; return { g, x, y }; };
+  { const { g, x, y } = mk(2); let pitted = false, o = null;
+    for (let i = 0; i < 6; i++) { step(g); o = g.goblins.find(v => v.type === 'glutton') || o; if (o?.pit) pitted = true; }
+    t('폭식: Lv2 슬라임을 먹어 없앰', getCell(g, x, y, 0) === null);
+    t('폭식: 먹고 갇히지 않고 지나감', !pitted && o && o.idx > 2); }
+  { const { g, x, y } = mk(3); let pitted = false;
+    for (let i = 0; i < 6; i++) { step(g); if (g.goblins.some(v => v.type === 'glutton' && v.pit && v.idx === 2)) pitted = true; }
+    t('폭식: Lv3 슬라임은 못 먹고 갇힘', pitted && getCell(g, x, y, 0) !== null); }
+  { const g = cg(102); g.round = 6; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['glutton']; step(g);
+    const o = g.goblins[0]; o.hp = o.maxhp * 0.5; const sl = { kind: 'element', lv: 1, label: 'X', key: 'Fe', els: ['Fe'], attrs: ['earth'], status: [], hp: 1, maxhp: 1, atk: 0, def: 0, cd: 0, sealed: 0 };
+    const [x, y] = PATH[o.idx + 1] || PATH[1]; g.cells[0][y][x] = sl; step(g);
+    t('폭식: 먹으면 체력 20% 회복', o.hp >= o.maxhp * 0.69); }
+  t('폭식: 챕터 1은 6라운드부터 등장', CHAPTERS[0].rounds.slice(0, 5).every(r => !r.some(([k]) => k === 'glutton')) && CHAPTERS[0].rounds[5].some(([k]) => k === 'glutton'));
+  t('폭식: 그림·걷기 시트 존재', existsSync('assets/goblin_glutton.png') && existsSync('assets/goblin_glutton_walk.png'));
+}
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

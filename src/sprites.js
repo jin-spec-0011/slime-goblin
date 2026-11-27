@@ -158,7 +158,7 @@ const SLIME_KEYS = [...ELEMENTS.map(e => e.sym), ...FUSIONS.map(f => f.key), ...
 // 고블린 그림 목록도 데이터(GOBLINS)에서 자동 생성 -> 종류를 추가해도 그림이 빠지지 않음
 // (예전에는 손으로 쓴 목록에 개편 4종이 빠져 게임에서 옛 기본 고블린으로 그려졌음)
 export const ASSET_NAMES = [
-  ...Object.keys(GOBLINS).map(k => 'goblin_' + k), 'goblin_giant_walk',
+  ...Object.keys(GOBLINS).map(k => 'goblin_' + k), 'goblin_giant_walk', 'goblin_glutton_walk',
   ...SLIME_KEYS.map(k => 'slime_' + k),
 ];
 export function loadAssets(base = 'assets/') {
@@ -206,7 +206,7 @@ function frozenOf(img, key) {
 
 // 걷기 모션 시트: 가로로 이어 붙인 프레임 (종류 -> 프레임 수)
 // n: 프레임 수, ms: 프레임당 시간 (영상 원본 24fps, 31프레임 주기를 16장으로 샘플링 -> 약 83ms)
-const WALK = { giant: { n: 16, ms: 83 } };
+const WALK = { giant: { n: 16, ms: 83 }, glutton: { n: 16, ms: 120 } }; // 폭식: 영상 67프레임 주기를 16장으로 샘플링
 const frameCache = new Map();
 function walkFrame(type, i) {
   const sheet = IMG[`goblin_${type}_walk`]; if (!sheet) return null;
