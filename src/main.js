@@ -37,7 +37,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.7.0'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.8.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -914,7 +914,7 @@ function newGame(chapter = ui.g?.chapter || 1) {
   const tower = chapter >= TOWER_ID;
   const mods = modsOf(PROF), deck = PROF.deck.slice();
   const diff = tower ? {} : adaptiveDiff(mods, chapter, deck);           // 챕터: 플레이어 전투력에 맞춘 난이도 (탑은 고정)
-  ui.g = createGame((Date.now() ^ (Math.random() * 1e9)) >>> 0, { chapter: tower ? 1 : chapter, tower: tower ? 1 : 0, mods: { ...mods, ...diff }, deck });
+  ui.g = createGame((Date.now() ^ (Math.random() * 1e9)) >>> 0, { chapter: tower ? 1 : chapter, tower: tower ? 1 : 0, towerBest: PROF.towerBest || 0, mods: { ...mods, ...diff }, deck });
   ui.commitGold = 0; ui.commitCrys = 0;
   rebuildPathIdx(); ui.anim.clear(); ui.hpPrev.clear(); ui.hitUntil.clear(); ui.puffs = [];
   $('queue').dataset.ids = '';

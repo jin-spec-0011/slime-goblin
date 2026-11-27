@@ -71,7 +71,7 @@ export function runBatch(n, chapter, weak, modsOverride = null) { // weak: false
   let wins = 0, stalls = 0; const reach = Array(11).fill(0); const hpLeft = [];
   for (let seed = 1; seed <= n; seed++) {
     const base = modsOverride || profileMods(), deck = newProfile().deck;
-    const s = createGame(seed, { chapter, mods: base.__fixedDiff ? base : { ...base, ...adaptiveDiff(base, chapter, deck) }, deck }); // 기본 덱 8종 + 적응형 난이도
+    const s = createGame(seed, { chapter, towerBest: +(process.env.TB || 0), mods: base.__fixedDiff ? base : { ...base, ...adaptiveDiff(base, chapter, deck) }, deck }); // 기본 덱 8종 + 적응형 난이도
     let t = 0;
     while (s.phase !== 'over' && s.phase !== 'won' && t++ < 3000) { if (weak === 'auto') autoPlay(s); else ai(s, weak); step(s); }
     if (s.phase === 'won') { wins++; hpLeft.push(s.baseHp); } else if (s.phase !== 'over') stalls++;
@@ -84,7 +84,7 @@ if (process.argv[1] && process.argv[1].endsWith('sim.mjs')) {
   const N = +process.argv[2] || 30;
   let wins = 0, stalls = 0; const reach = Array(11).fill(0); const hpLeft = [], golds = [], crys = [], floors = [];
   for (let seed = 1; seed <= N; seed++) {
-    const s = createGame(seed, { chapter: CHAPTER, mods: profileMods(), tower: TOWER });
+    const s = createGame(seed, { chapter: CHAPTER, mods: profileMods(), tower: TOWER, towerBest: +(process.env.TB || 0) });
     let t = 0;
     while (s.phase !== 'over' && s.phase !== 'won' && t++ < (TOWER ? 20000 : 3000)) { if (MODE === 'auto') autoPlay(s); else ai(s); step(s); }
     golds.push(s.gold); crys.push(s.crystals); floors.push(s.round);

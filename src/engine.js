@@ -23,9 +23,10 @@ export function createGame(seed = Date.now(), opts = {}) {
   const ch = tower ? TOWER : CHAPTERS[chapter - 1];
   setPath(ch.path);
   const mods = { ...DEFAULT_MODS, ...(opts.mods || {}) };
+  const towerBest = Math.max(0, opts.towerBest | 0);
   const s = {
     seed, rng: mulberry32(seed), tick: 0, round: tower || 1, phase: 'prep', prepLeft: CFG.FIRST_PREP,
-    baseHp: Math.round(mods.baseHp * (tower ? 1 : (ch.baseMul ?? 1) * (mods.diffBase || 1))), catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
+    towerBest, baseHp: Math.round(mods.baseHp * (tower ? 1 : chBaseMul(ch, hordeStage(towerBest)) * diffBaseOf(mods, hordeStage(towerBest)))), catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
     gold: 0, crystals: 0, dropAcc: 0, autoRounds: new Set(),
     cells: Array.from({ length: CFG.D }, () => Array.from({ length: CFG.H }, () => Array(CFG.W).fill(null))),
     queue: [], goblins: [], spawnList: [], megas: [], nextId: 1, kills: 0, lost: 0,
@@ -126,7 +127,7 @@ export function setMods(s, mods) {
   s.mods = { ...DEFAULT_MODS, ...keep, ...mods };   // 적응형 난이도는 게임 시작 시 고정 (게임 중 강화로 바뀌지 않음)
   for (const k of Object.keys(keep)) if (mods[k] === undefined) s.mods[k] = keep[k];
   for (const sl of s.cells.flat(2)) if (sl) { applySlimeMods(s, sl); recalc(sl); }
-  if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += Math.round((s.mods.baseHp - prevBase) * (s.tower ? 1 : (s.ch.baseMul ?? 1) * (s.mods.diffBase || 1)));
+  if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += Math.round((s.mods.baseHp - prevBase) * (s.tower ? 1 : chBaseMul(s.ch, stageOf(s)) * diffBaseOf(s.mods, stageOf(s))));
 }
 
 // ---------- 지급 큐 ----------
@@ -433,10 +434,32 @@ export function towerRound(floor) {
 }
 
 // ---------- 고블린 ----------
+// 군단 단계 (무한의 탑 최고 기록 기준 해금): 0 기본 · 1 군단(1초 3마리, 칸당 3마리) · 2 +폭식 고블린 · 3 +물량 2배
+// 탑 안에서는 이번 판에 넘은 층도 기록으로 친다 (10층을 넘는 순간부터 군단)
+export const HORDE_FLOORS = [10, 20, 30];
+export const hordeStage = best => HORDE_FLOORS.filter(f => best >= f).length;
+export const stageOf = s => hordeStage(Math.max(s.towerBest || 0, s.tower ? s.round - 1 : 0));
+export const surfaceCap = s => (stageOf(s) >= 1 ? CFG.SURFACE_CAP : 1);
+const spawnPerTick = s => (stageOf(s) >= 1 ? CFG.SPAWN_PER_TICK : 1);
+// 챕터 거점 배율: 단계별 baseMul0 / baseMul1 / baseMul2 / baseMul(단계 3). 값이 없으면 baseMul0~baseMul 기하 보간
+export const BASE_KEYS = ['baseMul0', 'baseMul1', 'baseMul2', 'baseMul'];
+// 적응형 거점 보정(diffBase)의 단계별 적용 강도 (거점이 작은 낮은 단계일수록 약하게)
+const DBK_ENV = typeof process !== 'undefined' && process.env ? process.env.DBK : '';   // 시뮬 도구용 덮어쓰기 (브라우저에는 process 없음)
+export const DIFF_BASE_K = (DBK_ENV || '0,0.4,0.3,1').split(',').map(Number);
+const diffBaseOf = (mods, stage) => Math.pow(mods.diffBase || 1, DIFF_BASE_K[Math.min(3, Math.max(0, stage))] ?? 1);
+export function chBaseMul(ch, stage) {
+  const st = Math.min(3, Math.max(0, stage | 0));
+  if (ch[BASE_KEYS[st]] !== undefined) return ch[BASE_KEYS[st]];
+  const b3 = ch.baseMul ?? 1, b0 = ch.baseMul0 ?? b3, t = st / 3;
+  return Math.pow(b0, 1 - t) * Math.pow(b3, t);
+}
 function buildSpawn(s, round) {
-  const table = s.tower ? towerRound(round) : s.ch.rounds[round - 1];
-  // 물량 배율 (오우거 수는 규칙대로 유지)
-  const groups = table.map(([t, n]) => Array(t === 'giant' ? n : Math.round(n * CFG.SPAWN_COUNT_MUL)).fill(t));
+  const stage = stageOf(s), base = s.tower ? towerRound(round) : s.ch.rounds[round - 1];
+  // 폭식 고블린은 단계 2(탑 20층)부터: 그 전에는 같은 수의 일반 고블린으로 대체
+  const table = stage >= 2 ? base : base.map(([t, n]) => [t === 'glutton' ? 'normal' : t, n]);
+  // 물량 배율은 단계 3(탑 30층)부터 (오우거 수는 규칙대로 유지)
+  const mul = stage >= 3 ? CFG.SPAWN_COUNT_MUL : 1;
+  const groups = table.map(([t, n]) => Array(t === 'giant' ? n : Math.round(n * mul)).fill(t));
   const out = []; let more = true;
   while (more) { more = false; for (const g of groups) if (g.length) { out.push(g.shift()); more = true; } }
   return out;
@@ -465,8 +488,8 @@ function makeGoblin(s, type) {
 // 지표면(걷는 고블린)과 구덩이(빠진 고블린)를 따로 점유한다.
 // 구덩이는 칸마다 1마리만 빠지고, 뒤따르는 고블린은 그 위를 지나 다음 칸으로 진행한다.
 // 지표면 점유: 한 칸에 SURFACE_CAP마리까지 나란히 걸을 수 있다 (2칸 크기 고블린은 칸 하나를 다 차지)
-const laneW = g => ((GOBLINS[g.type].size || 1) > 1 ? CFG.SURFACE_CAP : 1);
-const surfaceOcc = (s, idx, add = 1) => s.goblins.reduce((n, g) => n + (!g.dead && !g.pit && g.idx === idx ? laneW(g) : 0), 0) + add > CFG.SURFACE_CAP;
+const laneW = (s, g) => ((GOBLINS[g.type].size || 1) > 1 ? surfaceCap(s) : 1);
+const surfaceOcc = (s, idx, add = 1) => s.goblins.reduce((n, g) => n + (!g.dead && !g.pit && g.idx === idx ? laneW(s, g) : 0), 0) + add > surfaceCap(s);
 const pitOcc = (s, idx, self = null) => s.goblins.some(g => !g.dead && g.pit && g.idx === idx && g !== self);
 
 function startRound(s) {
@@ -563,7 +586,7 @@ function moveGoblin(s, g) {
   while (steps-- > 0) {
     const ni = g.idx + 1;
     if (ni >= PATH.length) { leak(s, g); return; }
-    if (surfaceOcc(s, ni, laneW(g))) break;
+    if (surfaceOcc(s, ni, laneW(s, g))) break;
     g.idx = ni;
     const [x, y] = PATH[ni];
     if (trapAt(s, x, y) && !pitOcc(s, ni, g)) {
@@ -705,8 +728,8 @@ export function step(s) {
   }
   computeCounts(s);
   // 스폰
-  for (let k = 0; k < CFG.SPAWN_PER_TICK && s.spawnList.length; k++) {   // 1초에 최대 SPAWN_PER_TICK마리 입장
-    const type = s.spawnList[0], w = (GOBLINS[type].size || 1) > 1 ? CFG.SURFACE_CAP : 1;
+  for (let k = 0, per = spawnPerTick(s); k < per && s.spawnList.length; k++) {   // 1초 입장 수 (군단 단계면 SPAWN_PER_TICK)
+    const type = s.spawnList[0], w = (GOBLINS[type].size || 1) > 1 ? surfaceCap(s) : 1;
     if (surfaceOcc(s, 0, w)) break;
     const g = makeGoblin(s, s.spawnList.shift());
     if (trapAt(s, PATH[0][0], PATH[0][1]) && !pitOcc(s, 0)) g.pit = true;

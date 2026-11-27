@@ -89,8 +89,8 @@ t('뒤 고블린은 다음 칸으로 진행', passed >= 1);
 // 빈 맵 → 전원 통과 → 거점 피해
 s = cg(5); s.queue = []; s.prepLeft = 1;
 let n = 0; while (s.phase !== 'prep' || n < 2) { step(s); n++; if (n > 200) break; s.queue = []; }
-const leakR1 = ROUND_TABLE[0].reduce((a, [type, n]) => a + GOBLINS[type].leak * (type === 'giant' ? n : Math.round(n * CFG.SPAWN_COUNT_MUL)), 0); // 물량 배율 반영
-t(`빈 맵 통과 시 거점 -${leakR1} (챕터 거점 배율 적용)`, s.baseHp === Math.round(CFG.BASE_HP * (s.ch.baseMul ?? 1)) - leakR1);
+const leakR1 = ROUND_TABLE[0].reduce((a, [type, n]) => a + GOBLINS[type].leak * n, 0); // 기본 단계: 물량 x1
+t(`빈 맵 통과 시 거점 -${leakR1} (챕터 거점 배율 적용)`, s.baseHp === Math.round(CFG.BASE_HP * ENG.chBaseMul(s.ch, 0)) - leakR1);
 // 패배 판정
 s = cg(6); s.baseHp = 1; s.prepLeft = 1; n = 0;
 while (s.phase !== 'over' && n++ < 200) { s.queue = []; step(s); }
@@ -373,8 +373,8 @@ for (const c of CHAPTERS) {
   const strong = META.adaptiveDiff(META.planMods(16), 4, null);
   t('적응형: 기준보다 강하면 고블린 체력·공격·보상 증가', strong.diffHp > 1.5 && strong.diffAtk > 1 && strong.diffGold > 1);
   t('적응형: 강할수록 챕터 거점 배율 감소 (기준이면 1)', strong.diffBase < 1 && d0.diffBase === 1);
-  { const gb = createGame(96, { chapter: 2, autoField: false, mods: { diffBase: 0.5 } }), ga = createGame(96, { chapter: 2, autoField: false });
-    t('적응형: diffBase가 거점 체력에 반영', Math.abs(gb.baseHp - ga.baseHp / 2) <= 1); }
+  { const gb = createGame(96, { chapter: 2, autoField: false, towerBest: 30, mods: { diffBase: 0.5 } }), ga = createGame(96, { chapter: 2, autoField: false, towerBest: 30 }), g0 = createGame(96, { chapter: 2, autoField: false, mods: { diffBase: 0.5 } }), g0b = createGame(96, { chapter: 2, autoField: false });
+    t('적응형: diffBase가 거점 체력에 반영 (단계3 전체, 단계0 미적용)', Math.abs(gb.baseHp - ga.baseHp / 2) <= 1 && g0.baseHp === g0b.baseHp); }
   t('적응형: 무한의 탑은 적용 안 함', META.adaptiveDiff(META.planMods(30), 6, null).diffHp === 1);
   const g1 = createGame(95, { chapter: 4, autoField: false }), g2 = createGame(95, { chapter: 4, autoField: false, mods: { diffHp: 2, diffAtk: 1.4, diffGold: 1.4 } });
   for (const g of [g1, g2]) { g.round = 6; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['fighter']; step(g); }
@@ -469,17 +469,35 @@ for (const c of CHAPTERS) {
   t('면역 규칙: 오우거는 Lv1~4 무시, Lv5·메가는 피해', ENG.ignores(ogre, sl(4)) && !ENG.ignores(ogre, sl(5)) && !ENG.ignores(ogre, mega));
   t('면역 규칙: 일반 고블린은 무시 없음', !ENG.ignores(normal, sl(1)));
 }
-// v2.7.0: 1초에 2마리 입장, 한 칸에 2마리까지 나란히, 물량 x1.5 (오우거 제외)
+// 군단 단계 (탑 최고 기록 10/20/30층): 1초 3마리·칸당 3마리 → +폭식 → +물량 x2
 {
-  const g = cg(105); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 3;
+  const H = (seed, tb) => createGame(seed, { autoField: false, towerBest: tb });
+  t('단계: 탑 기록 0/9/10/20/30 -> 0/0/1/2/3', [0, 9, 10, 20, 30].map(ENG.hordeStage).join() === '0,0,1,2,3');
+  const g = H(105, 30); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 3;
   g.prepLeft = 1; step(g);
-  t('물량 x2: 챕터 1 3라운드 18 -> 36마리', g.spawnList.length + g.goblins.length === Math.round(18 * CFG.SPAWN_COUNT_MUL));
+  t('단계3 물량 x2: 챕터 1 3라운드 18 -> 36마리', g.spawnList.length + g.goblins.length === Math.round(18 * CFG.SPAWN_COUNT_MUL));
   step(g); const n1 = g.goblins.length;
-  t('입장: 첫 1초에 SPAWN_PER_TICK마리', n1 === CFG.SPAWN_PER_TICK);
+  t('단계3 입장: 첫 1초에 SPAWN_PER_TICK마리', n1 === CFG.SPAWN_PER_TICK);
   step(g);
   const byIdx = {}; for (const o of g.goblins) if (!o.pit) byIdx[o.idx] = (byIdx[o.idx] || 0) + 1;
-  t('칸당 최대 SURFACE_CAP마리', Object.values(byIdx).every(c => c <= CFG.SURFACE_CAP) && g.goblins.length === CFG.SPAWN_PER_TICK * 2);
-  const g2 = cg(106); g2.round = 5; g2.prepLeft = 1; step(g2);
+  t('단계3 칸당 최대 SURFACE_CAP마리', Object.values(byIdx).every(c => c <= CFG.SURFACE_CAP) && g.goblins.length === CFG.SPAWN_PER_TICK * 2);
+  const g2 = H(106, 30); g2.round = 5; g2.prepLeft = 1; step(g2);
   t('오우거 수는 그대로 (챕터 1은 1마리)', [...g2.spawnList, ...g2.goblins.map(o => o.type)].filter(x => x === 'giant').length === 1);
+  // 기본 단계: 예전 방식
+  const b = H(107, 0); b.cells.forEach(f => f.forEach(r => r.fill(null))); b.queue = []; b.round = 3; b.prepLeft = 1; step(b);
+  t('단계0 물량 x1: 18마리', b.spawnList.length + b.goblins.length === 18);
+  step(b); step(b);
+  t('단계0 1초 1마리 · 칸당 1마리', b.goblins.length === 2 && new Set(b.goblins.map(o => o.idx)).size === 2);
+  // 단계1: 군단만 (물량 x1)
+  const c1 = H(108, 10); c1.cells.forEach(f => f.forEach(r => r.fill(null))); c1.queue = []; c1.round = 3; c1.prepLeft = 1; step(c1); step(c1);
+  t('단계1 물량 x1 + 1초 3마리', c1.spawnList.length + c1.goblins.length === 18 && c1.goblins.length === CFG.SPAWN_PER_TICK);
+  // 폭식: 단계 2부터
+  const all = (gm, r) => { gm.round = r; gm.prepLeft = 1; gm.spawnList = []; gm.goblins = []; gm.phase = 'prep'; step(gm); return [...gm.spawnList, ...gm.goblins.map(o => o.type)]; };
+  const f1 = all(H(109, 19), 6), f2 = all(H(109, 20), 6);
+  t('폭식 고블린: 탑 20층 전에는 없음 (같은 수의 일반으로 대체)', !f1.includes('glutton') && f2.includes('glutton') && f1.length === f2.length);
+  // 탑: 이번 판에 넘은 층도 기록으로 침
+  const tw = createGame(110, { tower: 1, autoField: false }); tw.round = 11;
+  t('탑: 11층부터 군단 (기록 없어도)', ENG.stageOf(tw) === 1 && (tw.round = 10, ENG.stageOf(tw) === 0));
+  t('거점 배율: 단계 0/3은 baseMul0/baseMul', Math.abs(ENG.chBaseMul({ baseMul0: 2, baseMul: 8 }, 0) - 2) < 1e-9 && Math.abs(ENG.chBaseMul({ baseMul0: 2, baseMul: 8 }, 3) - 8) < 1e-9);
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
