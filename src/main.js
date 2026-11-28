@@ -37,7 +37,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.9.4'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.9.5'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -844,9 +844,21 @@ function showHelp(after = null) {
 }
 
 // ---------- 루프 ----------
+// 보스 경고 배너: 준비 단계 시작(이번 라운드 보스) · 입장 직전 · 입장
+function bossBanner(t) {
+  const g = ui.g, unit = g.tower ? '층' : '라운드';
+  const text = { prep: `👑 경고! 이번 ${unit}에 보스 <b>고블린 왕</b> 등장`, near: '👑 보스가 곧 들어옵니다!', enter: '👑 보스 <b>고블린 왕</b> 입장!' }[t];
+  if (!text) return;
+  let el = $('bossBanner');
+  if (!el) { el = document.createElement('div'); el.id = 'bossBanner'; el.className = 'bossbanner'; el.setAttribute('role', 'alert'); $('app').appendChild(el); }
+  el.innerHTML = text; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  clearTimeout(ui.bossTimer); ui.bossTimer = setTimeout(() => el.classList.remove('show'), t === 'prep' ? 3500 : 2500);
+  if (navigator.vibrate) { try { navigator.vibrate(t === 'enter' ? [60, 40, 60] : 40); } catch { /* 미지원 */ } }
+}
 function collectFx() {
   const now = performance.now();
   for (const f of ui.g.fx) {
+    if (f.k === 'boss') bossBanner(f.t);
     if (f.k === 'dmg') {
       const weak = f.who === 'g' && f.aff > 1, resist = f.who === 'g' && f.aff < 1;
       ui.floats.push({ idx: f.idx, text: (f.who === 'g' ? '-' : '▼') + f.v + (weak ? '!' : ''), t0: now, dx: (Math.random() - 0.5) * 18,

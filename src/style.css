@@ -165,3 +165,13 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .reco:disabled { opacity: .45; border-color: var(--line); cursor: default; }
 .recos .none { font-size: 11px; color: var(--sub); }
 .tut[hidden], .recos[hidden] { display: none; }
+
+/* 보스 경고 배너 */
+#app { position: relative; }
+.bossbanner { position: absolute; left: 12px; right: 12px; top: 34%; z-index: 30; pointer-events: none;
+  background: linear-gradient(90deg, rgba(120,20,20,.92), rgba(170,40,30,.95), rgba(120,20,20,.92)); color: #fff3c4;
+  border: 2px solid var(--accent); border-radius: 12px; padding: 14px 12px; text-align: center; font-size: 17px; font-weight: 700; word-break: keep-all;
+  box-shadow: 0 6px 24px rgba(0,0,0,.5); opacity: 0; transform: scale(.9); transition: opacity .25s, transform .25s; }
+.bossbanner b { color: var(--accent); }
+.bossbanner.show { opacity: 1; transform: scale(1); animation: bossPulse .9s ease-in-out 2; }
+@keyframes bossPulse { 50% { transform: scale(1.04); } }

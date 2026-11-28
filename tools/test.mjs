@@ -465,10 +465,10 @@ for (const c of CHAPTERS) {
 // 진행 단계 (챕터 X-10 도달로 해금): 1 군단 · 2 오우거 · 3 폭식 · 4 물량 x2 · 5챕터 보스
 {
   const H = (seed, chapter, unlocked) => createGame(seed, { autoField: false, chapter, unlocked });
-  const spawnAt = (gm, r) => { gm.cells.forEach(f => f.forEach(rw => rw.fill(null))); gm.queue = []; gm.round = r; gm.prepLeft = 1; gm.phase = 'prep'; gm.spawnList = []; gm.goblins = []; step(gm); return [...gm.spawnList, ...gm.goblins.map(o => o.type)]; };
+  const spawnAt = (gm, r) => { gm.cells.forEach(f => f.forEach(rw => rw.fill(null))); gm.queue = []; gm.round = r; ENG.rollBoss(gm); gm.prepLeft = 1; gm.phase = 'prep'; gm.spawnList = []; gm.goblins = []; step(gm); return [...gm.spawnList, ...gm.goblins.map(o => o.type)]; };
   t('단계: 챕터 N은 단계 N까지 · 탑은 4', ENG.stageOf(H(1, 1, 5)) === 1 && ENG.stageOf(H(1, 3, 5)) === 3 && ENG.stageOf(H(1, 3, 1)) === 1 && ENG.stageOf(createGame(1, { tower: 1 })) === 0);
   t('탑 단계: 1~10층 0 · 11층 1 · 21층 2 · 31층 3 · 41층~ 4', [1, 10, 11, 21, 31, 41, 80].map(ENG.towerStage).join() === '0,0,1,2,3,4,4');
-  { const tw = createGame(5, { tower: 1, autoField: false }); const at = f => { tw.round = f; tw.prepLeft = 1; tw.phase = 'prep'; tw.spawnList = []; tw.goblins = []; step(tw); return [...tw.spawnList, ...tw.goblins.map(o => o.type)]; };
+  { const tw = createGame(5, { tower: 1, autoField: false }); const at = f => { tw.round = f; ENG.rollBoss(tw); tw.prepLeft = 1; tw.phase = 'prep'; tw.spawnList = []; tw.goblins = []; step(tw); return [...tw.spawnList, ...tw.goblins.map(o => o.type)]; };
     t('탑 보스: 10층 단위에만 고블린 왕', at(10).includes('king') && at(20).includes('king') && !at(9).includes('king') && !at(11).includes('king'));
     t('탑 1~10층: 오우거·폭식 없음', !at(3).includes('giant') && !at(3).includes('glutton')); }
   const n0 = H(107, 1, 0); t('단계0 (첫 1-1~1-9): 1초 1마리·칸당 1마리', ENG.stageOf(n0) === 0 && ENG.surfaceCap(n0) === 1);
@@ -505,5 +505,15 @@ for (const c of CHAPTERS) {
   t('추천 조합 실행 → H₂O 생성, 촉매 1 소모', r.ok && getCell(g, b[0], b[1], 0)?.key === 'H2O' && g.catalysts === cat0 - 1);
   const hiddenKeys = RECIPES.filter(rc => JOKES.some(j => Object.keys({ ...j.need, ...rc.need }).every(k => (j.need[k] || 0) === (rc.need[k] || 0)))).map(rc => rc.key);
   t('추천 조합: 비밀 족보와 같은 재료 조합은 숨김', ENG.craftable(g).every(v => !hiddenKeys.includes(v.recipe.key)));
+}
+// v2.9.5: 보스 경고 메시지 (준비 단계 시작 · 입장 직전 · 입장)
+{
+  const tw = createGame(7, { tower: 1, autoField: false }); tw.round = 10; tw.fx = []; ENG.rollBoss(tw);
+  t('보스 경고: 보스 층 준비 단계에서 경고', tw.bossRound === 10 && tw.fx.some(f => f.k === 'boss' && f.t === 'prep'));
+  tw.prepLeft = 1; tw.phase = 'prep'; tw.spawnList = []; tw.goblins = []; let near = false, enter = false;
+  for (let i = 0; i < 120 && !enter; i++) { tw.fx = []; step(tw); near ||= tw.fx.some(f => f.k === 'boss' && f.t === 'near'); enter ||= tw.fx.some(f => f.k === 'boss' && f.t === 'enter'); }
+  t('보스 경고: 입장 직전·입장 알림', near && enter);
+  const t9 = createGame(7, { tower: 1, autoField: false }); t9.round = 9; t9.fx = []; ENG.rollBoss(t9);
+  t('보스 경고: 보스 층이 아니면 경고 없음', t9.bossRound === 0 && !t9.fx.some(f => f.k === 'boss'));
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

@@ -34,6 +34,7 @@ export function createGame(seed = Date.now(), opts = {}) {
     log: [], fx: [], counts: {}, autoField: opts.autoField ?? CFG.AUTO_FIELD, chapter, ch,
   };
   for (let i = 0; i < mods.startSlimes; i++) addQueue(s);
+  rollBoss(s);
   say(s, s.autoField ? '준비 단계: 슬라임이 필드에 랜덤 배치됩니다. 끌어서 겹치거나 옮기세요.' : '준비 단계: 슬라임을 배치하세요.');
   return s;
 }
@@ -478,9 +479,8 @@ function buildSpawn(s, round) {
   const out = []; let more = true;
   while (more) { more = false; for (const g of groups) if (g.length) { out.push(g.shift()); more = true; } }
   // 5챕터: 2라운드부터 라운드마다 확률적으로 보스(고블린 왕)가 무리 한가운데에 출몰
-  if (!s.tower && s.chapter === CHAPTERS.length && round >= 2 && s.rng() < CFG.BOSS_CHANCE) out.splice(Math.floor(out.length / 2), 0, 'king');
-  // 무한의 탑: 10·20·30…층마다 보스(고블린 왕) 등장
-  if (s.tower && round % TOWER_STAGE_FLOORS === 0) out.splice(Math.floor(out.length / 2), 0, 'king');
+  // 보스(고블린 왕): 5챕터는 라운드마다 확률, 무한의 탑은 10층 단위. 준비 단계에서 미리 정해 경고를 띄운다
+  if (s.bossRound === round) out.splice(Math.floor(out.length / 2), 0, 'king');
   return out;
 }
 
@@ -511,6 +511,13 @@ const laneW = (s, g) => ((GOBLINS[g.type].size || 1) > 1 ? surfaceCap(s) : 1);
 const surfaceOcc = (s, idx, add = 1) => s.goblins.reduce((n, g) => n + (!g.dead && !g.pit && g.idx === idx ? laneW(s, g) : 0), 0) + add > surfaceCap(s);
 const pitOcc = (s, idx, self = null) => s.goblins.some(g => !g.dead && g.pit && g.idx === idx && g !== self);
 
+// 이번 라운드(층)에 보스가 나오는지 준비 단계 시작 시 결정 → 경고 메시지
+export function rollBoss(s) {
+  const r = s.round;
+  const boss = s.tower ? r % TOWER_STAGE_FLOORS === 0 : s.chapter === CHAPTERS.length && r >= 2 && s.rng() < CFG.BOSS_CHANCE;
+  s.bossRound = boss ? r : 0; s.bossNear = false;
+  if (boss) { say(s, `👑 경고! 이번 ${s.tower ? '층' : '라운드'}에 보스 고블린 왕이 나타납니다`); s.fx.push({ k: 'boss', t: 'prep' }); }
+}
 function startRound(s) {
   s.phase = 'run'; s.spawnList = buildSpawn(s, s.round);
   say(s, `라운드 ${s.round} 시작! 고블린 ${s.spawnList.length}마리`);
@@ -747,10 +754,12 @@ export function step(s) {
   }
   computeCounts(s);
   // 스폰
+  { const ki = s.spawnList.indexOf('king'); if (ki >= 0 && ki <= 6 && !s.bossNear) { s.bossNear = true; s.fx.push({ k: 'boss', t: 'near' }); say(s, '👑 보스가 곧 들어옵니다!'); } }
   for (let k = 0, per = spawnPerTick(s); k < per && s.spawnList.length; k++) {   // 1초 입장 수 (군단 단계면 SPAWN_PER_TICK)
     const type = s.spawnList[0], w = (GOBLINS[type].size || 1) > 1 ? surfaceCap(s) : 1;
     if (surfaceOcc(s, 0, w)) break;
     const g = makeGoblin(s, s.spawnList.shift());
+    if (g.type === 'king') { s.fx.push({ k: 'boss', t: 'enter' }); say(s, '👑 보스 고블린 왕 입장!'); }
     if (trapAt(s, PATH[0][0], PATH[0][1]) && !pitOcc(s, 0)) g.pit = true;
     s.goblins.push(g);
   }
@@ -790,7 +799,7 @@ export function step(s) {
       s.phase = 'won'; say(s, `챕터 ${s.chapter} ${s.ch.name} 클리어! 골드 +${g0}, 원소 결정 +${Math.round(c)}${manual ? ' (직접 지휘 1.5배)' : ''}`); return;
     }
     const stBefore = stageOf(s);
-    s.round++; s.phase = 'prep'; s.prepLeft = s.tower ? CFG.TOWER_PREP : CFG.PREP_TICKS; s.catalysts += s.mods.catPerRound;
+    s.round++; s.phase = 'prep'; rollBoss(s); s.prepLeft = s.tower ? CFG.TOWER_PREP : CFG.PREP_TICKS; s.catalysts += s.mods.catPerRound;
     for (let i = 0; i < CFG.ROUND_BONUS_SLIMES; i++) addQueue(s);
     say(s, `${s.tower ? `탑 ${s.round - 1}층` : `라운드 ${s.round - 1}`} 클리어! 골드 +${g0}, 촉매 +${s.mods.catPerRound}`);
     if (stageOf(s) > stBefore) say(s, STAGE_MSG[stageOf(s)]);
