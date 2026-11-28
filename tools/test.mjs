@@ -90,7 +90,7 @@ t('뒤 고블린은 다음 칸으로 진행', passed >= 1);
 s = cg(5); s.queue = []; s.prepLeft = 1;
 let n = 0; while (s.phase !== 'prep' || n < 2) { step(s); n++; if (n > 200) break; s.queue = []; }
 const leakR1 = ROUND_TABLE[0].reduce((a, [type, n]) => a + GOBLINS[type].leak * n, 0); // 기본 단계: 물량 x1
-t(`빈 맵 통과 시 거점 -${leakR1} (챕터 거점 배율 적용)`, s.baseHp === Math.round(CFG.BASE_HP * ENG.chBaseMul(s.ch, 1, 0)) - leakR1);
+t(`빈 맵 통과 시 거점 -${leakR1} (거점 배율 없음)`, s.baseHp === CFG.BASE_HP - leakR1);
 // 패배 판정
 s = cg(6); s.baseHp = 1; s.prepLeft = 1; n = 0;
 while (s.phase !== 'over' && n++ < 200) { s.queue = []; step(s); }
@@ -111,10 +111,10 @@ t('거점 0 → 패배', s.phase === 'over');
 {
   const ok = CHAPTERS.every(c => c.rounds.every((r, i) => {
     const g = (r.find(([k]) => k === 'giant') || [0, 0])[1];
-    return g === (i + 1 >= 5 ? Math.min(5, c.id) : 0);
+    return g === (i + 1 >= 5 ? 1 : 0);
   }));
-  t('오우거 편성: 1-5부터 매 라운드, 챕터 N은 N마리', ok);
-  t('탑 오우거: 1층 1마리 → 4층마다 +1, 최대 5마리', towerRound(1).find(([k]) => k === 'giant')[1] === 1 && towerRound(5).find(([k]) => k === 'giant')[1] === 2 && towerRound(30).find(([k]) => k === 'giant')[1] === 5);
+  t('오우거 편성: 5라운드부터 매 라운드 1마리', ok);
+  t('탑 오우거: 층마다 1마리', towerRound(1).find(([k]) => k === 'giant')[1] === 1 && towerRound(30).find(([k]) => k === 'giant')[1] === 1);
   t('오우거 빙결·기절 면역', GOBLINS.giant.immune.includes('freeze') && GOBLINS.giant.immune.includes('stun'));
   t('오우거 속성 상성 없음', !GOBLINS.giant.weak.length && !GOBLINS.giant.resist.length);
 }
@@ -328,11 +328,11 @@ for (const c of CHAPTERS) {
 {
   const g = cg(81); g.round = 5; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['giant']; step(g);
   const o = g.goblins.find(v => v.type === 'giant');
-  const want = Math.round(GOBLINS.giant.hp * Math.pow(CFG.HP_GROWTH, 4));
+  const want = Math.round(GOBLINS.giant.hp * Math.pow(CFG.HP_GROWTH, 4) * (g.firstHp || 1));
   t('오우거: 챕터 1 체력 = 기본 x 라운드 성장 (챕터 배율 미적용)', o && Math.abs(o.maxhp - want) <= 1, `${o?.maxhp} vs ${want}`);
-  const g2 = createGame(81, { chapter: 3, autoField: false }); g2.round = 5; g2.prepLeft = 1; step(g2); g2.goblins = []; g2.spawnList = ['giant']; step(g2);
+  const g2 = createGame(81, { chapter: 3, autoField: false, unlocked: 5 }); g2.round = 5; g2.prepLeft = 1; step(g2); g2.goblins = []; g2.spawnList = ['giant']; step(g2);
   const o2 = g2.goblins.find(v => v.type === 'giant');
-  t('오우거: 챕터 3은 챕터 1보다 강함', o2 && o2.maxhp > o.maxhp);
+  t('오우거: 챕터와 무관하게 같은 능력치 (v2.9.2, 첫 도전 보정 제외)', o2 && Math.abs(o2.maxhp - o.maxhp / (g.firstHp || 1)) <= 1);
 }
 // 덱은 정확히 8종: 편집 중 빼기 가능, 9번째 추가 불가, 입장 조건 deckReady, 짧은 저장 덱은 8종으로 채움
 {
@@ -367,7 +367,7 @@ for (const c of CHAPTERS) {
   t('적응형: 기준보다 강하면 고블린 체력·공격·보상 증가', strong.diffHp > 1.5 && strong.diffAtk > 1 && strong.diffGold > 1);
   t('적응형: 강할수록 챕터 거점 배율 감소 (기준이면 1)', strong.diffBase < 1 && d0.diffBase === 1);
   { const gb = createGame(96, { tower: 0, chapter: 5, autoField: false, unlocked: 5, mods: { diffBase: 0.5 } }), ga = createGame(96, { chapter: 5, autoField: false, unlocked: 5 }), g0 = createGame(96, { chapter: 1, autoField: false, mods: { diffBase: 0.5 } }), g0b = createGame(96, { chapter: 1, autoField: false });
-    t('적응형: diffBase가 거점 체력에 반영 (챕터별 강도 adaptK, 1챕터 첫 도전 포함)', Math.abs(gb.baseHp - ga.baseHp * Math.pow(0.5, ENG.diffBaseK(CHAPTERS[4], 5, 4))) <= 1 && Math.abs(g0.baseHp - g0b.baseHp * Math.pow(0.5, ENG.diffBaseK(CHAPTERS[0], 1, 0))) <= 1); }
+    t('거점 범핑 없음: 적응형·챕터와 무관하게 강화 거점 그대로', gb.baseHp === CFG.BASE_HP && ga.baseHp === CFG.BASE_HP && g0.baseHp === CFG.BASE_HP); }
   t('적응형: 무한의 탑은 적용 안 함', META.adaptiveDiff(META.planMods(30), 6, null).diffHp === 1);
   const g1 = createGame(95, { chapter: 4, autoField: false }), g2 = createGame(95, { chapter: 4, autoField: false, mods: { diffHp: 2, diffAtk: 1.4, diffGold: 1.4 } });
   for (const g of [g1, g2]) { g.round = 6; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['fighter']; step(g); }
@@ -440,7 +440,7 @@ for (const c of CHAPTERS) {
   t('방어 연동: 체력·거점 2배면 공격 배율에 (방어 비율)^0.7 곱함', d.defRatio > 2.8 && Math.abs(d.diffAtk / Math.sqrt(d.diffHp) - want) < 1e-6);
   const weakTank = { ...META.planMods(1), hp: 3, baseHp: 100 };
   const w = META.adaptiveDiff(weakTank, 4, null);
-  t('방어 연동: 전체 전투력이 기준 미만이어도 방어 과투자면 공격만 상승', w.diffHp === 1 && w.diffAtk > 1);
+  t('방어 연동: v2.9.2부터 해제 (방어 과투자여도 공격 배율 1)', META.ADAPT_DEF_EXP === 0 && w.diffHp === 1 && w.diffAtk === 1);
 }
 // v2.6.3: 폭식 고블린은 Lv2 이하 슬라임의 피해·효과를 받지 않음 (옆 칸 폭발 포함)
 {
@@ -475,7 +475,7 @@ for (const c of CHAPTERS) {
   const byIdx = {}; step(c1); for (const o of c1.goblins) if (!o.pit) byIdx[o.idx] = (byIdx[o.idx] || 0) + 1;
   t('단계1 칸당 최대 SURFACE_CAP마리', Object.values(byIdx).every(c => c <= CFG.SURFACE_CAP));
   t('오우거: 단계1(2-1~2-9 첫 도전)에는 없음', !spawnAt(H(109, 2, 1), 6).includes('giant'));
-  const og = spawnAt(H(109, 2, 2), 6); t('오우거: 단계2부터 등장 (챕터 2는 2마리)', og.filter(x => x === 'giant').length === 2);
+  const og = spawnAt(H(109, 2, 2), 6); t('오우거: 단계2부터 등장 (라운드당 1마리)', og.filter(x => x === 'giant').length === 1);
   const f1 = spawnAt(H(110, 3, 2), 6), f2 = spawnAt(H(110, 3, 3), 6);
   t('폭식: 단계3 전에는 같은 수의 일반 고블린', !f1.includes('glutton') && f2.includes('glutton') && f1.length === f2.length);
   const m3 = spawnAt(H(111, 4, 3), 3), m4 = spawnAt(H(111, 4, 4), 3);
@@ -483,7 +483,7 @@ for (const c of CHAPTERS) {
   let boss = 0; for (let sd = 1; sd <= 40; sd++) if (spawnAt(H(200 + sd, 5, 4), 4).includes('king')) boss++;
   t('5챕터 보스 랜덤 출몰 (확률 근처)', boss > 4 && boss < 26, `${boss}/40`);
   t('보스: 5챕터 외에는 없음 · 탑 편성에도 없음', !spawnAt(H(300, 4, 4), 4).includes('king') && !towerRound(20).some(([k]) => k === 'king'));
-  t('거점 배율: 첫 도전 baseMulFirst / 다시 도전 baseMul', ENG.chBaseMul({ baseMulFirst: 2, baseMul: 8 }, 3, 2) === 2 && ENG.chBaseMul({ baseMulFirst: 2, baseMul: 8 }, 3, 3) === 8);
+  t('첫 도전 체력 보정 firstHp: 첫 도전만 적용', createGame(1, { chapter: 3, unlocked: 2 }).firstHp === (CHAPTERS[2].firstHp ?? 1) && createGame(1, { chapter: 3, unlocked: 5 }).firstHp === 1);
 }
 // v2.9.0: 비밀 족보 슬라임 공격·방어 x1.3
 {

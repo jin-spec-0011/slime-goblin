@@ -27,7 +27,7 @@ export function createGame(seed = Date.now(), opts = {}) {
   const st0 = tower ? STAGE_MAX : Math.min(chapter, unlocked, STAGE_MAX);
   const s = {
     seed, rng: mulberry32(seed), tick: 0, round: tower || 1, phase: 'prep', prepLeft: CFG.FIRST_PREP,
-    unlocked, baseHp: Math.round(mods.baseHp * (tower ? 1 : chBaseMul(ch, chapter, st0) * diffBaseOf(mods, ch, chapter, st0))), catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
+    unlocked, firstHp: !tower && st0 < Math.min(chapter, STAGE_MAX) ? (ch.firstHp ?? 1) : 1, baseHp: mods.baseHp, catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
     gold: 0, crystals: 0, dropAcc: 0, autoRounds: new Set(),
     cells: Array.from({ length: CFG.D }, () => Array.from({ length: CFG.H }, () => Array(CFG.W).fill(null))),
     queue: [], goblins: [], spawnList: [], megas: [], nextId: 1, kills: 0, lost: 0,
@@ -128,7 +128,7 @@ export function setMods(s, mods) {
   s.mods = { ...DEFAULT_MODS, ...keep, ...mods };   // 적응형 난이도는 게임 시작 시 고정 (게임 중 강화로 바뀌지 않음)
   for (const k of Object.keys(keep)) if (mods[k] === undefined) s.mods[k] = keep[k];
   for (const sl of s.cells.flat(2)) if (sl) { applySlimeMods(s, sl); recalc(sl); }
-  if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += Math.round((s.mods.baseHp - prevBase) * (s.tower ? 1 : chBaseMul(s.ch, s.chapter, startStage(s)) * diffBaseOf(s.mods, s.ch, s.chapter, startStage(s))));
+  if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += s.mods.baseHp - prevBase;   // v2.9.2: 거점 배율(범핑) 없음
 }
 
 // ---------- 지급 큐 ----------
@@ -462,21 +462,9 @@ export function towerRound(floor) {
 export const STAGE_MAX = 4;
 export const STAGE_MSG = ['', '⚔ 군단 해금! 고블린이 1초에 3마리, 한 칸에 3마리씩 몰려옵니다', '🪓 오우거 해금! 거대한 오우거가 모든 슬라임과 싸웁니다', '😋 폭식 고블린 해금! Lv2 이하 슬라임을 먹어 치웁니다', '📈 물량 2배 해금! 라운드 고블린 수가 2배가 됩니다'];
 export const stageOf = s => (s.tower ? STAGE_MAX : Math.min(s.chapter, STAGE_MAX, Math.max(s.unlocked || 0, s.round >= CFG.ROUNDS ? s.chapter : 0)));
-const startStage = s => (s.tower ? STAGE_MAX : Math.min(s.chapter, STAGE_MAX, s.unlocked || 0));
 export const surfaceCap = s => (stageOf(s) >= 1 ? CFG.SURFACE_CAP : 1);
 const spawnPerTick = s => (stageOf(s) >= 1 ? CFG.SPAWN_PER_TICK : 1);
-// 챕터 거점 배율: 처음 도전(시작 단계 < 챕터 단계)이면 baseMulFirst, 다시 도전이면 baseMul
-export function chBaseMul(ch, chapter, stage0) {
-  const first = stage0 < Math.min(chapter, STAGE_MAX);
-  return (first ? ch.baseMulFirst : ch.baseMul) ?? ch.baseMul ?? 1;
-}
-// 적응형 거점 보정(diffBase) 적용 강도: 챕터별 [첫 도전, 다시 도전] (ch.adaptK) · 탑은 미적용
-const DBK_ENV = typeof process !== 'undefined' && process.env ? process.env.DBK : '';   // 시뮬 도구용 덮어쓰기 "첫,다시" (브라우저에는 process 없음)
-export function diffBaseK(ch, chapter, stage0) {
-  const k = DBK_ENV ? DBK_ENV.split(',').map(Number) : (ch.adaptK || [1, 1]);
-  return stage0 < Math.min(chapter, STAGE_MAX) ? k[0] : k[1];
-}
-const diffBaseOf = (mods, ch, chapter, stage0) => Math.pow(mods.diffBase || 1, diffBaseK(ch, chapter, stage0));
+// v2.9.2: 챕터 거점 배율(범핑)과 적응형 거점 보정 제거. 난이도는 고블린 능력치로만 조절 (첫 도전은 ch.firstHp 배율)
 function buildSpawn(s, round) {
   const stage = stageOf(s), base = s.tower ? towerRound(round) : s.ch.rounds[round - 1];
   // 오우거는 단계 2부터 (그 전에는 등장하지 않음), 폭식 고블린은 단계 3부터 (그 전에는 같은 수의 일반 고블린)
@@ -499,8 +487,8 @@ function makeGoblin(s, type) {
   let hpMul = (1 + (s.ch.hpMul - 1) * ramp) * towerMul, atkMul = (1 + (s.ch.atkMul - 1) * ramp) * Math.sqrt(towerMul);
   // 오우거(chAnchor): 챕터 1 배율을 기준점으로 나눈다 -> 챕터 1에서는 항상 기본 능력치(Lv5 약 5마리로 막힘),
   // 챕터 2~5는 챕터 1 대비 배율만큼만 강해진다. 챕터 밸런스를 다시 맞춰도 오우거 세기가 흔들리지 않음
-  if (d.chAnchor && !s.tower) { const c1 = CHAPTERS[0]; hpMul /= 1 + (c1.hpMul - 1) * ramp; atkMul /= 1 + (c1.atkMul - 1) * ramp; }
-  if (!s.tower) { hpMul *= s.mods.diffHp || 1; atkMul *= s.mods.diffAtk || 1; } // 적응형 난이도 (플레이어 전투력 비례)
+  if (d.chAnchor && !s.tower) { hpMul = 1; atkMul = 1; }   // v2.9.2: 오우거는 챕터 배율 없이 고정 능력치 (라운드 성장·적응형만)
+  if (!s.tower) { hpMul *= (s.mods.diffHp || 1) * (s.firstHp || 1); atkMul *= s.mods.diffAtk || 1; } // 적응형 난이도 + 첫 도전 보정
   const hp = Math.round(d.hp * Math.pow(CFG.HP_GROWTH, r) * hpMul);
   return {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
@@ -595,7 +583,7 @@ function slimeStatus(s, sl, g, x, y, aff = 1) {
   void m;
 }
 
-// 거점 체력 = 강화 거점 체력 x 챕터 baseMul (고블린이 무리로 깊이 들어오는 만큼 거점을 챕터별로 키운다)
+// 거점 체력 = 강화 거점 체력 그대로 (v2.9.2)
 function leak(s, g) {
   const d = g.leak;
   g.dead = true; s.baseHp -= d;

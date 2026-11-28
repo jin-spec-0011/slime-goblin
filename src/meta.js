@@ -121,7 +121,7 @@ export function fmt(n) {
 // 챕터마다 기준 강화 레벨(PLAN_LV)이 있다. 플레이어 전투력이 기준보다 높으면 그 비율만큼 고블린도 강해지고
 // 보상 골드도 늘어난다. 기준보다 약할 때는 쉬워지지 않는다 (성장해서 깨는 구조 유지).
 export const PLAN_LV = { 1: 1, 2: 2, 3: 5, 4: 8, 5: 12 };
-export const ADAPT_ALPHA = 0.56;                  // 고블린 체력 배율 = (전투력 비율)^(ALPHA + CURVE x ln 비율) · tools/tune_adapt.mjs로 보정
+export const ADAPT_ALPHA = 0.65;                  // 고블린 체력 배율 = (전투력 비율)^(ALPHA + CURVE x ln 비율) · tools/tune_adapt.mjs로 보정
 export const ADAPT_CURVE = 0.04;                  // 기준보다 훨씬 강할수록 조금 더 강하게 따라감
 export function planMods(lv) {
   const p = newProfile();
@@ -141,7 +141,8 @@ export function powerOf(mods, deck) {
     * Math.sqrt((mods.baseHp || CFG.BASE_HP) / CFG.BASE_HP);
 }
 // 방어 투자 = 슬라임 체력 배율 x sqrt(거점 체력). 기준보다 높으면 고블린 공격력을 추가로 올린다 (탱커형 성장 견제)
-export const ADAPT_DEF_EXP = 0.3;
+const DEFX_ENV = typeof process !== 'undefined' && process.env ? process.env.DEFX : '';
+export const ADAPT_DEF_EXP = DEFX_ENV ? +DEFX_ENV : 0;   // v2.9.2: 거점 범핑 제거 후 방어 투자 견제 해제
 export let ADAPT_BASE_EXP = 0.1;                   // 챕터 거점 배율 = (전투력 비율)^-BASE_EXP x (거점 비율)^-BASE_HP_EXP · 강한 플레이어가 누수 0으로 손쉽게 이기지 않게
 export const ADAPT_BASE_HP_EXP = 0.5;
 export const defenseOf = mods => (mods.hp || 1) * Math.sqrt((mods.baseHp || CFG.BASE_HP) / CFG.BASE_HP);
