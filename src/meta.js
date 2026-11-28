@@ -130,11 +130,14 @@ export function planMods(lv) {
   return modsOf(p);
 }
 // 전투력: 공격 x 덱 속성 연구 평균 x sqrt(체력) x sqrt(지급 속도) x sqrt(거점 체력)
+// 속성 연구는 덱 일부 슬라임에만 적용되고 거점 방어 위주의 승패에서 효과가 작아 가중치를 낮춘다 (v2.9.0)
+const RES_ENV = typeof process !== 'undefined' && process.env ? process.env.RESX : '';
+export const ADAPT_RES_EXP = RES_ENV ? +RES_ENV : 0.5;
 export function powerOf(mods, deck) {
   const syms = deck && deck.length ? deck : newProfile().deck;
   const attrs = syms.map(sym => ELEMENTS.find(e => e.sym === sym)?.attr).filter(Boolean);
   const res = attrs.length ? attrs.reduce((a, at) => a + ((mods.attrAtk && mods.attrAtk[at]) || 1), 0) / attrs.length : 1;
-  return (mods.atk || 1) * res * Math.sqrt(mods.hp || 1) * Math.sqrt(CFG.DROP_EVERY / (mods.dropEvery || CFG.DROP_EVERY))
+  return (mods.atk || 1) * Math.pow(res, ADAPT_RES_EXP) * Math.sqrt(mods.hp || 1) * Math.sqrt(CFG.DROP_EVERY / (mods.dropEvery || CFG.DROP_EVERY))
     * Math.sqrt((mods.baseHp || CFG.BASE_HP) / CFG.BASE_HP);
 }
 // 방어 투자 = 슬라임 체력 배율 x sqrt(거점 체력). 기준보다 높으면 고블린 공격력을 추가로 올린다 (탱커형 성장 견제)

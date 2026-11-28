@@ -64,8 +64,8 @@ root.append(h, s);
 // 오우거 특수 규칙
 const og = document.createElement('div'); og.className = 'strip rules';
 og.innerHTML = `<b>🧌 오우거(초대형) 특수 규칙</b><ul>
-  <li>5라운드부터 매 라운드 등장 · 챕터 N에서 N마리 (최대 5) · 무한의 탑 층마다 5마리</li>
-  <li><b>Lv5 슬라임과 메가에서만 멈춰 싸움</b> · Lv1~4 칸은 밟고 지나가며 툭 침 (공격 x${CFG.GIANT_TAP}) · Lv1~4 슬라임의 피해·효과는 전부 무시</li>
+  <li><b>2-10부터 등장</b> (2-9 클리어로 해금) · 5라운드부터 매 라운드 · 챕터 N에서 N마리 (최대 5) · 무한의 탑 층마다 5마리</li>
+  <li><b>체력 1200 (3배)</b> · 모든 슬라임 칸에서 멈춰 싸우고 모든 슬라임에게 피해를 받음</li>
   <li><b>짓밟기</b>: 메가 구역에서는 칸의 슬라임 대신 메가를 직접 공격 (x${CFG.GIANT_STOMP_MUL})</li>
   <li><b>충격파</b>: 짓밟을 때마다 서 있는 칸 + 상하좌우 5칸의 슬라임 전부(레벨 무관)에 공격 x${CFG.GIANT_STOMP_SPLASH}</li>
   <li>속성 상성 없음 · 빙결·기절 면역 · 피폭 지속 피해 50% · 포획 피로 20%</li></ul>`;
@@ -92,7 +92,7 @@ section('기타 2종', '혼합물 · 메가', [
 ]);
 
 const total = Object.keys(GOBLINS).length + ELEMENTS.length + FUSIONS.length + RECIPES.length + JOKES.length + 2;
-document.getElementById('meta').textContent = `v2.8.0 기준 · 총 ${total}종 (고블린 ${Object.keys(GOBLINS).length} · 슬라임 ${total - Object.keys(GOBLINS).length})`;
+document.getElementById('meta').textContent = `v2.9.0 기준 · 총 ${total}종 (고블린 ${Object.keys(GOBLINS).length} · 슬라임 ${total - Object.keys(GOBLINS).length})`;
 document.body.dataset.ready = '1';
 </script>
 </body>

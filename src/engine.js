@@ -23,10 +23,11 @@ export function createGame(seed = Date.now(), opts = {}) {
   const ch = tower ? TOWER : CHAPTERS[chapter - 1];
   setPath(ch.path);
   const mods = { ...DEFAULT_MODS, ...(opts.mods || {}) };
-  const towerBest = Math.max(0, opts.towerBest | 0);
+  const unlocked = Math.max(0, Math.min(CHAPTERS.length, opts.unlocked | 0));   // 10라운드에 도달한 가장 높은 챕터 (진행 단계 해금)
+  const st0 = tower ? STAGE_MAX : Math.min(chapter, unlocked, STAGE_MAX);
   const s = {
     seed, rng: mulberry32(seed), tick: 0, round: tower || 1, phase: 'prep', prepLeft: CFG.FIRST_PREP,
-    towerBest, baseHp: Math.round(mods.baseHp * (tower ? 1 : chBaseMul(ch, hordeStage(towerBest)) * diffBaseOf(mods, hordeStage(towerBest)))), catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
+    unlocked, baseHp: Math.round(mods.baseHp * (tower ? 1 : chBaseMul(ch, chapter, st0) * diffBaseOf(mods, ch, chapter, st0))), catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
     gold: 0, crystals: 0, dropAcc: 0, autoRounds: new Set(),
     cells: Array.from({ length: CFG.D }, () => Array.from({ length: CFG.H }, () => Array(CFG.W).fill(null))),
     queue: [], goblins: [], spawnList: [], megas: [], nextId: 1, kills: 0, lost: 0,
@@ -102,7 +103,7 @@ function makeJoke(s, j, lv) {
   const sl = {
     id: s.nextId++, kind: 'joke', key: j.key, label: j.label, name: j.name, els: syms,
     attrs: [...new Set(syms.map(k => EL[k].attr))], lv,
-    base: { hp: j.hp, atk: j.atk, def: j.def }, status: j.st, kindMul: CFG.JOKE_MUL,
+    base: { hp: j.hp, atk: j.atk * CFG.JOKE_ATK_BUFF, def: j.def * CFG.JOKE_DEF_BUFF }, status: j.st, kindMul: CFG.JOKE_MUL,
     healAura: j.healAura || 0, color: j.color, color2: null, cd: 0, sealed: 0,
   };
   applySlimeMods(s, sl); recalc(sl); return sl;
@@ -127,7 +128,7 @@ export function setMods(s, mods) {
   s.mods = { ...DEFAULT_MODS, ...keep, ...mods };   // 적응형 난이도는 게임 시작 시 고정 (게임 중 강화로 바뀌지 않음)
   for (const k of Object.keys(keep)) if (mods[k] === undefined) s.mods[k] = keep[k];
   for (const sl of s.cells.flat(2)) if (sl) { applySlimeMods(s, sl); recalc(sl); }
-  if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += Math.round((s.mods.baseHp - prevBase) * (s.tower ? 1 : chBaseMul(s.ch, stageOf(s)) * diffBaseOf(s.mods, stageOf(s))));
+  if (s.mods.baseHp > prevBase && s.phase !== 'over') s.baseHp += Math.round((s.mods.baseHp - prevBase) * (s.tower ? 1 : chBaseMul(s.ch, s.chapter, startStage(s)) * diffBaseOf(s.mods, s.ch, s.chapter, startStage(s))));
 }
 
 // ---------- 지급 큐 ----------
@@ -253,6 +254,20 @@ export function recipeHint(s, list) {
   return { state: 'mix', text: '혼합물(70%) 생성 · 속성 합성은 서로 다른 속성 2마리' };
 }
 
+// 튜토리얼 추천: 필드에서 지금 바로 만들 수 있는 화학 족보 (비밀 족보와 겹치는 조합은 숨김)
+// list[0]은 경로 가장 앞쪽 재료 = 결과가 놓이는 자리
+export function craftable(s) {
+  const pool = {};
+  for (const [i, [x, y]] of PATH.entries()) { const c = getCell(s, x, y, 0), k = ingKey(c); if (k) (pool[k] ||= []).push({ x, y, z: 0, idx: i }); }
+  const out = [];
+  for (const r of RECIPES) {
+    if (!Object.entries(r.need).every(([k, n]) => (pool[k]?.length || 0) >= n)) continue;
+    if (JOKES.some(j => sameCounts(j.need, r.need))) continue;
+    const list = Object.entries(r.need).flatMap(([k, n]) => pool[k].slice(0, n)).sort((a, b) => a.idx - b.idx);
+    out.push({ recipe: r, list: list.map(({ x, y, z }) => ({ x, y, z })) });
+  }
+  return out;
+}
 export function combine(s, list) {
   if (s.catalysts < 1) return err('촉매가 없습니다.');
   const h = recipeHint(s, list);
@@ -425,43 +440,48 @@ function goldFor(s, base) {
   return Math.round(base * prog * chMul * s.mods.goldMul * (s.tower ? 1 : s.mods.diffGold || 1) * CFG.GOLD_SCALE);
 }
 // 무한의 탑 층별 편성: 모든 종류 섞임, 층이 오를수록 수·오우거 증가
+export const TOWER_GIANT_EVERY = 4;
 export function towerRound(floor) {
-  const total = Math.min(60, 34 + floor), giants = GIANT_MAX;
-  const types = Object.keys(GOBLINS).filter(k => k !== 'giant'), each = Math.floor((total - giants) / types.length);
+  const total = Math.min(60, 34 + floor), giants = Math.min(GIANT_MAX, Math.ceil(floor / TOWER_GIANT_EVERY));   // 오우거: 4층마다 1마리씩 늘어 최대 5
+  const types = Object.keys(GOBLINS).filter(k => k !== 'giant' && !GOBLINS[k].boss), each = Math.floor((total - giants) / types.length);
   const row = types.map(k => [k, each]); row[0][1] += total - giants - each * types.length;
   row.push(['giant', giants]);
   return row;
 }
 
 // ---------- 고블린 ----------
-// 군단 단계 (무한의 탑 최고 기록 기준 해금): 0 기본 · 1 군단(1초 3마리, 칸당 3마리) · 2 +폭식 고블린 · 3 +물량 2배
-// 탑 안에서는 이번 판에 넘은 층도 기록으로 친다 (10층을 넘는 순간부터 군단)
-export const HORDE_FLOORS = [10, 20, 30];
-export const hordeStage = best => HORDE_FLOORS.filter(f => best >= f).length;
-export const stageOf = s => hordeStage(Math.max(s.towerBest || 0, s.tower ? s.round - 1 : 0));
+// 진행 단계 (챕터 X-9 클리어 = X-10 도달로 해금, 이번 판에서 X-10에 들어서는 순간 바로 적용)
+//  1 군단(1초 3마리, 칸당 3마리) · 2 오우거 등장 · 3 폭식 고블린 등장 · 4 라운드 물량 x2
+//  챕터 N은 단계 N까지만 (예전 챕터를 다시 해도 그 챕터의 단계까지만), 무한의 탑은 전 단계 · 5챕터는 보스 랜덤 출몰
+export const STAGE_MAX = 4;
+export const STAGE_MSG = ['', '⚔ 군단 해금! 고블린이 1초에 3마리, 한 칸에 3마리씩 몰려옵니다', '🪓 오우거 해금! 거대한 오우거가 모든 슬라임과 싸웁니다', '😋 폭식 고블린 해금! Lv2 이하 슬라임을 먹어 치웁니다', '📈 물량 2배 해금! 라운드 고블린 수가 2배가 됩니다'];
+export const stageOf = s => (s.tower ? STAGE_MAX : Math.min(s.chapter, STAGE_MAX, Math.max(s.unlocked || 0, s.round >= CFG.ROUNDS ? s.chapter : 0)));
+const startStage = s => (s.tower ? STAGE_MAX : Math.min(s.chapter, STAGE_MAX, s.unlocked || 0));
 export const surfaceCap = s => (stageOf(s) >= 1 ? CFG.SURFACE_CAP : 1);
 const spawnPerTick = s => (stageOf(s) >= 1 ? CFG.SPAWN_PER_TICK : 1);
-// 챕터 거점 배율: 단계별 baseMul0 / baseMul1 / baseMul2 / baseMul(단계 3). 값이 없으면 baseMul0~baseMul 기하 보간
-export const BASE_KEYS = ['baseMul0', 'baseMul1', 'baseMul2', 'baseMul'];
-// 적응형 거점 보정(diffBase)의 단계별 적용 강도 (거점이 작은 낮은 단계일수록 약하게)
-const DBK_ENV = typeof process !== 'undefined' && process.env ? process.env.DBK : '';   // 시뮬 도구용 덮어쓰기 (브라우저에는 process 없음)
-export const DIFF_BASE_K = (DBK_ENV || '0,0.4,0.3,1').split(',').map(Number);
-const diffBaseOf = (mods, stage) => Math.pow(mods.diffBase || 1, DIFF_BASE_K[Math.min(3, Math.max(0, stage))] ?? 1);
-export function chBaseMul(ch, stage) {
-  const st = Math.min(3, Math.max(0, stage | 0));
-  if (ch[BASE_KEYS[st]] !== undefined) return ch[BASE_KEYS[st]];
-  const b3 = ch.baseMul ?? 1, b0 = ch.baseMul0 ?? b3, t = st / 3;
-  return Math.pow(b0, 1 - t) * Math.pow(b3, t);
+// 챕터 거점 배율: 처음 도전(시작 단계 < 챕터 단계)이면 baseMulFirst, 다시 도전이면 baseMul
+export function chBaseMul(ch, chapter, stage0) {
+  const first = stage0 < Math.min(chapter, STAGE_MAX);
+  return (first ? ch.baseMulFirst : ch.baseMul) ?? ch.baseMul ?? 1;
 }
+// 적응형 거점 보정(diffBase) 적용 강도: 챕터별 [첫 도전, 다시 도전] (ch.adaptK) · 탑은 미적용
+const DBK_ENV = typeof process !== 'undefined' && process.env ? process.env.DBK : '';   // 시뮬 도구용 덮어쓰기 "첫,다시" (브라우저에는 process 없음)
+export function diffBaseK(ch, chapter, stage0) {
+  const k = DBK_ENV ? DBK_ENV.split(',').map(Number) : (ch.adaptK || [1, 1]);
+  return stage0 < Math.min(chapter, STAGE_MAX) ? k[0] : k[1];
+}
+const diffBaseOf = (mods, ch, chapter, stage0) => Math.pow(mods.diffBase || 1, diffBaseK(ch, chapter, stage0));
 function buildSpawn(s, round) {
   const stage = stageOf(s), base = s.tower ? towerRound(round) : s.ch.rounds[round - 1];
-  // 폭식 고블린은 단계 2(탑 20층)부터: 그 전에는 같은 수의 일반 고블린으로 대체
-  const table = stage >= 2 ? base : base.map(([t, n]) => [t === 'glutton' ? 'normal' : t, n]);
-  // 물량 배율은 단계 3(탑 30층)부터 (오우거 수는 규칙대로 유지)
-  const mul = stage >= 3 ? CFG.SPAWN_COUNT_MUL : 1;
+  // 오우거는 단계 2부터 (그 전에는 등장하지 않음), 폭식 고블린은 단계 3부터 (그 전에는 같은 수의 일반 고블린)
+  const table = base.filter(([t]) => stage >= 2 || t !== 'giant').map(([t, n]) => [t === 'glutton' && stage < 3 ? 'normal' : t, n]);
+  // 물량 배율은 단계 4부터 (오우거·보스 수는 그대로)
+  const mul = stage >= 4 ? CFG.SPAWN_COUNT_MUL : 1;
   const groups = table.map(([t, n]) => Array(t === 'giant' ? n : Math.round(n * mul)).fill(t));
   const out = []; let more = true;
   while (more) { more = false; for (const g of groups) if (g.length) { out.push(g.shift()); more = true; } }
+  // 5챕터: 2라운드부터 라운드마다 확률적으로 보스(고블린 왕)가 무리 한가운데에 출몰
+  if (!s.tower && s.chapter === CHAPTERS.length && round >= 2 && s.rng() < CFG.BOSS_CHANCE) out.splice(Math.floor(out.length / 2), 0, 'king');
   return out;
 }
 
@@ -770,8 +790,10 @@ export function step(s) {
       s.crystals += Math.round(c);
       s.phase = 'won'; say(s, `챕터 ${s.chapter} ${s.ch.name} 클리어! 골드 +${g0}, 원소 결정 +${Math.round(c)}${manual ? ' (직접 지휘 1.5배)' : ''}`); return;
     }
+    const stBefore = stageOf(s);
     s.round++; s.phase = 'prep'; s.prepLeft = s.tower ? CFG.TOWER_PREP : CFG.PREP_TICKS; s.catalysts += s.mods.catPerRound;
     for (let i = 0; i < CFG.ROUND_BONUS_SLIMES; i++) addQueue(s);
     say(s, `${s.tower ? `탑 ${s.round - 1}층` : `라운드 ${s.round - 1}`} 클리어! 골드 +${g0}, 촉매 +${s.mods.catPerRound}`);
+    if (stageOf(s) > stBefore) say(s, STAGE_MSG[stageOf(s)]);
   }
 }

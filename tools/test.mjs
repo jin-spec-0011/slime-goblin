@@ -90,7 +90,7 @@ t('뒤 고블린은 다음 칸으로 진행', passed >= 1);
 s = cg(5); s.queue = []; s.prepLeft = 1;
 let n = 0; while (s.phase !== 'prep' || n < 2) { step(s); n++; if (n > 200) break; s.queue = []; }
 const leakR1 = ROUND_TABLE[0].reduce((a, [type, n]) => a + GOBLINS[type].leak * n, 0); // 기본 단계: 물량 x1
-t(`빈 맵 통과 시 거점 -${leakR1} (챕터 거점 배율 적용)`, s.baseHp === Math.round(CFG.BASE_HP * ENG.chBaseMul(s.ch, 0)) - leakR1);
+t(`빈 맵 통과 시 거점 -${leakR1} (챕터 거점 배율 적용)`, s.baseHp === Math.round(CFG.BASE_HP * ENG.chBaseMul(s.ch, 1, 0)) - leakR1);
 // 패배 판정
 s = cg(6); s.baseHp = 1; s.prepLeft = 1; n = 0;
 while (s.phase !== 'over' && n++ < 200) { s.queue = []; step(s); }
@@ -113,7 +113,7 @@ t('거점 0 → 패배', s.phase === 'over');
     return g === (i + 1 >= 5 ? Math.min(5, c.id) : 0);
   }));
   t('오우거 편성: 1-5부터 매 라운드, 챕터 N은 N마리', ok);
-  t('탑 오우거 최대 5마리', towerRound(30).find(([k]) => k === 'giant')[1] === 5);
+  t('탑 오우거: 1층 1마리 → 4층마다 +1, 최대 5마리', towerRound(1).find(([k]) => k === 'giant')[1] === 1 && towerRound(5).find(([k]) => k === 'giant')[1] === 2 && towerRound(30).find(([k]) => k === 'giant')[1] === 5);
   t('오우거 빙결·기절 면역', GOBLINS.giant.immune.includes('freeze') && GOBLINS.giant.immune.includes('stun'));
   t('오우거 속성 상성 없음', !GOBLINS.giant.weak.length && !GOBLINS.giant.resist.length);
 }
@@ -301,19 +301,16 @@ for (const c of CHAPTERS) {
   const mp = META.loadProfile({ getItem: k => mem.get(k) ?? null, setItem: () => {} });
   t('기존 덱의 물은 다른 슬라임으로 교체 (8장 유지)', mp.deck.length === 8 && !mp.deck.includes('WATER') && new Set(mp.deck).size === 8);
 }
-// v2.4.0: 오우거는 Lv1~4 슬라임을 밟고 지나가고, Lv5에서만 멈춰 싸운다
+// v2.9.0: 오우거는 모든 슬라임 칸에서 멈춰 싸우고, 모든 슬라임에게 피해를 받는다
 {
   const mk = (lv) => { const g = cg(73); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 5;
     const [x, y] = PATH[2]; for (let k = 0; k < lv; k++) put(g, 'Fe', x, y, 0);
     g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['giant']; return { g, x, y }; };
-  { const { g, x, y } = mk(3); const hp0 = getCell(g, x, y, 0).hp; let pitted = false;
-    for (let i = 0; i < 12; i++) { step(g); if (g.goblins.some(o => o.pit)) pitted = true; }
-    const sl = getCell(g, x, y, 0);
-    t('오우거: Lv3 칸은 갇히지 않고 지나감', !pitted && g.goblins.some(o => o.idx > 2));
-    t('오우거: 지나가며 Lv3 슬라임을 툭 침', !sl || sl.hp < hp0); }
-  { const { g } = mk(5); let pitted = false;
-    for (let i = 0; i < 12; i++) { step(g); if (g.goblins.some(o => o.pit && o.idx === 2)) pitted = true; }
-    t('오우거: Lv5 칸에서는 멈춰 싸움', pitted); }
+  { const { g } = mk(3); let pitted = false, hurtO = false;
+    for (let i = 0; i < 12; i++) { step(g); const o = g.goblins.find(v => v.type === 'giant'); if (o?.pit && o.idx === 2) pitted = true; if (o && o.hp < o.maxhp) hurtO = true; }
+    t('오우거: Lv3 칸에서도 멈춰 싸움', pitted);
+    t('오우거: Lv3 슬라임에게 피해를 받음', hurtO); }
+  t('오우거: 체력 1200 (v2.9.0 3배)', GOBLINS.giant.hp === 1200 && !GOBLINS.giant.lv5Only);
 }
 // v2.4.0: 쿠폰 코드 (순수 함수) · 업데이트 노트
 {
@@ -348,16 +345,11 @@ for (const c of CHAPTERS) {
   const lp = META.loadProfile({ getItem: k => mem.get(k) ?? null, setItem: () => {} });
   t('덱: 저장된 4종 덱은 8종으로 자동 채움', META.deckReady(lp.deck) && ['FIRE', 'ELEC', 'O', 'H'].every(x => lp.deck.includes(x)));
 }
-// v2.4.2: 오우거는 Lv1~4 슬라임에게 피해를 받지 않고, 피폭 지속 피해는 50%만 받는다
+// v2.4.2: 오우거 피폭 지속 피해는 50%만 받는다
 {
   const setup = (sym, lv, at = 2) => { const g = cg(91); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 5;
     const [x, y] = PATH[at]; for (let k = 0; k < lv; k++) put(g, sym, x, y, 0);
     g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['giant']; return { g, x, y }; };
-  { const { g } = setup('U', 4); let hp0 = null, maxStep = 0;
-    for (let i = 0; i < 14; i++) { step(g); const o = g.goblins.find(v => v.type === 'giant'); if (o) { hp0 ??= o.maxhp; maxStep = Math.max(maxStep, o.idx); if (o.idx > 2) { t('오우거: Lv4 슬라임 칸을 지나가도 피해 0', o.hp === o.maxhp && !Object.keys(o.st).length); break; } } } }
-  { const { g } = setup('Na', 3, 3); let ok = null;           // 나트륨(폭발) Lv3이 옆 칸에 있어도 오우거는 피해 없음
-    for (let i = 0; i < 14; i++) { step(g); const o = g.goblins.find(v => v.type === 'giant'); if (o && o.idx >= 4) { ok = o.hp === o.maxhp; break; } }
-    t('오우거: Lv3 폭발 범위 피해 없음', ok === true); }
   { const { g, x, y } = setup('U', 5); const sl = getCell(g, x, y, 0); let v = null;
     for (let i = 0; i < 20 && v === null; i++) { step(g); const o = g.goblins.find(q => q.type === 'giant'); if (o?.st?.radiate?.v) v = o.st.radiate.v; }
     const st = ELEMENTS_U.st, want = sl.atk * (st.mul || 0.5) * 0.5; // 상성 없음(x1) · 피폭 50%
@@ -373,8 +365,8 @@ for (const c of CHAPTERS) {
   const strong = META.adaptiveDiff(META.planMods(16), 4, null);
   t('적응형: 기준보다 강하면 고블린 체력·공격·보상 증가', strong.diffHp > 1.5 && strong.diffAtk > 1 && strong.diffGold > 1);
   t('적응형: 강할수록 챕터 거점 배율 감소 (기준이면 1)', strong.diffBase < 1 && d0.diffBase === 1);
-  { const gb = createGame(96, { chapter: 2, autoField: false, towerBest: 30, mods: { diffBase: 0.5 } }), ga = createGame(96, { chapter: 2, autoField: false, towerBest: 30 }), g0 = createGame(96, { chapter: 2, autoField: false, mods: { diffBase: 0.5 } }), g0b = createGame(96, { chapter: 2, autoField: false });
-    t('적응형: diffBase가 거점 체력에 반영 (단계3 전체, 단계0 미적용)', Math.abs(gb.baseHp - ga.baseHp / 2) <= 1 && g0.baseHp === g0b.baseHp); }
+  { const gb = createGame(96, { tower: 0, chapter: 5, autoField: false, unlocked: 5, mods: { diffBase: 0.5 } }), ga = createGame(96, { chapter: 5, autoField: false, unlocked: 5 }), g0 = createGame(96, { chapter: 1, autoField: false, mods: { diffBase: 0.5 } }), g0b = createGame(96, { chapter: 1, autoField: false });
+    t('적응형: diffBase가 거점 체력에 반영 (챕터별 강도 adaptK, 1챕터 첫 도전 포함)', Math.abs(gb.baseHp - ga.baseHp * Math.pow(0.5, ENG.diffBaseK(CHAPTERS[4], 5, 4))) <= 1 && Math.abs(g0.baseHp - g0b.baseHp * Math.pow(0.5, ENG.diffBaseK(CHAPTERS[0], 1, 0))) <= 1); }
   t('적응형: 무한의 탑은 적용 안 함', META.adaptiveDiff(META.planMods(30), 6, null).diffHp === 1);
   const g1 = createGame(95, { chapter: 4, autoField: false }), g2 = createGame(95, { chapter: 4, autoField: false, mods: { diffHp: 2, diffAtk: 1.4, diffGold: 1.4 } });
   for (const g of [g1, g2]) { g.round = 6; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['fighter']; step(g); }
@@ -463,41 +455,50 @@ for (const c of CHAPTERS) {
   t('폭식: 옆 칸 Lv2 슬라임은 남아 있음 (먹지 않은 칸)', !!na && na.lv === 2);
 }
 {
-  const glut = { eatLv: 2 }, ogre = { lv5Only: true }, normal = {};
+  const glut = { eatLv: 2 }, ogre = { lv5Only: !!GOBLINS.giant.lv5Only }, normal = {};
   const sl = lv => ({ kind: 'element', lv }), mega = { kind: 'mega', lv: 6 };
   t('면역 규칙: 폭식은 Lv1·Lv2 무시, Lv3부터 피해', ENG.ignores(glut, sl(1)) && ENG.ignores(glut, sl(2)) && !ENG.ignores(glut, sl(3)) && !ENG.ignores(glut, mega));
-  t('면역 규칙: 오우거는 Lv1~4 무시, Lv5·메가는 피해', ENG.ignores(ogre, sl(4)) && !ENG.ignores(ogre, sl(5)) && !ENG.ignores(ogre, mega));
+  t('면역 규칙: 오우거는 무시 없음 (v2.9.0)', !ENG.ignores(ogre, sl(1)) && !ENG.ignores(ogre, sl(5)) && !ENG.ignores(ogre, mega));
   t('면역 규칙: 일반 고블린은 무시 없음', !ENG.ignores(normal, sl(1)));
 }
-// 군단 단계 (탑 최고 기록 10/20/30층): 1초 3마리·칸당 3마리 → +폭식 → +물량 x2
+// 진행 단계 (챕터 X-10 도달로 해금): 1 군단 · 2 오우거 · 3 폭식 · 4 물량 x2 · 5챕터 보스
 {
-  const H = (seed, tb) => createGame(seed, { autoField: false, towerBest: tb });
-  t('단계: 탑 기록 0/9/10/20/30 -> 0/0/1/2/3', [0, 9, 10, 20, 30].map(ENG.hordeStage).join() === '0,0,1,2,3');
-  const g = H(105, 30); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = []; g.round = 3;
-  g.prepLeft = 1; step(g);
-  t('단계3 물량 x2: 챕터 1 3라운드 18 -> 36마리', g.spawnList.length + g.goblins.length === Math.round(18 * CFG.SPAWN_COUNT_MUL));
-  step(g); const n1 = g.goblins.length;
-  t('단계3 입장: 첫 1초에 SPAWN_PER_TICK마리', n1 === CFG.SPAWN_PER_TICK);
-  step(g);
-  const byIdx = {}; for (const o of g.goblins) if (!o.pit) byIdx[o.idx] = (byIdx[o.idx] || 0) + 1;
-  t('단계3 칸당 최대 SURFACE_CAP마리', Object.values(byIdx).every(c => c <= CFG.SURFACE_CAP) && g.goblins.length === CFG.SPAWN_PER_TICK * 2);
-  const g2 = H(106, 30); g2.round = 5; g2.prepLeft = 1; step(g2);
-  t('오우거 수는 그대로 (챕터 1은 1마리)', [...g2.spawnList, ...g2.goblins.map(o => o.type)].filter(x => x === 'giant').length === 1);
-  // 기본 단계: 예전 방식
-  const b = H(107, 0); b.cells.forEach(f => f.forEach(r => r.fill(null))); b.queue = []; b.round = 3; b.prepLeft = 1; step(b);
-  t('단계0 물량 x1: 18마리', b.spawnList.length + b.goblins.length === 18);
-  step(b); step(b);
-  t('단계0 1초 1마리 · 칸당 1마리', b.goblins.length === 2 && new Set(b.goblins.map(o => o.idx)).size === 2);
-  // 단계1: 군단만 (물량 x1)
-  const c1 = H(108, 10); c1.cells.forEach(f => f.forEach(r => r.fill(null))); c1.queue = []; c1.round = 3; c1.prepLeft = 1; step(c1); step(c1);
+  const H = (seed, chapter, unlocked) => createGame(seed, { autoField: false, chapter, unlocked });
+  const spawnAt = (gm, r) => { gm.cells.forEach(f => f.forEach(rw => rw.fill(null))); gm.queue = []; gm.round = r; gm.prepLeft = 1; gm.phase = 'prep'; gm.spawnList = []; gm.goblins = []; step(gm); return [...gm.spawnList, ...gm.goblins.map(o => o.type)]; };
+  t('단계: 챕터 N은 단계 N까지 · 탑은 4', ENG.stageOf(H(1, 1, 5)) === 1 && ENG.stageOf(H(1, 3, 5)) === 3 && ENG.stageOf(H(1, 3, 1)) === 1 && ENG.stageOf(createGame(1, { tower: 1 })) === 4);
+  const n0 = H(107, 1, 0); t('단계0 (첫 1-1~1-9): 1초 1마리·칸당 1마리', ENG.stageOf(n0) === 0 && ENG.surfaceCap(n0) === 1);
+  t('단계0 물량 x1: 1-3 18마리', spawnAt(n0, 3).length === 18);
+  const r10 = H(108, 1, 0); r10.round = 10; t('1-10 도달 순간 군단 (이번 판)', ENG.stageOf(r10) === 1);
+  const c1 = H(108, 1, 1); spawnAt(c1, 3); step(c1);
   t('단계1 물량 x1 + 1초 3마리', c1.spawnList.length + c1.goblins.length === 18 && c1.goblins.length === CFG.SPAWN_PER_TICK);
-  // 폭식: 단계 2부터
-  const all = (gm, r) => { gm.round = r; gm.prepLeft = 1; gm.spawnList = []; gm.goblins = []; gm.phase = 'prep'; step(gm); return [...gm.spawnList, ...gm.goblins.map(o => o.type)]; };
-  const f1 = all(H(109, 19), 6), f2 = all(H(109, 20), 6);
-  t('폭식 고블린: 탑 20층 전에는 없음 (같은 수의 일반으로 대체)', !f1.includes('glutton') && f2.includes('glutton') && f1.length === f2.length);
-  // 탑: 이번 판에 넘은 층도 기록으로 침
-  const tw = createGame(110, { tower: 1, autoField: false }); tw.round = 11;
-  t('탑: 11층부터 군단 (기록 없어도)', ENG.stageOf(tw) === 1 && (tw.round = 10, ENG.stageOf(tw) === 0));
-  t('거점 배율: 단계 0/3은 baseMul0/baseMul', Math.abs(ENG.chBaseMul({ baseMul0: 2, baseMul: 8 }, 0) - 2) < 1e-9 && Math.abs(ENG.chBaseMul({ baseMul0: 2, baseMul: 8 }, 3) - 8) < 1e-9);
+  const byIdx = {}; step(c1); for (const o of c1.goblins) if (!o.pit) byIdx[o.idx] = (byIdx[o.idx] || 0) + 1;
+  t('단계1 칸당 최대 SURFACE_CAP마리', Object.values(byIdx).every(c => c <= CFG.SURFACE_CAP));
+  t('오우거: 단계1(2-1~2-9 첫 도전)에는 없음', !spawnAt(H(109, 2, 1), 6).includes('giant'));
+  const og = spawnAt(H(109, 2, 2), 6); t('오우거: 단계2부터 등장 (챕터 2는 2마리)', og.filter(x => x === 'giant').length === 2);
+  const f1 = spawnAt(H(110, 3, 2), 6), f2 = spawnAt(H(110, 3, 3), 6);
+  t('폭식: 단계3 전에는 같은 수의 일반 고블린', !f1.includes('glutton') && f2.includes('glutton') && f1.length === f2.length);
+  const m3 = spawnAt(H(111, 4, 3), 3), m4 = spawnAt(H(111, 4, 4), 3);
+  t('물량 x2: 단계4부터 (오우거 제외)', m4.filter(x => x !== 'giant').length === Math.round(m3.filter(x => x !== 'giant').length * CFG.SPAWN_COUNT_MUL));
+  let boss = 0; for (let sd = 1; sd <= 40; sd++) if (spawnAt(H(200 + sd, 5, 4), 4).includes('king')) boss++;
+  t('5챕터 보스 랜덤 출몰 (확률 근처)', boss > 4 && boss < 26, `${boss}/40`);
+  t('보스: 5챕터 외에는 없음 · 탑 편성에도 없음', !spawnAt(H(300, 4, 4), 4).includes('king') && !towerRound(20).some(([k]) => k === 'king'));
+  t('거점 배율: 첫 도전 baseMulFirst / 다시 도전 baseMul', ENG.chBaseMul({ baseMulFirst: 2, baseMul: 8 }, 3, 2) === 2 && ENG.chBaseMul({ baseMulFirst: 2, baseMul: 8 }, 3, 3) === 8);
+}
+// v2.9.0: 비밀 족보 슬라임 공격·방어 x1.3
+{
+  t('비밀 족보 공격·방어 추가 배율 1.3', CFG.JOKE_ATK_BUFF === 1.3 && CFG.JOKE_DEF_BUFF === 1.3);
+}
+// v2.9.0 튜토리얼 추천 조합: 필드에서 만들 수 있는 화학 족보만, 비밀 족보와 겹치는 조합은 숨김
+{
+  const g = cg(130); g.cells.forEach(f => f.forEach(r => r.fill(null))); g.queue = [];
+  const [a, b, c] = [PATH[4], PATH[1], PATH[7]];
+  put(g, 'H', a[0], a[1], 0); put(g, 'H', b[0], b[1], 0); put(g, 'O', c[0], c[1], 0);
+  const cr = ENG.craftable(g), h2o = cr.find(v => v.recipe.key === 'H2O');
+  t('추천 조합: H×2+O → H₂O 추천', !!h2o && h2o.list.length === 3);
+  t('추천 조합: 결과 자리는 경로 가장 앞 재료', h2o && h2o.list[0].x === b[0] && h2o.list[0].y === b[1]);
+  const cat0 = g.catalysts, r = combine(g, h2o.list);
+  t('추천 조합 실행 → H₂O 생성, 촉매 1 소모', r.ok && getCell(g, b[0], b[1], 0)?.key === 'H2O' && g.catalysts === cat0 - 1);
+  const hiddenKeys = RECIPES.filter(rc => JOKES.some(j => Object.keys({ ...j.need, ...rc.need }).every(k => (j.need[k] || 0) === (rc.need[k] || 0)))).map(rc => rc.key);
+  t('추천 조합: 비밀 족보와 같은 재료 조합은 숨김', ENG.craftable(g).every(v => !hiddenKeys.includes(v.recipe.key)));
 }
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
