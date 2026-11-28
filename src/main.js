@@ -37,7 +37,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.9.0'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.9.1'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -827,7 +827,7 @@ function showHelp(after = null) {
   const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}<br><small>${d.desc || ''}</small></td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
   showModal(`게임 방법 · ${APP_VERSION}`, `
     <p>고블린은 전장의 <b>점선 경로</b>를 따라 이동합니다(챕터마다 모양이 다름). 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
-    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). <b>진행 단계</b>: 1-10부터 군단(1초 3마리·칸당 3마리), 2-10부터 오우거, 3-10부터 폭식 고블린, 4-10부터 물량 2배, 5챕터는 보스 고블린 왕 랜덤 출몰. 물 슬라임은 지급되지 않으며 <b>H₂O(H×2+O)</b>가 물 역할을 합니다. 슬라임은 <b>${CFG.DROP_EVERY}초마다 1마리</b>(지급 속도 강화 시 최대 ${dropEvery(UPGRADES.drop.max)}초) 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 그때부터 덱에 쌓입니다(최대 ${CFG.QUEUE_MAX}장). 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
+    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). <b>진행 단계</b>: 1-10부터 군단(1초 3마리·칸당 3마리), 2-10부터 오우거, 3-10부터 폭식 고블린, 4-10부터 물량 2배, 5챕터는 보스 고블린 왕 랜덤 출몰. 물 슬라임은 지급되지 않으며 <b>H₂O(H×2+O)</b>가 물 역할을 합니다. 슬라임은 <b>${CFG.DROP_EVERY}초마다 1마리</b>(지급 속도 강화 시 최대 ${dropEvery(UPGRADES.drop.max)}초) 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 덱에 쌓지 않고 <b>같은 원소 슬라임에 자동으로 겹치며</b>(경로 앞쪽 우선), 겹칠 곳이 없으면 지급되지 않습니다. 아래 <b>추천 조합</b> 버튼은 지금 필드에서 만들 수 있는 화학 족보를 보여 줍니다. 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
     <p><b>속성</b>: 모든 슬라임은 8속성 중 하나입니다(🔥불 💧물 ⚡전기 ❄얼음 🌪바람 ⛰대지 ☠독 ☢방사). 고블린마다 <b>약점 속성(피해 ×${CFG.WEAK_MUL}, 주황 숫자)</b>과 <b>내성 속성(×${CFG.RESIST_MUL}, 회색 숫자)</b>이 있습니다.</p>
     <p><b>조합</b>(촉매 1개): ① 화학 족보 정확히 일치 → 화합물 150% ② <b>서로 다른 속성 2마리 → 속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%</b> ③ 그 외 → 혼합물 70%.</p>
     <p><b>메가</b>: ${CFG.MEGA_ROUND}라운드부터 사용 가능. Lv5 같은 슬라임 3개 → 3×3 구역, 최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격. 원소 메가는 제한 없음. <b>조합 메가</b>(화학 족보·비밀 족보·속성 합성 Lv5 ×3)는 <b>동시에 ${CFG.COMBO_MEGA_MAX}마리</b>만, 파괴되면 다시 만들 수 있습니다(혼합물 불가).</p>
@@ -892,30 +892,15 @@ function checkEnd() {
 }
 
 // ---------- 튜토리얼 (무한의 탑 10층 전까지): 상성 표기 · 챕터별 조합 설명 · 추천 조합 ----------
-const TUT_FLOOR = 10;
-const CH_TIPS = {
-  1: '🧪 <b>겹치기</b>: 같은 슬라임을 끌어 겹치면 Lv이 오릅니다 (최대 Lv5). 경로 앞쪽에 높은 Lv을 두세요.',
-  2: '🧪 <b>화학 족보</b>: 촉매 1개로 재료 원소를 합칩니다. 예) H×2 + O = H₂O(물). 아래 추천 버튼을 누르면 바로 조합됩니다.',
-  3: '🧪 <b>속성 합성</b>: 서로 다른 속성 슬라임 2마리를 조합하면 합성 슬라임이 됩니다. 이번 라운드 약점 속성을 노리세요.',
-  4: '🧪 <b>메가</b>: 5라운드부터 같은 슬라임 Lv5 3개로 메가 버튼 → 3×3 구역을 지키는 메가 슬라임.',
-  5: '🧪 <b>조합 메가</b>: 화학 족보 슬라임 Lv5 3개로도 메가가 됩니다 (동시에 1마리). 고블린 왕(보스)이 랜덤하게 나타납니다.',
-  T: '🧪 <b>무한의 탑</b>: 층마다 강해집니다. 10층에 오르면 도움말이 사라집니다.',
-};
-const tutOn = () => (PROF.towerBest || 0) < TUT_FLOOR;
+// 상단: 이번 필드(챕터)의 특성 · 하단: 지금 만들 수 있는 화학 족보 추천 (비밀 족보 제외)
 const attrTxt = a => `${ATTRS[a].icon}${ATTRS[a].label}`;
-function affinityLine(g) {
-  const rows = (g.tower ? towerRound(g.round) : g.ch.rounds[Math.min(CFG.ROUNDS, g.round) - 1]) || [], w = {}, r = {};
-  for (const [t, n] of rows) { const d = GOBLINS[t]; if (!d) continue; (d.weak || []).forEach(a => { w[a] = (w[a] || 0) + n; }); (d.resist || []).forEach(a => { r[a] = (r[a] || 0) + n; }); }
-  const top = (o, k) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, k).map(([a]) => attrTxt(a)).join(' ');
-  const boost = Object.entries(g.ch.boost || {}).map(([a, m]) => `${attrTxt(a)} ${m > 1 ? '+' : '−'}${Math.round(Math.abs(m - 1) * 100)}%`).join(' ');
-  return `<b>상성</b>${boost ? ` · <span class="tb">환경 ${boost}</span>` : ''}${Object.keys(w).length ? ` · <span class="tw">약점 ${top(w, 3)}</span>` : ''}${Object.keys(r).length ? ` · <span class="tr">내성 ${top(r, 2)}</span>` : ''}`;
+function fieldLine(g) {
+  const boost = Object.entries(g.ch.boost || {}).map(([a, m]) => `<span class="${m > 1 ? 'tw' : 'tr'}">${attrTxt(a)} ${m > 1 ? '+' : '−'}${Math.round(Math.abs(m - 1) * 100)}%</span>`).join(' ');
+  return `<b>${g.tower ? '♾ 무한의 탑' : `${g.chapter}. ${g.ch.name}`}</b> · 경로 ${g.ch.pathLabel}${g.tower ? ' · 층마다 고블린 강화' : ''} · ${boost ? `환경 ${boost}` : '환경 보정 없음'}`;
 }
 const needTxt = r => Object.entries(r.need).map(([k, n]) => `${k === 'WATER' ? 'H₂O' : k}${n > 1 ? '×' + n : ''}`).join('+');
 function renderTut() {
-  const g = ui.g, on = tutOn();
-  $('tut').hidden = !on; $('recos').hidden = !on;
-  if (!on) return;
-  const html = `<div class="aff">${affinityLine(g)}</div><div class="tip">${CH_TIPS[g.tower ? 'T' : g.chapter] || ''}</div>`;
+  const g = ui.g, html = `<div class="aff">${fieldLine(g)}</div>`;
   if (ui.tutSig !== html) { $('tut').innerHTML = html; ui.tutSig = html; }
   const list = craftable(g), noCat = g.catalysts < 1, over = g.phase === 'over' || g.phase === 'won';
   const sig = list.map(c => c.recipe.key + c.list.map(p => `${p.x},${p.y}`).join(';')).join('|') + `#${noCat}${over}`;
@@ -923,7 +908,7 @@ function renderTut() {
   ui.recoSig = sig;
   const box = $('recos'); box.innerHTML = '';
   if (!list.length) { box.innerHTML = '<span class="none">💡 필드에 화학 족보 재료가 모이면 여기에 추천 조합이 나타납니다.</span>'; return; }
-  for (const c of list.slice(0, 6)) {
+  for (const c of list) {
     const b = document.createElement('button');
     b.className = 'reco'; b.disabled = noCat || over; b.title = `${c.recipe.name} 만들기 (촉매 1개)`;
     b.innerHTML = `<b>${c.recipe.label}</b><small>${needTxt(c.recipe)}</small>`;

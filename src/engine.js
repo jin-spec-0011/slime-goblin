@@ -132,7 +132,8 @@ export function setMods(s, mods) {
 }
 
 // ---------- 지급 큐 ----------
-// 슬라임 지급: 필드에 빈칸이 있으면 빈칸에 랜덤 배치, 필드가 가득 차면 덱(큐)에 쌓는다
+// 슬라임 지급: 필드에 빈칸이 있으면 빈칸에 랜덤 배치. 필드가 가득 차면 덱에 쌓지 않고 (v2.9.1)
+// 같은 원소 슬라임(Lv5 미만, 경로 앞쪽 우선)에 자동으로 겹치고, 겹칠 곳도 없으면 지급되지 않는다
 function addQueue(s) {
   let pool = ELEMENTS.filter(e => !e.noDrop && (s.ch.unlockAll || e.unlock <= s.round));
   if (s.deck && s.deck.length) { const d = pool.filter(e => s.deck.includes(e.sym)); if (d.length) pool = d; } // 덱 편성
@@ -147,6 +148,11 @@ function addQueue(s) {
       computeCounts(s);
       return true;
     }
+    for (const [x, y] of PATH) {
+      const c = s.cells[0][y][x];
+      if (c && c.kind === 'element' && c.key === e.sym && c.lv < CFG.MAX_LV) { c.lv += 1; recalc(c); s.fx.push({ k: 'drop', x, y }); computeCounts(s); return true; }
+    }
+    s.lost++; return false;
   }
   if (s.queue.length >= CFG.QUEUE_MAX) { s.lost++; return false; }
   s.queue.push({ id: s.nextId++, sym: e.sym });

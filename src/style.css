@@ -52,6 +52,8 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .card span { font-size: 12px; font-weight: 800; color: #eef2fa; pointer-events: none; }
 .card.sel { outline: 3px solid var(--accent); outline-offset: 1px; }
 .deck .qrow { min-height: 70px; }
+.deck .recos { min-height: 46px; margin: 0; }
+.qrow[hidden] { display: none; }
 .ghost.card { width: 52px; }
 .card { position: relative; }
 .card .blob { width: 38px; height: 28px; border-radius: 19px 19px 6px 6px; border: 2px solid rgba(0,0,0,.45);

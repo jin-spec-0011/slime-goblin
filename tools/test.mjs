@@ -103,8 +103,9 @@ t('거점 0 → 패배', s.phase === 'over');
   while (a.cells.flat(2).filter(Boolean).length < CFG.W * CFG.H && guard++ < 500) step(a);
   t('지급 슬라임은 필드 빈칸부터 채움 (덱 비어 있음)', a.cells.flat(2).filter(Boolean).length === CFG.W * CFG.H && a.queue.length === 0);
   a.goblins = []; a.spawnList = ['normal']; // 슬라임이 쓰러지지 않게 고블린 제거
-  for (let i = 0; i < CFG.DROP_EVERY; i++) step(a);
-  t('필드가 가득 차면 덱에 쌓임', a.queue.length >= 1 && a.cells.flat(2).filter(Boolean).length === CFG.W * CFG.H);
+  const lvSum = () => a.cells.flat(2).filter(Boolean).reduce((n, c) => n + c.lv, 0), lv0 = lvSum(), lost0 = a.lost;
+  for (let i = 0; i < CFG.DROP_EVERY * 3; i++) step(a);
+  t('필드가 가득 차면 덱에 쌓지 않고 같은 원소에 자동 겹치기 (없으면 지급 생략)', a.queue.length === 0 && a.cells.flat(2).filter(Boolean).length === CFG.W * CFG.H && (lvSum() > lv0 || a.lost > lost0));
 }
 // 오우거: 5라운드부터 챕터 번호만큼(최대 5) 매 라운드 등장, 빙결·기절 면역
 {
