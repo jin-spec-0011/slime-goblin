@@ -1,5 +1,5 @@
 // 앱 셸 캐시. 파일 변경 시 VERSION을 올리면 구버전 캐시가 삭제된다.
-const VERSION = 'esd-v2.9.2';
+const VERSION = 'esd-v2.9.3';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './src/style.css', './src/main.js', './src/engine.js', './src/data.js', './src/meta.js', './src/sprites.js', './src/online.js', './src/notes.js',
