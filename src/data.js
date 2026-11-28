@@ -35,7 +35,6 @@ export const CFG = {
   SPAWN_PER_TICK: 3,            // 1초에 입장하는 고블린 수 (v2.7.0: 1 -> 3)
   SURFACE_CAP: 3,               // 한 칸에 나란히 걸을 수 있는 고블린 수 (2칸 크기는 칸 하나를 다 차지)
   SPAWN_COUNT_MUL: 2,           // 라운드 고블린 물량 배율 (오우거·보스 제외, 진행 단계 4부터)
-  BOSS_CHANCE: 0.35,            // 5챕터 라운드마다 보스(고블린 왕) 출몰 확률
   JOKE_ATK_BUFF: 1.3, JOKE_DEF_BUFF: 1.3,   // 비밀 족보 슬라임 공격·방어 추가 배율 (v2.9.0)
   GLUTTON_HEAL: 0.2,            // 폭식 고블린: 슬라임 한 마리 먹을 때마다 최대 체력의 20% 회복
   GOBLIN_ATK_MUL: 1.3,          // 오우거를 제외한 고블린 공격력 배율 (v2.5.2 +30%)
@@ -200,21 +199,21 @@ export const GOBLINS = {
   rider:   { name: '기마', desc: '2칸씩 이동',   ch: '기', hp: 22,  atk: 4,  def: 1, spd: 2, leak: 2,  color: '#d6b13c', weak: ['water', 'ice'], resist: ['wind'] },
   archer:  { name: '궁수', desc: '앞 2칸 슬라임 저격',   ch: '궁', hp: 18,  atk: 4,  def: 0, spd: 1, leak: 2,  range: 2, color: '#4fb39a', weak: ['wind'], resist: ['water'] },
   captain: { name: '대장', desc: '주변 고블린 공격·방어 강화',   ch: '대', hp: 40,  atk: 5,  def: 2, spd: 1, leak: 3,  aura: true, color: '#d64a4a', weak: ['poison'], resist: ['elec'] },
-  giant:   { name: '초대형', desc: '2-10부터 등장 · 2칸 크기, 모든 슬라임과 싸우고 모든 슬라임에게 피해를 받음, 메가 구역에서는 메가를 2배 피해로 짓밟고 + 모양 5칸 슬라임에 충격파, 속성 상성 없음, 빙결·기절 면역, 피폭 내성 50%, 느림', ch: '초', hp: 1200, atk: 20, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, fatigue: 0.2, megaStomp: true, chAnchor: true, stRes: { radiate: 0.5 }, immune: ['freeze', 'stun'], color: '#7a5a3a', weak: [], resist: [] }, // 속성 상성 없음 (v2.4.3) · 2틱에 1칸, 2칸 크기
+  giant:   { name: '초대형', desc: 'X-10 랜덤 이벤트 · 2칸 크기, 모든 슬라임과 싸우고 모든 슬라임에게 피해를 받음, 메가 구역에서는 메가를 2배 피해로 짓밟고 + 모양 5칸 슬라임에 충격파, 속성 상성 없음, 빙결·기절 면역, 피폭 내성 50%, 느림', ch: '초', hp: 1200, atk: 20, def: 4, spd: 0.5, leak: 10, multi: 2, size: 2, fatigue: 0.2, megaStomp: true, chAnchor: true, stRes: { radiate: 0.5 }, immune: ['freeze', 'stun'], color: '#7a5a3a', weak: [], resist: [] }, // 속성 상성 없음 (v2.4.3) · 2틱에 1칸, 2칸 크기
   smart:   { name: '지능형', desc: '함정 1회 회피, 상태이상 정화', ch: '지', hp: 30,  atk: 4,  def: 1, spd: 1, leak: 3,  evade: 1, cleanse: true, color: '#3ab0d6', weak: ['water'], resist: ['poison'] },
   // ---- 개편 추가 4종 ----
-  glutton: { name: '폭식', desc: '3-10부터 등장 · 2칸 크기, Lv2 이하 슬라임을 먹어 치우며 지나감 (한 입마다 체력 20% 회복, Lv2 이하의 피해 무시), Lv3 이상에서는 갇힘', ch: '폭', hp: 500, atk: 4, def: 2, spd: 1, leak: 3, eatLv: 2, size: 2, color: '#6d8a3a', weak: ['poison'], resist: ['water'] }, // v2.6.0
+  glutton: { name: '폭식', desc: 'X-10 랜덤 이벤트 · 2칸 크기, Lv2 이하 슬라임을 먹어 치우며 지나감 (한 입마다 체력 20% 회복, Lv2 이하의 피해 무시), Lv3 이상에서는 갇힘', ch: '폭', hp: 500, atk: 4, def: 2, spd: 1, leak: 3, eatLv: 2, size: 2, color: '#6d8a3a', weak: ['poison'], resist: ['water'] }, // v2.6.0
   gasmask: { name: '방독', desc: '독·질식 면역', ch: '독', hp: 34,  atk: 4,  def: 1, spd: 1, leak: 2,  immune: ['poison', 'suffocate'], color: '#5f7a4a', weak: ['fire'], resist: ['poison', 'wind'] }, // 독·질식 면역
   armored: { name: '중갑', desc: '방어 6 (관통 슬라임에 약함)', ch: '갑', hp: 70,  atk: 4,  def: 6, spd: 1, leak: 3,  color: '#8e96a3', weak: ['elec', 'water'], resist: ['earth', 'fire'] }, // 방어 6 (관통 슬라임에 약함)
   shaman:  { name: '주술사', desc: '2초마다 주변 고블린 8% 회복', ch: '주', hp: 26, atk: 2,  def: 0, spd: 1, leak: 2,  heal: 0.08, color: '#4b4f7a', weak: ['rad'], resist: ['ice'] }, // 2틱마다 앞뒤 2칸 고블린 최대HP 8% 회복
-  king:    { name: '고블린 왕', desc: '5챕터 보스 · 라운드마다 랜덤 출몰 · 1.5칸 크기, 주변 고블린 공격·방어 강화 + 2초마다 8% 회복, 기절 면역', ch: '왕', hp: 150, atk: 6, def: 4, spd: 1, leak: 8, size: 1.5, aura: true, heal: 0.08, boss: true, immune: ['stun'], color: '#e0b030', weak: ['rad'], resist: ['elec'] }, // v2.9.0 보스
+  king:    { name: '고블린 왕', desc: '중간 보스 · 챕터 X-5 · 무한의 탑 10층 단위 · 1.5칸 크기, 주변 고블린 공격·방어 강화 + 2초마다 8% 회복, 기절 면역', ch: '왕', hp: 150, atk: 6, def: 4, spd: 1, leak: 8, size: 1.5, aura: true, heal: 0.08, boss: true, immune: ['stun'], color: '#e0b030', weak: ['rad'], resist: ['elec'] }, // v2.9.0 보스
   cook:    { name: '요리사', desc: '쓰러지면 주변 고블린 40% 회복 + 공격 +20%', ch: '요', hp: 38, atk: 3,  def: 1, spd: 1, leak: 2,  feast: 0.4, color: '#d9c2a0', weak: ['water'], resist: ['fire'] },  // 쓰러지면 앞뒤 2칸 고블린 40% 회복 + 공격 +20%
 };
 
 // 라운드별 편성 [종류, 마릿수]. 목록을 번갈아 섞어 1초에 1마리씩 출발한다.
 // 1~4라운드: 경로 한 바퀴(25칸 = 25초) 안에 전원 출발 (최대 25마리)
 // 5~10라운드: 두 바퀴(50초) 동안 계속 출발 (26~50마리)
-// 초대형(오우거): 5라운드부터 매 라운드 1마리 (v2.9.2: 챕터·탑 모두 1마리, 진행 단계 2부터 등장)
+// 초대형(오우거): 편성표상 5라운드부터 1마리 (v2.10.0: 챕터는 X-10 오우거 이벤트에서만, 탑은 21층부터 등장)
 export const GIANT_FROM = 5, GIANT_MAX = 1;
 export const giantsFor = (chapter, round) => (round >= GIANT_FROM ? Math.min(GIANT_MAX, chapter) : 0);
 
@@ -254,11 +253,11 @@ function genRounds({ focus = [], chapter, unlockShift = 0 }) {
 }
 
 export const CHAPTERS = [
-  { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 2.46, atkMul: 1.45, firstHp: 1.52, boost: {},                         goldMul: 1.0, unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
-  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 0.61, atkMul: 0.75, firstHp: 11.4, boost: { fire: 1.25, ice: 0.75 },    goldMul: 1.5, unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], chapter: 2, unlockShift: 1 }) },
-  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 2.46, atkMul: 1.45, firstHp: 1.32, boost: { ice: 1.25, fire: 0.75 },     goldMul: 2.2, unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], chapter: 3, unlockShift: 2 }) },
-  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 2.12, atkMul: 1.38, firstHp: 1.45, boost: { poison: 1.25, water: 0.85 }, goldMul: 3.2, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], chapter: 4, unlockShift: 3 }) },
-  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 4.38, atkMul: 1.75, boost: { elec: 1.15, rad: 1.15 },     goldMul: 4.5, unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], chapter: 5, unlockShift: 4 }) },
+  { id: 1, name: '고블린 숲',   path: 'rows',    pathLabel: 'ㄹ자 (가로)',          hpMul: 2.92, atkMul: 1.54, boost: {},                         goldMul: 1.0, unlockAll: false, color: '#2f3a50', rounds: ROUND_TABLE },
+  { id: 2, name: '화산 동굴',   path: 'cols',    pathLabel: 'ㄹ자 (세로)',          hpMul: 4.38, atkMul: 1.75, boost: { fire: 1.25, ice: 0.75 },    goldMul: 1.5, unlockAll: true,  color: '#4a2f2c', rounds: genRounds({ focus: ['armored', 'fighter', 'cook'], chapter: 2, unlockShift: 1 }) },
+  { id: 3, name: '얼음 설원',   path: 'spiral',  pathLabel: '나선 (바깥→가운데)',   hpMul: 10.46, atkMul: 2.19, boost: { ice: 1.25, fire: 0.75 },     goldMul: 2.2, unlockAll: true,  color: '#2b4157', rounds: genRounds({ focus: ['rider', 'archer', 'smart'], chapter: 3, unlockShift: 2 }) },
+  { id: 4, name: '독 늪',       path: 'rowsRev', pathLabel: 'ㄹ자 (아래→위)',       hpMul: 19.78, atkMul: 2.51, boost: { poison: 1.25, water: 0.85 }, goldMul: 3.2, unlockAll: true,  color: '#2d4030', rounds: genRounds({ focus: ['gasmask', 'shaman', 'mage'], chapter: 4, unlockShift: 3 }) },
+  { id: 5, name: '고블린 왕성', path: 'colsRev', pathLabel: 'ㄹ자 (오른쪽→왼쪽)',   hpMul: 28.01, atkMul: 2.68, boost: { elec: 1.15, rad: 1.15 },     goldMul: 4.5, unlockAll: true,  color: '#3d2f4c', rounds: genRounds({ focus: ['captain', 'smart', 'armored', 'shaman'], chapter: 5, unlockShift: 4 }) },
 ];
 
 // 무한의 탑: 챕터 5 클리어 후 열림. 층마다 고블린이 강해지고 끝이 없다 (편성은 engine.towerRound)

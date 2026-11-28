@@ -173,5 +173,6 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
   border: 2px solid var(--accent); border-radius: 12px; padding: 14px 12px; text-align: center; font-size: 17px; font-weight: 700; word-break: keep-all;
   box-shadow: 0 6px 24px rgba(0,0,0,.5); opacity: 0; transform: scale(.9); transition: opacity .25s, transform .25s; }
 .bossbanner b { color: var(--accent); }
+.bossbanner small { font-size: 13px; font-weight: 400; color: #ffe9b0; }
 .bossbanner.show { opacity: 1; transform: scale(1); animation: bossPulse .9s ease-in-out 2; }
 @keyframes bossPulse { 50% { transform: scale(1.04); } }

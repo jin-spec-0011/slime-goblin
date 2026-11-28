@@ -23,18 +23,16 @@ export function createGame(seed = Date.now(), opts = {}) {
   const ch = tower ? TOWER : CHAPTERS[chapter - 1];
   setPath(ch.path);
   const mods = { ...DEFAULT_MODS, ...(opts.mods || {}) };
-  const unlocked = Math.max(0, Math.min(CHAPTERS.length, opts.unlocked | 0));   // 10라운드에 도달한 가장 높은 챕터 (진행 단계 해금)
-  const st0 = tower ? STAGE_MAX : Math.min(chapter, unlocked, STAGE_MAX);
   const s = {
     seed, rng: mulberry32(seed), tick: 0, round: tower || 1, phase: 'prep', prepLeft: CFG.FIRST_PREP,
-    unlocked, firstHp: !tower && st0 < Math.min(chapter, STAGE_MAX) ? (ch.firstHp ?? 1) : 1, baseHp: mods.baseHp, catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
+    event: null, baseHp: mods.baseHp, catalysts: CFG.CATALYST_START, mods, deck: opts.deck || null, tower: !!tower,
     gold: 0, crystals: 0, dropAcc: 0, autoRounds: new Set(),
     cells: Array.from({ length: CFG.D }, () => Array.from({ length: CFG.H }, () => Array(CFG.W).fill(null))),
     queue: [], goblins: [], spawnList: [], megas: [], nextId: 1, kills: 0, lost: 0,
     log: [], fx: [], counts: {}, autoField: opts.autoField ?? CFG.AUTO_FIELD, chapter, ch,
   };
   for (let i = 0; i < mods.startSlimes; i++) addQueue(s);
-  rollBoss(s);
+  rollRound(s);
   say(s, s.autoField ? '준비 단계: 슬라임이 필드에 랜덤 배치됩니다. 끌어서 겹치거나 옮기세요.' : '준비 단계: 슬라임을 배치하세요.');
   return s;
 }
@@ -457,29 +455,39 @@ export function towerRound(floor) {
 }
 
 // ---------- 고블린 ----------
-// 진행 단계 (챕터 X-9 클리어 = X-10 도달로 해금, 이번 판에서 X-10에 들어서는 순간 바로 적용)
-//  1 군단(1초 3마리, 칸당 3마리) · 2 오우거 등장 · 3 폭식 고블린 등장 · 4 라운드 물량 x2
-//  챕터 N은 단계 N까지만 (예전 챕터를 다시 해도 그 챕터의 단계까지만), 무한의 탑은 전 단계 · 5챕터는 보스 랜덤 출몰
-export const STAGE_MAX = 4;
-export const STAGE_MSG = ['', '⚔ 군단 해금! 고블린이 1초에 3마리, 한 칸에 3마리씩 몰려옵니다', '🪓 오우거 해금! 거대한 오우거가 모든 슬라임과 싸웁니다', '😋 폭식 고블린 해금! Lv2 이하 슬라임을 먹어 치웁니다', '📈 물량 2배 해금! 라운드 고블린 수가 2배가 됩니다'];
+// 챕터 (v2.10.0): 1~9라운드는 기본 (1초 1마리 · 칸당 1마리 · 오우거·폭식 없음 · 물량 x1)
+//   X-5: 중간 보스 고블린 왕 · X-10: 오우거 / 폭식 / 군단 / 물량 2배 중 하나가 랜덤 이벤트로 등장
 // 무한의 탑: 10층마다 한 단계씩 (1~10층 기본 · 11층 군단 · 21층 오우거 · 31층 폭식 · 41층~ 물량 x2), 10층 단위로 보스
+export const STAGE_MAX = 4, MID_BOSS_ROUND = 5;
 export const TOWER_STAGE_FLOORS = 10;
 export const towerStage = floor => Math.min(STAGE_MAX, Math.floor((floor - 1) / TOWER_STAGE_FLOORS));
-export const stageOf = s => (s.tower ? towerStage(s.round) : Math.min(s.chapter, STAGE_MAX, Math.max(s.unlocked || 0, s.round >= CFG.ROUNDS ? s.chapter : 0)));
-export const surfaceCap = s => (stageOf(s) >= 1 ? CFG.SURFACE_CAP : 1);
-const spawnPerTick = s => (stageOf(s) >= 1 ? CFG.SPAWN_PER_TICK : 1);
-// v2.9.2: 챕터 거점 배율(범핑)과 적응형 거점 보정 제거. 난이도는 고블린 능력치로만 조절 (첫 도전은 ch.firstHp 배율)
+export const EVENTS = ['ogre', 'glutton', 'horde', 'double'];
+export const EVENT_INFO = {
+  ogre: { icon: '🪓', name: '오우거', msg: '오우거 등장! 모든 슬라임과 싸우는 거인' },
+  glutton: { icon: '😋', name: '폭식 고블린', msg: '폭식 고블린 등장! Lv2 이하 슬라임을 먹어 치웁니다' },
+  horde: { icon: '⚔', name: '군단', msg: '군단! 1초에 3마리, 한 칸에 3마리씩 몰려옵니다' },
+  double: { icon: '📈', name: '물량 2배', msg: '물량 2배! 이번 라운드 고블린 수가 2배' },
+};
+// 이번 라운드(층)에 켜진 특수 요소
+export function feat(s) {
+  if (s.tower) { const st = towerStage(s.round); return { horde: st >= 1, ogre: st >= 2, glutton: st >= 3, double: st >= 4 }; }
+  const e = s.round === CFG.ROUNDS ? s.event : null;
+  return { horde: e === 'horde', ogre: e === 'ogre', glutton: e === 'glutton', double: e === 'double' };
+}
+export const surfaceCap = s => (feat(s).horde ? CFG.SURFACE_CAP : 1);
+const spawnPerTick = s => (feat(s).horde ? CFG.SPAWN_PER_TICK : 1);
 function buildSpawn(s, round) {
-  const stage = stageOf(s), base = s.tower ? towerRound(round) : s.ch.rounds[round - 1];
-  // 오우거는 단계 2부터 (그 전에는 등장하지 않음), 폭식 고블린은 단계 3부터 (그 전에는 같은 수의 일반 고블린)
-  const table = base.filter(([t]) => stage >= 2 || t !== 'giant').map(([t, n]) => [t === 'glutton' && stage < 3 ? 'normal' : t, n]);
-  // 물량 배율은 단계 4부터 (오우거·보스 수는 그대로)
-  const mul = stage >= 4 ? CFG.SPAWN_COUNT_MUL : 1;
+  const f = feat(s), base = s.tower ? towerRound(round) : s.ch.rounds[round - 1];
+  // 오우거·폭식은 켜진 라운드에만 (꺼져 있으면 오우거는 빠지고, 폭식은 같은 수의 일반 고블린)
+  const table = base.filter(([t]) => f.ogre || t !== 'giant').map(([t, n]) => [t === 'glutton' && !f.glutton ? 'normal' : t, n]);
+  if (f.ogre && !table.some(([t]) => t === 'giant')) table.push(['giant', 1]);
+  if (f.glutton && !table.some(([t]) => t === 'glutton')) table.push(['glutton', 2]);
+  // 물량 배율 (오우거·보스 수는 그대로)
+  const mul = f.double ? CFG.SPAWN_COUNT_MUL : 1;
   const groups = table.map(([t, n]) => Array(t === 'giant' ? n : Math.round(n * mul)).fill(t));
   const out = []; let more = true;
   while (more) { more = false; for (const g of groups) if (g.length) { out.push(g.shift()); more = true; } }
-  // 5챕터: 2라운드부터 라운드마다 확률적으로 보스(고블린 왕)가 무리 한가운데에 출몰
-  // 보스(고블린 왕): 5챕터는 라운드마다 확률, 무한의 탑은 10층 단위. 준비 단계에서 미리 정해 경고를 띄운다
+  // 보스(고블린 왕): 챕터는 X-5 중간 보스, 무한의 탑은 10층 단위. 준비 단계에서 미리 정해 경고를 띄운다
   if (s.bossRound === round) out.splice(Math.floor(out.length / 2), 0, 'king');
   return out;
 }
@@ -493,7 +501,7 @@ function makeGoblin(s, type) {
   // 오우거(chAnchor): 챕터 1 배율을 기준점으로 나눈다 -> 챕터 1에서는 항상 기본 능력치(Lv5 약 5마리로 막힘),
   // 챕터 2~5는 챕터 1 대비 배율만큼만 강해진다. 챕터 밸런스를 다시 맞춰도 오우거 세기가 흔들리지 않음
   if (d.chAnchor && !s.tower) { hpMul = 1; atkMul = 1; }   // v2.9.2: 오우거는 챕터 배율 없이 고정 능력치 (라운드 성장·적응형만)
-  if (!s.tower) { hpMul *= (s.mods.diffHp || 1) * (s.firstHp || 1); atkMul *= s.mods.diffAtk || 1; } // 적응형 난이도 + 첫 도전 보정
+  if (!s.tower) { hpMul *= s.mods.diffHp || 1; atkMul *= s.mods.diffAtk || 1; } // 적응형 난이도 (플레이어 전투력 비례)
   const hp = Math.round(d.hp * Math.pow(CFG.HP_GROWTH, r) * hpMul);
   return {
     id: s.nextId++, type, name: d.name, ch: d.ch, color: d.color, hp, maxhp: hp,
@@ -511,13 +519,17 @@ const laneW = (s, g) => ((GOBLINS[g.type].size || 1) > 1 ? surfaceCap(s) : 1);
 const surfaceOcc = (s, idx, add = 1) => s.goblins.reduce((n, g) => n + (!g.dead && !g.pit && g.idx === idx ? laneW(s, g) : 0), 0) + add > surfaceCap(s);
 const pitOcc = (s, idx, self = null) => s.goblins.some(g => !g.dead && g.pit && g.idx === idx && g !== self);
 
-// 이번 라운드(층)에 보스가 나오는지 준비 단계 시작 시 결정 → 경고 메시지
-export function rollBoss(s) {
-  const r = s.round;
-  const boss = s.tower ? r % TOWER_STAGE_FLOORS === 0 : s.chapter === CHAPTERS.length && r >= 2 && s.rng() < CFG.BOSS_CHANCE;
+// 준비 단계 시작 시 이번 라운드(층)의 보스·이벤트를 미리 정하고 경고 메시지
+export function rollRound(s) {
+  const r = s.round, boss = s.tower ? r % TOWER_STAGE_FLOORS === 0 : r === MID_BOSS_ROUND;
   s.bossRound = boss ? r : 0; s.bossNear = false;
-  if (boss) { say(s, `👑 경고! 이번 ${s.tower ? '층' : '라운드'}에 보스 고블린 왕이 나타납니다`); s.fx.push({ k: 'boss', t: 'prep' }); }
+  if (boss) { say(s, `👑 경고! 이번 ${s.tower ? '층' : '라운드'}에 ${s.tower ? '' : '중간 '}보스 고블린 왕이 나타납니다`); s.fx.push({ k: 'boss', t: 'prep' }); }
+  if (!s.tower && r === CFG.ROUNDS) {
+    s.event = EVENTS[Math.floor(s.rng() * EVENTS.length)];
+    const e = EVENT_INFO[s.event]; say(s, `${e.icon} ${r}라운드 이벤트: ${e.msg}`); s.fx.push({ k: 'event', e: s.event });
+  }
 }
+export const rollBoss = rollRound;
 function startRound(s) {
   s.phase = 'run'; s.spawnList = buildSpawn(s, s.round);
   say(s, `라운드 ${s.round} 시작! 고블린 ${s.spawnList.length}마리`);
@@ -798,10 +810,8 @@ export function step(s) {
       s.crystals += Math.round(c);
       s.phase = 'won'; say(s, `챕터 ${s.chapter} ${s.ch.name} 클리어! 골드 +${g0}, 원소 결정 +${Math.round(c)}${manual ? ' (직접 지휘 1.5배)' : ''}`); return;
     }
-    const stBefore = stageOf(s);
-    s.round++; s.phase = 'prep'; rollBoss(s); s.prepLeft = s.tower ? CFG.TOWER_PREP : CFG.PREP_TICKS; s.catalysts += s.mods.catPerRound;
+    s.round++; s.phase = 'prep'; rollRound(s); s.prepLeft = s.tower ? CFG.TOWER_PREP : CFG.PREP_TICKS; s.catalysts += s.mods.catPerRound;
     for (let i = 0; i < CFG.ROUND_BONUS_SLIMES; i++) addQueue(s);
     say(s, `${s.tower ? `탑 ${s.round - 1}층` : `라운드 ${s.round - 1}`} 클리어! 골드 +${g0}, 촉매 +${s.mods.catPerRound}`);
-    if (stageOf(s) > stBefore) say(s, STAGE_MSG[stageOf(s)]);
   }
 }

@@ -328,11 +328,11 @@ for (const c of CHAPTERS) {
 {
   const g = cg(81); g.round = 5; g.prepLeft = 1; step(g); g.goblins = []; g.spawnList = ['giant']; step(g);
   const o = g.goblins.find(v => v.type === 'giant');
-  const want = Math.round(GOBLINS.giant.hp * Math.pow(CFG.HP_GROWTH, 4) * (g.firstHp || 1));
+  const want = Math.round(GOBLINS.giant.hp * Math.pow(CFG.HP_GROWTH, 4));
   t('오우거: 챕터 1 체력 = 기본 x 라운드 성장 (챕터 배율 미적용)', o && Math.abs(o.maxhp - want) <= 1, `${o?.maxhp} vs ${want}`);
   const g2 = createGame(81, { chapter: 3, autoField: false, unlocked: 5 }); g2.round = 5; g2.prepLeft = 1; step(g2); g2.goblins = []; g2.spawnList = ['giant']; step(g2);
   const o2 = g2.goblins.find(v => v.type === 'giant');
-  t('오우거: 챕터와 무관하게 같은 능력치 (v2.9.2, 첫 도전 보정 제외)', o2 && Math.abs(o2.maxhp - o.maxhp / (g.firstHp || 1)) <= 1);
+  t('오우거: 챕터와 무관하게 같은 능력치 (v2.9.2)', o2 && o2.maxhp === o.maxhp);
 }
 // 덱은 정확히 8종: 편집 중 빼기 가능, 9번째 추가 불가, 입장 조건 deckReady, 짧은 저장 덱은 8종으로 채움
 {
@@ -462,32 +462,27 @@ for (const c of CHAPTERS) {
   t('면역 규칙: 오우거는 무시 없음 (v2.9.0)', !ENG.ignores(ogre, sl(1)) && !ENG.ignores(ogre, sl(5)) && !ENG.ignores(ogre, mega));
   t('면역 규칙: 일반 고블린은 무시 없음', !ENG.ignores(normal, sl(1)));
 }
-// 진행 단계 (챕터 X-10 도달로 해금): 1 군단 · 2 오우거 · 3 폭식 · 4 물량 x2 · 5챕터 보스
+// v2.10.0: 챕터 1~9라운드 기본 · X-5 중간 보스 · X-10 랜덤 이벤트 (오우거/폭식/군단/물량 2배) · 탑은 10층 단계
 {
-  const H = (seed, chapter, unlocked) => createGame(seed, { autoField: false, chapter, unlocked });
-  const spawnAt = (gm, r) => { gm.cells.forEach(f => f.forEach(rw => rw.fill(null))); gm.queue = []; gm.round = r; ENG.rollBoss(gm); gm.prepLeft = 1; gm.phase = 'prep'; gm.spawnList = []; gm.goblins = []; step(gm); return [...gm.spawnList, ...gm.goblins.map(o => o.type)]; };
-  t('단계: 챕터 N은 단계 N까지 · 탑은 4', ENG.stageOf(H(1, 1, 5)) === 1 && ENG.stageOf(H(1, 3, 5)) === 3 && ENG.stageOf(H(1, 3, 1)) === 1 && ENG.stageOf(createGame(1, { tower: 1 })) === 0);
-  t('탑 단계: 1~10층 0 · 11층 1 · 21층 2 · 31층 3 · 41층~ 4', [1, 10, 11, 21, 31, 41, 80].map(ENG.towerStage).join() === '0,0,1,2,3,4,4');
-  { const tw = createGame(5, { tower: 1, autoField: false }); const at = f => { tw.round = f; ENG.rollBoss(tw); tw.prepLeft = 1; tw.phase = 'prep'; tw.spawnList = []; tw.goblins = []; step(tw); return [...tw.spawnList, ...tw.goblins.map(o => o.type)]; };
-    t('탑 보스: 10층 단위에만 고블린 왕', at(10).includes('king') && at(20).includes('king') && !at(9).includes('king') && !at(11).includes('king'));
-    t('탑 1~10층: 오우거·폭식 없음', !at(3).includes('giant') && !at(3).includes('glutton')); }
-  const n0 = H(107, 1, 0); t('단계0 (첫 1-1~1-9): 1초 1마리·칸당 1마리', ENG.stageOf(n0) === 0 && ENG.surfaceCap(n0) === 1);
-  t('단계0 물량 x1: 1-3 18마리', spawnAt(n0, 3).length === 18);
-  const r10 = H(108, 1, 0); r10.round = 10; t('1-10 도달 순간 군단 (이번 판)', ENG.stageOf(r10) === 1);
-  const c1 = H(108, 1, 1); spawnAt(c1, 3); step(c1);
-  t('단계1 물량 x1 + 1초 3마리', c1.spawnList.length + c1.goblins.length === 18 && c1.goblins.length === CFG.SPAWN_PER_TICK);
-  const byIdx = {}; step(c1); for (const o of c1.goblins) if (!o.pit) byIdx[o.idx] = (byIdx[o.idx] || 0) + 1;
-  t('단계1 칸당 최대 SURFACE_CAP마리', Object.values(byIdx).every(c => c <= CFG.SURFACE_CAP));
-  t('오우거: 단계1(2-1~2-9 첫 도전)에는 없음', !spawnAt(H(109, 2, 1), 6).includes('giant'));
-  const og = spawnAt(H(109, 2, 2), 6); t('오우거: 단계2부터 등장 (라운드당 1마리)', og.filter(x => x === 'giant').length === 1);
-  const f1 = spawnAt(H(110, 3, 2), 6), f2 = spawnAt(H(110, 3, 3), 6);
-  t('폭식: 단계3 전에는 같은 수의 일반 고블린', !f1.includes('glutton') && f2.includes('glutton') && f1.length === f2.length);
-  const m3 = spawnAt(H(111, 4, 3), 3), m4 = spawnAt(H(111, 4, 4), 3);
-  t('물량 x2: 단계4부터 (오우거 제외)', m4.filter(x => x !== 'giant').length === Math.round(m3.filter(x => x !== 'giant').length * CFG.SPAWN_COUNT_MUL));
-  let boss = 0; for (let sd = 1; sd <= 40; sd++) if (spawnAt(H(200 + sd, 5, 4), 4).includes('king')) boss++;
-  t('5챕터 보스 랜덤 출몰 (확률 근처)', boss > 4 && boss < 26, `${boss}/40`);
-  t('보스: 5챕터 외에는 없음 · 탑 편성에도 없음', !spawnAt(H(300, 4, 4), 4).includes('king') && !towerRound(20).some(([k]) => k === 'king'));
-  t('첫 도전 체력 보정 firstHp: 첫 도전만 적용', createGame(1, { chapter: 3, unlocked: 2 }).firstHp === (CHAPTERS[2].firstHp ?? 1) && createGame(1, { chapter: 3, unlocked: 5 }).firstHp === 1);
+  const H = (seed, chapter) => createGame(seed, { autoField: false, chapter });
+  const spawnAt = (gm, r, ev) => { gm.cells.forEach(f => f.forEach(rw => rw.fill(null))); gm.queue = []; gm.round = r; ENG.rollRound(gm); if (ev) gm.event = ev; gm.prepLeft = 1; gm.phase = 'prep'; gm.spawnList = []; gm.goblins = []; step(gm); return [...gm.spawnList, ...gm.goblins.map(o => o.type)]; };
+  const n0 = H(107, 3); t('1~9라운드: 1초 1마리·칸당 1마리', ENG.surfaceCap(n0) === 1 && !ENG.feat(n0).horde);
+  const r6 = spawnAt(H(108, 4), 6); t('1~9라운드: 오우거·폭식 없음 (폭식 자리는 일반)', !r6.includes('giant') && !r6.includes('glutton'));
+  t('물량 x1: 1-3 18마리', spawnAt(H(107, 1), 3).length === 18);
+  for (const c of [1, 3, 5]) t(`중간 보스: ${c}-5에 고블린 왕`, spawnAt(H(110 + c, c), 5).includes('king'));
+  t('중간 보스: 5라운드 외에는 없음', !spawnAt(H(120, 5), 4).includes('king') && !spawnAt(H(121, 5), 6).includes('king'));
+  const g10 = H(130, 2); g10.round = 10; g10.fx = []; ENG.rollRound(g10);
+  t('10라운드: 4종 중 하나 랜덤 이벤트 + 경고', ENG.EVENTS.includes(g10.event) && g10.fx.some(f => f.k === 'event' && f.e === g10.event));
+  const seen = new Set(); for (let sd = 1; sd <= 40; sd++) { const g = H(200 + sd, 3); g.round = 10; ENG.rollRound(g); seen.add(g.event); }
+  t('10라운드 이벤트: 4종 모두 나옴 (40판)', seen.size === 4);
+  t('이벤트 오우거: 10라운드에 오우거 1마리', spawnAt(H(140, 2), 10, 'ogre').filter(x => x === 'giant').length === 1);
+  const gl = spawnAt(H(141, 3), 10, 'glutton'), gn = spawnAt(H(141, 3), 10, 'horde');
+  t('이벤트 폭식: 폭식 등장 (다른 이벤트에는 없음)', gl.includes('glutton') && !gn.includes('glutton') && !gn.includes('giant'));
+  const d1 = spawnAt(H(142, 4), 10, 'horde').filter(x => x !== 'giant' && x !== 'king').length, d2 = spawnAt(H(142, 4), 10, 'double').filter(x => x !== 'giant' && x !== 'king').length;
+  t('이벤트 물량 2배', d2 === Math.round(d1 * CFG.SPAWN_COUNT_MUL));
+  const hg = H(143, 1); spawnAt(hg, 10, 'horde'); step(hg);
+  t('이벤트 군단: 1초 3마리·칸당 3마리', ENG.surfaceCap(hg) === CFG.SURFACE_CAP && hg.goblins.length === CFG.SPAWN_PER_TICK);
+  t('보스: 탑 편성표에는 없음', !towerRound(20).some(([k]) => k === 'king'));
 }
 // v2.9.0: 비밀 족보 슬라임 공격·방어 x1.3
 {

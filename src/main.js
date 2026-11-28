@@ -9,7 +9,7 @@ import { loadAccount, saveAccount, clearAccount, signUp, signIn, submitFloor, fe
 import { NOTES, LATEST_NOTE } from './notes.js';
 import {
   autoPlay, setMods, createGame, step, placeFromQueue, moveSlime, combine, makeMega, comboMegaCount, recipeHint, skipPrep,
-  getCell, slimeCount, PATH, lvMult, craftable, towerRound,
+  getCell, slimeCount, PATH, lvMult, craftable, EVENT_INFO, MID_BOSS_ROUND,
 } from './engine.js';
 
 const $ = id => document.getElementById(id);
@@ -37,7 +37,7 @@ function commitEarnings(realDt) {
   if (ui.sessionSec > 60) PROF.goldRate = (ui.sessionGold / ui.sessionSec) * 60;
   saveProf();
 }
-export const APP_VERSION = 'v2.9.5'; // sw.js VERSION과 함께 올린다
+export const APP_VERSION = 'v2.10.0'; // sw.js VERSION과 함께 올린다
 
 const ui = {
   g: null, speed: 1, paused: false, acc: 0, last: 0,
@@ -827,7 +827,7 @@ function showHelp(after = null) {
   const gbs = Object.entries(GOBLINS).map(([k, d]) => `<tr><td><img class="gimg" src="assets/goblin_${k}.png" alt=""> ${d.name}<br><small>${d.desc || ''}</small></td><td>${atl(d.weak || [])}</td><td>${atl(d.resist || [])}</td><td>-${d.leak}</td></tr>`).join('');
   showModal(`게임 방법 · ${APP_VERSION}`, `
     <p>고블린은 전장의 <b>점선 경로</b>를 따라 이동합니다(챕터마다 모양이 다름). 슬라임이 있는 칸에 들어가면 <b>슬라임 안에 갇혀</b> 대결하고, 슬라임이 없으면 통과합니다. 한 슬라임에는 고블린 1마리만 갇히고, 뒤 고블린은 지나갑니다.</p>
-    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). <b>진행 단계</b>: 1-10부터 군단(1초 3마리·칸당 3마리), 2-10부터 오우거, 3-10부터 폭식 고블린, 4-10부터 물량 2배, 5챕터는 보스 고블린 왕 랜덤 출몰. 무한의 탑은 10층마다 한 단계씩 강해지고 10층 단위로 보스가 나옵니다. 물 슬라임은 지급되지 않으며 <b>H₂O(H×2+O)</b>가 물 역할을 합니다. 슬라임은 <b>${CFG.DROP_EVERY}초마다 1마리</b>(지급 속도 강화 시 최대 ${dropEvery(UPGRADES.drop.max)}초) 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 덱에 쌓지 않고 <b>같은 원소 슬라임에 자동으로 겹치며</b>(경로 앞쪽 우선), 겹칠 곳이 없으면 지급되지 않습니다. 아래 <b>추천 조합</b> 버튼은 지금 필드에서 만들 수 있는 화학 족보를 보여 줍니다. 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
+    <p>고블린은 <b>1초에 1칸</b> 이동하고 1초마다 1마리씩 출발합니다(초대형은 2초에 1칸). <b>챕터</b>: 5라운드에 중간 보스 고블린 왕, 10라운드에 오우거·폭식 고블린·군단(1초 3마리·칸당 3마리)·물량 2배 중 하나가 랜덤 이벤트로 나옵니다. <b>무한의 탑</b>은 10층마다 한 단계씩 강해지고(11층 군단 · 21층 오우거 · 31층 폭식 · 41층 물량 2배) 10층 단위로 보스가 나옵니다. 물 슬라임은 지급되지 않으며 <b>H₂O(H×2+O)</b>가 물 역할을 합니다. 슬라임은 <b>${CFG.DROP_EVERY}초마다 1마리</b>(지급 속도 강화 시 최대 ${dropEvery(UPGRADES.drop.max)}초) 지급되며, 처음에는 <b>필드 빈칸에 랜덤 배치</b>됩니다. 필드 25칸이 모두 차면 덱에 쌓지 않고 <b>같은 원소 슬라임에 자동으로 겹치며</b>(경로 앞쪽 우선), 겹칠 곳이 없으면 지급되지 않습니다. 아래 <b>추천 조합</b> 버튼은 지금 필드에서 만들 수 있는 화학 족보를 보여 줍니다. 필드의 슬라임은 끌어서 옮기거나, 같은 슬라임 위에 놓아 겹칠 수 있습니다(Lv+1, 최대 5).</p>
     <p><b>속성</b>: 모든 슬라임은 8속성 중 하나입니다(🔥불 💧물 ⚡전기 ❄얼음 🌪바람 ⛰대지 ☠독 ☢방사). 고블린마다 <b>약점 속성(피해 ×${CFG.WEAK_MUL}, 주황 숫자)</b>과 <b>내성 속성(×${CFG.RESIST_MUL}, 회색 숫자)</b>이 있습니다.</p>
     <p><b>조합</b>(촉매 1개): ① 화학 족보 정확히 일치 → 화합물 150% ② <b>서로 다른 속성 2마리 → 속성 합성 ${Math.round(CFG.FUSION_MUL * 100)}%</b> ③ 그 외 → 혼합물 70%.</p>
     <p><b>메가</b>: ${CFG.MEGA_ROUND}라운드부터 사용 가능. Lv5 같은 슬라임 3개 → 3×3 구역, 최대 ${CFG.MEGA_MAX_TARGETS}마리 동시 공격. 원소 메가는 제한 없음. <b>조합 메가</b>(화학 족보·비밀 족보·속성 합성 Lv5 ×3)는 <b>동시에 ${CFG.COMBO_MEGA_MAX}마리</b>만, 파괴되면 다시 만들 수 있습니다(혼합물 불가).</p>
@@ -845,20 +845,21 @@ function showHelp(after = null) {
 
 // ---------- 루프 ----------
 // 보스 경고 배너: 준비 단계 시작(이번 라운드 보스) · 입장 직전 · 입장
-function bossBanner(t) {
-  const g = ui.g, unit = g.tower ? '층' : '라운드';
-  const text = { prep: `👑 경고! 이번 ${unit}에 보스 <b>고블린 왕</b> 등장`, near: '👑 보스가 곧 들어옵니다!', enter: '👑 보스 <b>고블린 왕</b> 입장!' }[t];
+function bossBanner(t, ev) {
+  const g = ui.g, unit = g.tower ? '층' : '라운드', e = EVENT_INFO[ev];
+  const text = { prep: `👑 경고! 이번 ${unit}에 ${g.tower ? '' : '중간 '}보스 <b>고블린 왕</b> 등장`, near: '👑 보스가 곧 들어옵니다!', enter: '👑 보스 <b>고블린 왕</b> 입장!', event: e ? `${e.icon} ${CFG.ROUNDS}라운드 이벤트: <b>${e.name}</b><br><small>${e.msg}</small>` : '' }[t];
   if (!text) return;
   let el = $('bossBanner');
   if (!el) { el = document.createElement('div'); el.id = 'bossBanner'; el.className = 'bossbanner'; el.setAttribute('role', 'alert'); $('app').appendChild(el); }
   el.innerHTML = text; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
-  clearTimeout(ui.bossTimer); ui.bossTimer = setTimeout(() => el.classList.remove('show'), t === 'prep' ? 3500 : 2500);
+  clearTimeout(ui.bossTimer); ui.bossTimer = setTimeout(() => el.classList.remove('show'), t === 'prep' || t === 'event' ? 3500 : 2500);
   if (navigator.vibrate) { try { navigator.vibrate(t === 'enter' ? [60, 40, 60] : 40); } catch { /* 미지원 */ } }
 }
 function collectFx() {
   const now = performance.now();
   for (const f of ui.g.fx) {
     if (f.k === 'boss') bossBanner(f.t);
+    if (f.k === 'event') bossBanner('event', f.e);
     if (f.k === 'dmg') {
       const weak = f.who === 'g' && f.aff > 1, resist = f.who === 'g' && f.aff < 1;
       ui.floats.push({ idx: f.idx, text: (f.who === 'g' ? '-' : '▼') + f.v + (weak ? '!' : ''), t0: now, dx: (Math.random() - 0.5) * 18,
@@ -908,8 +909,12 @@ function checkEnd() {
 const attrTxt = a => `${ATTRS[a].icon}${ATTRS[a].label}`;
 function fieldLine(g) {
   const boost = Object.entries(g.ch.boost || {}).map(([a, m]) => `<span class="${m > 1 ? 'tw' : 'tr'}">${attrTxt(a)} ${m > 1 ? '+' : '−'}${Math.round(Math.abs(m - 1) * 100)}%</span>`).join(' ');
-  const nextBoss = Math.ceil(g.round / 10) * 10;
-  return `<b>${g.tower ? '♾ 무한의 탑' : `${g.chapter}. ${g.ch.name}`}</b> · 경로 ${g.ch.pathLabel}${g.tower ? ` · ${g.round % 10 === 0 ? '<span class="tr">👑 보스 층</span>' : `다음 보스 ${nextBoss}층`}` : ''} · ${boost ? `환경 ${boost}` : '환경 보정 없음'}`;
+  const nextBoss = Math.ceil(g.round / 10) * 10, ev = EVENT_INFO[g.event];
+  const sched = g.tower ? (g.round % 10 === 0 ? '<span class="tr">👑 보스 층</span>' : `다음 보스 ${nextBoss}층`)
+    : g.round === MID_BOSS_ROUND ? '<span class="tr">👑 중간 보스 라운드</span>'
+    : g.round === CFG.ROUNDS && ev ? `<span class="tr">${ev.icon} 이벤트: ${ev.name}</span>`
+    : g.round < MID_BOSS_ROUND ? `${MID_BOSS_ROUND}R 중간 보스 · ${CFG.ROUNDS}R 랜덤 이벤트` : `${CFG.ROUNDS}R 랜덤 이벤트`;
+  return `<b>${g.tower ? '♾ 무한의 탑' : `${g.chapter}. ${g.ch.name}`}</b> · 경로 ${g.ch.pathLabel} · ${sched} · ${boost ? `환경 ${boost}` : '환경 보정 없음'}`;
 }
 const recAttrs = r => (r.attr ? [r.attr] : [...new Set(Object.keys(r.need).map(k => EL[k]?.attr).filter(Boolean))]);
 const needTxt = r => Object.entries(r.need).map(([k, n]) => `${k === 'WATER' ? 'H₂O' : k}${n > 1 ? '×' + n : ''}`).join('+');
