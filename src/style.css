@@ -161,6 +161,7 @@ canvas { display: block; width: 100%; touch-action: none; border-radius: 6px; }
 .recos { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 6px; touch-action: pan-x; align-items: center; }
 .reco { flex: none; background: var(--panel2); border: 2px solid var(--accent); color: var(--text); border-radius: 8px; padding: 3px 9px; display: flex; flex-direction: column; align-items: center; font-size: 13px; min-height: 40px; cursor: pointer; }
 .reco small { color: var(--sub); font-size: 10px; }
+.reco .ra { font-size: 10px; white-space: nowrap; }
 .reco:disabled { opacity: .45; border-color: var(--line); cursor: default; }
 .recos .none { font-size: 11px; color: var(--sub); }
 .tut[hidden], .recos[hidden] { display: none; }

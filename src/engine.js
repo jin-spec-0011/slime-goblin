@@ -461,7 +461,10 @@ export function towerRound(floor) {
 //  챕터 N은 단계 N까지만 (예전 챕터를 다시 해도 그 챕터의 단계까지만), 무한의 탑은 전 단계 · 5챕터는 보스 랜덤 출몰
 export const STAGE_MAX = 4;
 export const STAGE_MSG = ['', '⚔ 군단 해금! 고블린이 1초에 3마리, 한 칸에 3마리씩 몰려옵니다', '🪓 오우거 해금! 거대한 오우거가 모든 슬라임과 싸웁니다', '😋 폭식 고블린 해금! Lv2 이하 슬라임을 먹어 치웁니다', '📈 물량 2배 해금! 라운드 고블린 수가 2배가 됩니다'];
-export const stageOf = s => (s.tower ? STAGE_MAX : Math.min(s.chapter, STAGE_MAX, Math.max(s.unlocked || 0, s.round >= CFG.ROUNDS ? s.chapter : 0)));
+// 무한의 탑: 10층마다 한 단계씩 (1~10층 기본 · 11층 군단 · 21층 오우거 · 31층 폭식 · 41층~ 물량 x2), 10층 단위로 보스
+export const TOWER_STAGE_FLOORS = 10;
+export const towerStage = floor => Math.min(STAGE_MAX, Math.floor((floor - 1) / TOWER_STAGE_FLOORS));
+export const stageOf = s => (s.tower ? towerStage(s.round) : Math.min(s.chapter, STAGE_MAX, Math.max(s.unlocked || 0, s.round >= CFG.ROUNDS ? s.chapter : 0)));
 export const surfaceCap = s => (stageOf(s) >= 1 ? CFG.SURFACE_CAP : 1);
 const spawnPerTick = s => (stageOf(s) >= 1 ? CFG.SPAWN_PER_TICK : 1);
 // v2.9.2: 챕터 거점 배율(범핑)과 적응형 거점 보정 제거. 난이도는 고블린 능력치로만 조절 (첫 도전은 ch.firstHp 배율)
@@ -476,6 +479,8 @@ function buildSpawn(s, round) {
   while (more) { more = false; for (const g of groups) if (g.length) { out.push(g.shift()); more = true; } }
   // 5챕터: 2라운드부터 라운드마다 확률적으로 보스(고블린 왕)가 무리 한가운데에 출몰
   if (!s.tower && s.chapter === CHAPTERS.length && round >= 2 && s.rng() < CFG.BOSS_CHANCE) out.splice(Math.floor(out.length / 2), 0, 'king');
+  // 무한의 탑: 10·20·30…층마다 보스(고블린 왕) 등장
+  if (s.tower && round % TOWER_STAGE_FLOORS === 0) out.splice(Math.floor(out.length / 2), 0, 'king');
   return out;
 }
 

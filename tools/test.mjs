@@ -466,7 +466,11 @@ for (const c of CHAPTERS) {
 {
   const H = (seed, chapter, unlocked) => createGame(seed, { autoField: false, chapter, unlocked });
   const spawnAt = (gm, r) => { gm.cells.forEach(f => f.forEach(rw => rw.fill(null))); gm.queue = []; gm.round = r; gm.prepLeft = 1; gm.phase = 'prep'; gm.spawnList = []; gm.goblins = []; step(gm); return [...gm.spawnList, ...gm.goblins.map(o => o.type)]; };
-  t('단계: 챕터 N은 단계 N까지 · 탑은 4', ENG.stageOf(H(1, 1, 5)) === 1 && ENG.stageOf(H(1, 3, 5)) === 3 && ENG.stageOf(H(1, 3, 1)) === 1 && ENG.stageOf(createGame(1, { tower: 1 })) === 4);
+  t('단계: 챕터 N은 단계 N까지 · 탑은 4', ENG.stageOf(H(1, 1, 5)) === 1 && ENG.stageOf(H(1, 3, 5)) === 3 && ENG.stageOf(H(1, 3, 1)) === 1 && ENG.stageOf(createGame(1, { tower: 1 })) === 0);
+  t('탑 단계: 1~10층 0 · 11층 1 · 21층 2 · 31층 3 · 41층~ 4', [1, 10, 11, 21, 31, 41, 80].map(ENG.towerStage).join() === '0,0,1,2,3,4,4');
+  { const tw = createGame(5, { tower: 1, autoField: false }); const at = f => { tw.round = f; tw.prepLeft = 1; tw.phase = 'prep'; tw.spawnList = []; tw.goblins = []; step(tw); return [...tw.spawnList, ...tw.goblins.map(o => o.type)]; };
+    t('탑 보스: 10층 단위에만 고블린 왕', at(10).includes('king') && at(20).includes('king') && !at(9).includes('king') && !at(11).includes('king'));
+    t('탑 1~10층: 오우거·폭식 없음', !at(3).includes('giant') && !at(3).includes('glutton')); }
   const n0 = H(107, 1, 0); t('단계0 (첫 1-1~1-9): 1초 1마리·칸당 1마리', ENG.stageOf(n0) === 0 && ENG.surfaceCap(n0) === 1);
   t('단계0 물량 x1: 1-3 18마리', spawnAt(n0, 3).length === 18);
   const r10 = H(108, 1, 0); r10.round = 10; t('1-10 도달 순간 군단 (이번 판)', ENG.stageOf(r10) === 1);
